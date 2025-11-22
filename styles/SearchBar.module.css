@@ -1,80 +1,102 @@
-/* components/SearchBar.module.css */
+/* ROOT WRAPPER — agar bisa sticky saat search aktif */
+.wrapper {
+  width: 100%;
+  background: #fff;
+  padding-bottom: 6px;
+  position: relative;
+  z-index: 5;
+}
 
+
+/* MAIN BAR */
 .root {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 10px 25px;
   justify-content: space-between;
   box-sizing: border-box;
 }
 
+/* SEARCH BOX */
 .search {
   width: 276px;
-  max-width: calc(100% - 84px);
   height: 42px;
   border-radius: 6px;
-  border: 1px solid #E5E7EB;
-  padding: 0 14px; /* kita atur padding horizontal dan biarkan input flex */
+  border: 1px solid #e5e7eb;
+  padding: 0 14px;
   display: flex;
   align-items: center;
   gap: 10px;
-  box-sizing: border-box;
   background: #fff;
 }
 
-/* input harus mengisi space kiri */
 .search input {
   border: none;
   outline: none;
   font-size: 14px;
   width: 100%;
-  padding: 12px 0; /* top/bottom padding */
+  padding: 12px 0;
 }
 
-/* tombol search kecil di kanan */
+/* SEARCH / CLEAR BUTTON */
 .searchBtn {
   background: transparent;
   border: none;
-  padding: 0;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   cursor: pointer;
+  display: flex;
 }
 
-/* switcher container */
+/* VIEW SWITCHER */
 .switcher {
   width: 58px;
   height: 32px;
   border-radius: 9999px;
-  border: 0.8px solid rgba(0,0,0,0.08);
+  border: 0.8px solid rgba(0, 0, 0, 0.08);
   padding: 4px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   background: #fff;
-  box-sizing: border-box;
 }
 
-/* individual button inside switcher */
 .switcherButton {
   width: 24px;
   height: 24px;
   border-radius: 9999px;
-  padding: 6.86px;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 160ms ease;
-  box-sizing: border-box;
 }
 
-/* active state using gradient */
 .active {
-  background: linear-gradient(90.35deg, #FC671A 17.45%, #FF8527 59.97%, #E97400 86.94%, #E97800 116.56%);
+  background: linear-gradient(
+    90.35deg,
+    #fc671a 17.45%,
+    #ff8527 59.97%,
+    #e97400 86.94%,
+    #e97800 116.56%
+  );
   color: white;
-  box-shadow: 0 4px 10px rgba(252,102,26,0.12);
+  box-shadow: 0 4px 10px rgba(252, 102, 26, 0.12);
+}
+
+/* TEXT PENCARIAN */
+.searchResultText {
+  font-family: "Inter", sans-serif;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 140%;
+  padding: 6px 25px;
+  text-align: left;
+  color: #111827;
+}
+
+.stickySearch {
+  position: sticky;
+  top: var(--header-height, 60px);
+  z-index: 20;
+  background: #fff;
 }

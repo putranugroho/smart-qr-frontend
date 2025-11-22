@@ -1,65 +1,145 @@
-/* components/CardItem.module.css */
+/* styles/CardItem.module.css */
 
+/* ========== GRID (original style preserved) ========== */
 .card {
   width: 167px;
   height: 297px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 7px;
   box-sizing: border-box;
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .cardImage {
-  width: 167px;
+  width: 100%;
   height: 167px;
   border-radius: 8px;
   overflow: hidden;
-  background: #fff;
-  display: block;
+  flex-shrink: 0; /* ensure image never shrinks */
 }
 
-.price {
-  font-family: 'Inter', sans-serif;
+.cardImageTag {
+  object-fit: cover;
+}
+
+.cardBody {
+  padding: 4px 2px;
+}
+
+.cardPrice {
+  font-family: "Inter", sans-serif;
+  font-size: 14px;
   font-weight: 300;
-  font-size: 14px;
-  line-height: 1.4;
+  margin-bottom: 4px;
   color: #111827;
 }
 
-.title {
-  font-family: 'Inter', sans-serif;
+/* ensure title is fixed-height 2 lines so every card aligns */
+.cardTitle {
+  font-family: "Inter", sans-serif;
+  font-size: 14px;
   font-weight: 600;
-  font-size: 14px;
-  line-height: 1.4;
   color: #111827;
+
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2; /* clamp to 2 lines */
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  line-height: 1.4;
+  height: calc(14px * 1.4 * 2); /* approx 39.2px */
+  max-height: calc(14px * 1.4 * 2);
 }
 
-/* add rounded pill button */
-.addBtn {
+.cardFooter {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cardAddBtn {
   width: 167px;
   height: 32px;
   border-radius: 9999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 24px;
-  background: linear-gradient(90deg, #FF8040 0%, #FC661A 100%);
+  background: linear-gradient(90deg, #ff8040 0%, #fc661a 100%);
   color: #fff;
-  font-weight: 600;
+  border: none;
+  padding: 8px 24px;
   cursor: pointer;
-  box-sizing: border-box;
+  font-family: "Inter";
+  font-weight: 600;
 }
 
-.card {
-  display:flex; flex-direction:column; gap:8px; background:#fff; border-radius:8px; overflow:hidden; cursor:pointer;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04); padding:8px;
+/* ========== LIST VIEW ========== */
+.listCard {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  gap: 12px;
+  padding: 8px 0;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
-.cardImage { width:100%; height:167px; border-radius:8px; overflow:hidden; }
-.cardBody { padding:4px 2px; }
-.price { font-size:14px; font-weight:300; color:#111827; margin-bottom:4px; }
-.title { font-size:14px; font-weight:600; color:#111827; }
-.cardFooter { margin-top:auto; display:flex; justify-content:flex-end; }
-.addBtn {
-  background: linear-gradient(90deg,#FF8040 0%,#FC661A 100%);
-  color:#fff; border:none; padding:8px 12px; border-radius:999px; cursor:pointer;
+
+.listImage {
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.listLeft {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.listRight {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-end;
+  width: 72px;
+}
+
+.listSpacer {
+  flex: 1;
+}
+
+.listTitle {
+  font-family: "Inter";
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #111827;
+}
+
+.listPrice {
+  font-family: "Inter";
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 1.4;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.listAddBtn {
+  width: 72px;
+  height: 28px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #ff8040 0%, #fc661a 100%);
+  color: #fff;
+  border: none;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: "Inter";
+  font-weight: 600;
 }

@@ -5,106 +5,267 @@ import Header from "./Header";
 import MenuTabs from "./MenuTabs";
 import SearchBar from "./SearchBar";
 import CardItem from "./CardItem";
+import OrderBar from "./OrderBar";
 
 export default function Menu() {
   const router = useRouter();
   const { mode } = router.query;
-  const [viewMode, setViewMode] = useState("grid");
-  const [queryText, setQueryText] = useState("");
+
+  const [categories, setCategories] = useState([]);
   const [activeCategory, setActiveCategory] = useState(null);
+  const [queryText, setQueryText] = useState("");
+  const [viewMode, setViewMode] = useState("grid");
+  const [loading, setLoading] = useState(true);
+  const [showBackTop, setShowBackTop] = useState(false);
 
-  const SAMPLE_ITEMS = [
-    { id: 1, title: "Regular Paket Berbagi Beef Bowl", price: "144.545", image: "/images/gambar-menu.jpg", category: "Promo" },
-    { id: 2, title: "Regular Paket Berbagi Beef + Garlic Chicken", price: "135.545", image: "/images/gambar-menu.jpg", category: "Promo" },
-    { id: 3, title: "Ebi Fry + Japanese Curry Rice", price: "76.363", image: "/images/gambar-menu.jpg", category: "Japanese Curry" },
-    { id: 4, title: "Premium Chicken Katsu + Japanese Curry Rice", price: "81.818", image: "/images/gambar-menu.jpg", category: "Japanese Curry" },
-    { id: 5, title: "P. Puas Original Beef Bowl Reg", price: "76.181", image: "/images/gambar-menu.jpg", category: "Paket Puas" },
-    { id: 6, title: "P. Puas Original Beef Bowl Large", price: "85.454", image: "/images/gambar-menu.jpg", category: "Paket Puas" },
-    { id: 7, title: "Beef Bowl Special", price: "98.181", image: "/images/gambar-menu.jpg", category: "Beef Bowl" }
-  ];
-
-  const categories = [...new Set(SAMPLE_ITEMS.map((it) => it.category))];
   const sectionRefs = useRef({});
 
+  // Fetch categories
   useEffect(() => {
-    const target = mode === "takeaway" ? "Paket Puas" : "Promo";
-    setActiveCategory(target);
-    setTimeout(() => scrollToCategory(target), 150);
-  }, [mode]);
+    const API_URL =
+      "/api/proxy/menu-category?storeCode=SMS&orderCategoryCode=DI";
 
+    setLoading(true);
+
+    fetch(API_URL)
+      .then((r) => r.json())
+      .then((json) => {
+        const raw = Array.isArray(json?.data) ? json.data : [];
+        const available = raw.filter((c) => Number(c.totalItems) > 0);
+
+        const mapped = available.map((c) => ({
+          id: c.id,
+          name: c.name,
+          items:
+            c.items?.map((it) => ({
+              id: it.code,
+              name: it.name,
+              price: it.price,
+              image: it.imageUrl ?? "/images/gambar-menu.jpg",
+              category: c.name,
+            })) ?? [],
+        }));
+
+        setCategories(mapped);
+        const target = mapped[0]?.name;
+        setActiveCategory(target);
+
+        setTimeout(() => scrollToCategory(target), 200);
+      })
+      .finally(() => setTimeout(() => setLoading(false), 500));
+  }, []);
+
+  // Scroll to category
   function scrollToCategory(cat) {
     const el = sectionRefs.current[cat];
     if (!el) return;
-    const headerH = document.querySelector("header")?.getBoundingClientRect().height || 0;
-    const top = window.scrollY + el.getBoundingClientRect().top - headerH - 8;
+
+    const headerH = document.querySelector("header")?.offsetHeight || 0;
+    const tabsH = queryText.length === 0 ? 56 : 0;
+
+    const top =
+      window.scrollY +
+      el.getBoundingClientRect().top -
+      (headerH + tabsH + 8);
+
     window.scrollTo({ top, behavior: "smooth" });
     setActiveCategory(cat);
   }
 
-  function handleSearch(q) {
-    setQueryText(q);
-    const headerH = document.querySelector("header")?.offsetHeight || 0;
-    window.scrollTo({ top: headerH + 8, behavior: "smooth" });
+  // Handle search
+  function handleSearch(text) {
+    setQueryText(text);
+    // saat search aktif → pindahkan tampilan ke paling atas
+    if (text.length > 0) {
+      const headerH = document.querySelector("header")?.offsetHeight || 0;
+      window.scrollTo({ top: headerH, behavior: "smooth" });
+    }
   }
 
+  // Back to top visibility
   useEffect(() => {
-    const headerH = document.querySelector("header")?.getBoundingClientRect().height || 0;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const vis = entries.filter((e) => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (vis) setActiveCategory(vis.target.getAttribute("data-cat"));
-      },
-      { root: null, rootMargin: `-${headerH + 8}px 0px -40% 0px`, threshold: 0.01 }
-    );
+    const onScroll = () => {
+      setShowBackTop(window.scrollY > 300);
+    };
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
-    categories.forEach((cat) => sectionRefs.current[cat] && obs.observe(sectionRefs.current[cat]));
-    return () => obs.disconnect();
-  }, [categories]);
+  // Scrollspy
+  useEffect(() => {
+    if (queryText.length > 0) return; // disable scrollspy saat searching
 
-  const filteredItems = SAMPLE_ITEMS.filter((it) => it.title.toLowerCase().includes(queryText.toLowerCase()));
+    let ticking = false;
+    function handleScroll() {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const headerH = document.querySelector("header")?.offsetHeight || 0;
+          const tabsH = 56;
+
+          const scrollPos = window.scrollY + headerH + tabsH + 40;
+
+          let closest = null;
+          let closestOffset = Infinity;
+
+          categories.forEach((c) => {
+            const el = sectionRefs.current[c.name];
+            if (!el) return;
+
+            const offset = Math.abs(el.offsetTop - scrollPos);
+            if (offset < closestOffset) {
+              closestOffset = offset;
+              closest = c.name;
+            }
+          });
+
+          if (closest && closest !== activeCategory) {
+            setActiveCategory(closest);
+          }
+
+          ticking = false;
+        });
+        ticking = true;
+      }
+    }
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [categories, activeCategory, queryText]);
+
+  // Filter items
+  const filteredCategories = categories
+    .map((cat) => ({
+      ...cat,
+      items: cat.items.filter((it) =>
+        it.name.toLowerCase().includes(queryText.toLowerCase())
+      ),
+    }))
+    .filter((cat) => cat.items.length > 0);
 
   return (
-    <div className="bg-white">
+    <div className="bg-white min-h-screen">
       <Header />
-      <MenuTabs selected={activeCategory} onSelect={scrollToCategory} />
-      <SearchBar onSearch={handleSearch} onToggleView={setViewMode} />
 
-      <div style={{ maxWidth: 420, margin: "0 auto", padding: "0 16px 24px" }}>
-        {categories.map((cat) => {
-          const catItems = filteredItems.filter((it) => it.category === cat);
-          if (!catItems.length) return null;
+      {/* MenuTabs tampil hanya jika query kosong */}
+      <MenuTabs
+        selected={activeCategory}
+        onSelect={scrollToCategory}
+        isHidden={queryText.length > 0}
+      />
 
-          return (
-            <div key={cat} data-cat={cat} ref={(el) => (sectionRefs.current[cat] = el)} style={{ marginTop: 32 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>{cat}</h2>
-              {viewMode === "grid" ? (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-                  {catItems.map((it) => (
-                    <CardItem key={it.id} item={it} onAdd={() => alert(`Tambah ${it.title}`)} />
+      <SearchBar
+        onSearch={handleSearch}
+        onSearchChange={handleSearch}
+        onToggleView={setViewMode}
+        isSearching={queryText.length > 0}
+      />
+
+      {/* Loading shimmer */}
+      {loading && (
+        <div style={{ padding: "0 16px", marginTop: 20 }}>
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+              <div
+                style={{
+                  width: 72,
+                  height: 72,
+                  borderRadius: 8,
+                  background:
+                    "linear-gradient(90deg,#eeeeee 25%, #f5f5f5 50%, #eeeeee 75%)",
+                  backgroundSize: "200% 100%",
+                  animation: "shimmer 1.2s infinite",
+                }}
+              />
+              <div style={{ flex: 1 }}>
+                <div
+                  style={{
+                    height: 16,
+                    width: "70%",
+                    borderRadius: 4,
+                    marginBottom: 8,
+                    background:
+                      "linear-gradient(90deg,#e9e9e9 25%, #f7f7f7 50%, #e9e9e9 75%)",
+                    backgroundSize: "200% 100%",
+                    animation: "shimmer 1.2s infinite",
+                  }}
+                />
+                <div
+                  style={{
+                    height: 14,
+                    width: "40%",
+                    borderRadius: 4,
+                    background:
+                      "linear-gradient(90deg,#e9e9e9 25%, #f7f7f7 50%, #e9e9e9 75%)",
+                    backgroundSize: "200% 100%",
+                    animation: "shimmer 1.2s infinite",
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Items */}
+      {!loading && (
+        <div style={{ maxWidth: 420, margin: "0 auto", padding: "0 16px 24px" }}>
+          {filteredCategories.map((cat) => (
+            <div
+              key={cat.id}
+              data-cat={cat.name}
+              ref={(el) => (sectionRefs.current[cat.name] = el)}
+              style={{ marginTop: 32 }}
+            >
+              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
+                {cat.name}
+              </h2>
+
+              {viewMode === "list" ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  {cat.items.map((it) => (
+                    <CardItem key={it.id} item={it} mode="list" />
                   ))}
                 </div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {catItems.map((it) => (
-                    <div key={it.id} style={{ display: "flex", gap: 12 }}>
-                      <img src={it.image} style={{ width: 100, height: 100, borderRadius: 8, objectFit: "cover" }} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 14, fontWeight: 300 }}>Rp{it.price}</div>
-                        <div style={{ fontSize: 14, fontWeight: 600 }}>{it.title}</div>
-                        <button style={{ marginTop: 8, padding: "8px 16px", borderRadius: 9999, background: "linear-gradient(90deg,#FF8040 0%,#FC661A 100%)", color: "#fff" }}>
-                          Tambah
-                        </button>
-                      </div>
-                    </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+                  {cat.items.map((it) => (
+                    <CardItem key={it.id} item={it} mode="grid" />
                   ))}
                 </div>
               )}
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
+
+      {/* Back to Top */}
+      {showBackTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          style={{
+            position: "fixed",
+            right: 20,
+            bottom: 90,
+            width: 40,
+            height: 40,
+            borderRadius: "50%",
+            background: "#000",
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            opacity: 0.95,
+            zIndex: 999,
+            boxShadow: "0 4px 14px rgba(0,0,0,0.2)",
+            transition: "all 0.25s ease",
+          }}
+        >
+          ↑
+        </button>
+      )}
 
       <div style={{ height: 60 }} />
+      <OrderBar />
     </div>
   );
 }

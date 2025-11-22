@@ -1,0 +1,224 @@
+.page {
+  max-width: 390px;
+  margin: 0 auto;
+  background: #fff;
+  min-height: 100vh;
+  padding-bottom: 140px;
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+}
+
+/* HEADER */
+.header {
+  height: 48px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+.backBtn {
+  position: absolute;
+  left: 16px;
+  background: none;
+  border: none;
+  font-size: 20px;
+}
+.headerTitle {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+/* BLUE BOX */
+.blueBox {
+  width: 390px;
+  height: 74px;
+  background: linear-gradient(90deg, #0061FF 17%, #5193FF 100%);
+  color: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+}
+.blueLeft {
+  display: flex;
+  flex-direction: column;
+}
+.orderType {
+  font-weight: 700;
+  font-size: 12px;
+}
+.storeName {
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.orderNumberBox {
+  width: 88px;
+  height: 48px;
+  background: rgba(255,255,255,0.95);
+  color: #000;
+  border-radius: 8px 8px 8px 8px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.smallText {
+  font-size: 6px;
+  font-weight: 400;
+  opacity: 0.8;
+}
+.orderNumber {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 110%;
+  text-transform: uppercase;
+}
+
+/* TRACK */
+.section {
+  padding: 20px;
+}
+.trackTitle {
+  font-weight: 700;
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+.trackLineWrap {
+  position: relative;
+  padding-left: 6px;
+}
+.trackLine {
+  width: 350px;
+  height: 1px;
+  border-bottom: 1px dashed #ccc;
+  margin: 0 auto 14px auto;
+}
+.stepsWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.stepItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.iconCircle {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+}
+.iconInner {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+.stepTextWrap {
+  width: 265px;
+}
+.stepTitle {
+  font-weight: 700;
+  font-size: 14px;
+}
+.stepDesc {
+  font-style: italic;
+  font-weight: 400;
+  font-size: 12px;
+  color: #666;
+}
+
+/* status colors */
+.done .iconCircle {
+  background: linear-gradient(180deg, rgba(252, 102, 26, 0.1) 0%, rgba(252, 102, 26, 0.03) 100%);
+  border: 1px solid rgba(252,102,26,0.6);
+}
+.ongoing .iconCircle {
+  background: linear-gradient(180deg, rgba(16, 16, 16, 0.1) 0%, rgba(16, 16, 16, 0.03) 100%);
+  border: 1px solid rgba(16,16,16,0.2);
+}
+.upcoming .iconCircle {
+  background: linear-gradient(180deg, rgba(16, 16, 16, 0.05) 0%, rgba(16, 16, 16, 0.02) 100%);
+  border: 1px solid rgba(16,16,16,0.08);
+}
+
+/* Ordered items */
+.itemsTitle {
+  font-weight: 700;
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+.itemsList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.itemRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.itemImageWrap {
+  width: 64px;
+  height: 64px;
+}
+.itemImage {
+  border-radius: 6px;
+  object-fit: cover;
+}
+.itemInfo {
+  flex: 1;
+}
+.itemTitle {
+  font-weight: 700;
+}
+.itemAddon {
+  font-size: 12px;
+  color: #666;
+}
+.itemPrice {
+  font-weight: 700;
+}
+.viewAllBtn {
+  margin-top: 10px;
+  background: none;
+  border: none;
+  color: #FC661A;
+  font-weight: 700;
+}
+
+/* Payment detail */
+.paymentMethodBox {
+  border: 1px solid #ddd;
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-top: 8px;
+}
+.detailBox {
+  margin-top: 12px;
+  border: 1px solid #eee;
+  padding: 12px;
+  border-radius: 8px;
+}
+.paymentRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px dashed #eee;
+}
+.paymentValue {
+  font-weight: 700;
+}
+.paymentTotalRow {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-weight: 700;
+}

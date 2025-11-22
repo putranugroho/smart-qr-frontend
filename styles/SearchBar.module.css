@@ -1,0 +1,80 @@
+/* components/SearchBar.module.css */
+
+.root {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+.search {
+  width: 276px;
+  max-width: calc(100% - 84px);
+  height: 42px;
+  border-radius: 6px;
+  border: 1px solid #E5E7EB;
+  padding: 0 14px; /* kita atur padding horizontal dan biarkan input flex */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  background: #fff;
+}
+
+/* input harus mengisi space kiri */
+.search input {
+  border: none;
+  outline: none;
+  font-size: 14px;
+  width: 100%;
+  padding: 12px 0; /* top/bottom padding */
+}
+
+/* tombol search kecil di kanan */
+.searchBtn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* switcher container */
+.switcher {
+  width: 58px;
+  height: 32px;
+  border-radius: 9999px;
+  border: 0.8px solid rgba(0,0,0,0.08);
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+/* individual button inside switcher */
+.switcherButton {
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  padding: 6.86px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 160ms ease;
+  box-sizing: border-box;
+}
+
+/* active state using gradient */
+.active {
+  background: linear-gradient(90.35deg, #FC671A 17.45%, #FF8527 59.97%, #E97400 86.94%, #E97800 116.56%);
+  color: white;
+  box-shadow: 0 4px 10px rgba(252,102,26,0.12);
+}

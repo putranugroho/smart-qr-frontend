@@ -1,0 +1,57 @@
+/* styles/MenuTabs.module.css */
+
+.root {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  box-sizing: border-box;
+  /* position: sticky;
+  top: calc(var(--menu-top-offset, 56px));
+  z-index: 300; */
+  background: #fff;
+  transition: box-shadow 180ms ease;
+}
+.stuck { box-shadow: 0 6px 20px rgba(16,24,40,0.06); }
+.menuButton {
+  width: 48px; height: 48px; min-width:48px; border-radius:8px;
+  background:#101010; color:#fff; display:inline-flex; align-items:center; justify-content:center; cursor:pointer;
+}
+.tabs {
+  overflow-x:auto; -webkit-overflow-scrolling: touch;
+  display:flex; gap:8px; align-items:center; flex:1 1 auto; padding-left:4px;
+}
+.tabs::-webkit-scrollbar { display:none; }
+.tabItem {
+  flex:0 0 auto; height:48px; display:inline-flex; align-items:center; justify-content:center;
+  padding:12px 16px; border-radius:8px; background:transparent; color:#374151; font-weight:600;
+  white-space:nowrap; position:relative; font-size:14px; text-transform:uppercase;
+}
+.tabItem::after {
+  content:""; position:absolute; left:12px; right:12px; bottom:0; height:0; background:transparent; border-radius:2px; transition:height 180ms, background 180ms;
+}
+.tabItemSelected { color:#FC661A; }
+.tabItemSelected::after { height:1.5px; background:#FC661A; }
+
+
+/* add small shadow when stuck (MenuTabs.js toggles .stuck) */
+.stuck {
+  box-shadow: 0 6px 20px rgba(16,24,40,0.06);
+}
+
+/* Full menu button */
+.menuButton {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  border-radius: 8px;
+  background: #101010;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  flex: 0 0 auto;
+  cursor: pointer;
+  box-sizing: border-box;
+}

@@ -1,0 +1,61 @@
+/* styles/InfoBox.module.css */
+
+.wrapper {
+  width: 350px;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.box {
+  height: 58px;
+  border-radius: 8px;
+  border: 1px solid rgba(234,179,8,0.35);
+  padding: 12px;
+  gap: 10px;               /* updated gap */
+  display: flex;
+  align-items: flex-start; /* align items at top to match icon padding-top */
+  box-sizing: border-box;
+  background: rgba(255,249,230,0.95);
+}
+
+/* ICON container: width 16, height 34, padding-top 1px */
+.icon {
+  width: 16px;
+  height: 34px;
+  flex: 0 0 16px;
+  display: flex;
+  align-items: flex-start; /* icon sits at top */
+  justify-content: center;
+  padding-top: 1px;        /* requested padding */
+}
+
+/* Ensure the inline SVG doesn't overflow the container.
+   Keep SVG width 16px; you can set svg height to auto or a fixed value if needed */
+.icon svg {
+  width: 16px;
+  height: 16px; /* keep icon itself visually compact; change to 34px if you want tall icon */
+  display: block;
+}
+
+/* Text container */
+.textWrap {
+  width: 302px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.text {
+  margin: 0;
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #4B5563;
+}
+
+.iconImg {
+  object-fit: contain;
+}

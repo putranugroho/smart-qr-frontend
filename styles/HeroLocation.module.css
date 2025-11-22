@@ -1,0 +1,67 @@
+/* components/HeroLocation.module.css */
+
+.heroRoot {
+  padding-bottom: 2rem;
+}
+
+.heroImageWrap {
+  width: 100%;
+  overflow: hidden;
+}
+
+.floatingCardContainer {
+  max-width: 420px; /* same container-sm */
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: -3rem; /* negative to float above hero */
+}
+
+.cardRounded {
+  background: #fff;
+  border-radius: 14px;
+  overflow: visible;
+  box-shadow: 0 8px 24px rgba(16,24,40,0.06);
+}
+
+.cardInner {
+  padding: 1rem;
+}
+
+.headerTitle {
+  text-align: center;
+  font-weight: 700;
+  font-size: 1rem; /* ~16px (can adjust) */
+}
+
+.leadMuted {
+  margin-top: 0.25rem;
+  text-align: center;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.btnWrap {
+  margin-top: 1rem;
+}
+
+.btnGradient {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(90.35deg, #FC671A 17.45%, #FF8527 59.97%, #E97400 86.94%, #E97800 116.56%);
+  box-shadow: 0 6px 18px rgba(249,115,22,0.18);
+}
+
+/* layout for option cards row */
+.optionsRow {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}

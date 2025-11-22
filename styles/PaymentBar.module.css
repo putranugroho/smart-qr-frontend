@@ -1,0 +1,61 @@
+/* components/PaymentBar.module.css */
+
+.wrapper {
+  width: 350px;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.footerBox {
+  box-sizing: border-box;
+  height: 79.01094055175781px; /* sesuai spec */
+  border: 1px solid #E5E7EB;    /* gray-200 */
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  padding: 16px 12px 20px 12px; /* top right bottom left */
+  background: #FFFFFF;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+/* teks kecil style */
+.text {
+  margin: 0;
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #4B5563; /* gray-600 */
+  text-align: center;
+}
+
+/* container for icons row */
+.iconRow {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+}
+
+/* icon wrapper to enforce exact size and keep aspect ratio */
+.iconWrap {
+  width: 55.125px;
+  height: 14.010937690734863px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ensure img fits the box */
+.iconImg {
+  object-fit: contain;
+  display: block;
+  width: 100%;
+  height: 100%;
+}

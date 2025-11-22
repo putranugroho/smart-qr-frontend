@@ -96,16 +96,16 @@ export default function CheckoutPage() {
             </div>
 
             <div className={styles.itemRight}>
-  <div className={styles.itemPrice}>{formatRp(it.price * it.qty)}</div>
+            <div className={styles.itemPrice}>{formatRp(it.price * it.qty)}</div>
 
-  <div className={styles.qtyRow}>
-    <button className={styles.trashBtn} onClick={() => handleDelete(i)}>🗑</button>
+            <div className={styles.qtyRow}>
+              <button className={styles.trashBtn} onClick={() => handleDelete(i)}>🗑</button>
 
-    <button className={styles.minusBtn} onClick={() => handleQty(i, 'minus')}>-</button>
-    <div className={styles.qtyText}>{it.qty}</div>
-    <button className={styles.plusBtn} onClick={() => handleQty(i, 'plus')}>+</button>
-  </div>
-</div>
+              <button className={styles.minusBtn} onClick={() => handleQty(i, 'minus')}>-</button>
+              <div className={styles.qtyText}>{it.qty}</div>
+              <button className={styles.plusBtn} onClick={() => handleQty(i, 'plus')}>+</button>
+            </div>
+          </div>
 
           </div>
         ))}

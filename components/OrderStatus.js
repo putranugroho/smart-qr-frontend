@@ -17,7 +17,10 @@ export default function OrderStatus() {
     const [displayOrderId, setDisplayOrderId] = useState("")
 
   useEffect(() => {
-    if (!router.isReady) setDisplayOrderId(String(id))
+    console.log("router.query");
+    console.log(router.query);
+    
+    if (router.isReady) setDisplayOrderId(String(id))
     const p = getPayment() || {}
     // fallback: if there's an items array inside payment, use it
     if (p && p.items && p.items.length) {
@@ -31,10 +34,10 @@ export default function OrderStatus() {
   }, [router.isReady, id])
 
   const steps = [
-    { key: 1, title: 'Pesanan Dibuat', desc: 'Pesanan kamu sudah dibuat' },
-    { key: 2, title: 'Pembayaran Berhasil', desc: 'Pembayaran kamu sudah diterima' },
-    { key: 3, title: 'Makanan Sedang Disiapkan', desc: 'Pesanan kamu sedang disiapkan' },
-    { key: 4, title: 'Pesanan Selesai', desc: 'Pesanan sudah selesai' }
+    { key: 1, title: 'Pesanan Selesai', desc: 'Pesanan sudah selesai', img : '/images/check-icon.png'},
+    { key: 2, title: 'Makanan Sedang Disiapkan', desc: 'Pesanan kamu sedang disiapkan', img : '/images/bowl-icon.png' },
+    { key: 3, title: 'Pembayaran Berhasil', desc: 'Pembayaran kamu sudah diterima', img : '/images/wallet-icon.png' },
+    { key: 4, title: 'Pesanan Dibuat', desc: 'Pesanan kamu sudah dibuat', img : '/images/mobile-icon.png' },
   ]
 
   const subtotal = payment.paymentTotal || 0
@@ -52,7 +55,15 @@ export default function OrderStatus() {
       {/* BLUE BOX */}
       <div className={styles.blueBox}>
         <div className={styles.blueLeft}>
-          <div className={styles.orderType}>TBL 24 · Dine In</div>
+          <div className={styles.orderType}>
+            <Image
+              src="/images/bell-icon.png"
+              alt="Chair Icon"
+              width={12}
+              height={12}
+              style={{ paddingRight: 5 }}
+            />
+            TBL 24 · Dine In</div>
           <div className={styles.storeName}>Yoshinoya - Mall Grand Indonesia</div>
         </div>
 
@@ -71,12 +82,16 @@ export default function OrderStatus() {
 
           <div className={styles.stepsWrap}>
             {steps.map((s) => {
-              const status = s.key < currentStep ? 'done' : (s.key === currentStep ? 'ongoing' : 'upcoming')
+              const status = s.key >= currentStep ? 'done' : (s.key === currentStep ? 'ongoing' : 'upcoming')
               return (
                 <div key={s.key} className={`${styles.stepItem} ${styles[status]}`}>
                   <div className={styles.iconCircle} aria-hidden>
-                    {/* small inner icon placeholder */}
-                    <div className={styles.iconInner}>{s.key}</div>
+                    <Image
+                      src={s.img}
+                      alt="Chair Icon"
+                      width={24}
+                      height={24}
+                    />
                   </div>
 
                   <div className={styles.stepTextWrap}>
@@ -91,8 +106,9 @@ export default function OrderStatus() {
       </div>
 
       {/* ORDERED ITEMS */}
-      <div className={styles.section}>
+      <div className={styles.sectionPayment}>
         <div className={styles.itemsTitle}>Ordered Items ({(payment.items || []).length})</div>
+          <div className={styles.trackLine}></div>
 
         <div className={styles.itemsList}>
           {(payment.items || []).map((it, i) => (
@@ -117,15 +133,53 @@ export default function OrderStatus() {
 
       {/* PAYMENT METHOD & DETAILS - reuse Checkout styles visually but we provide a compact layout */}
       <div className={styles.section}>
-        <div className={styles.sectionTitle}>Metode Pembayaran</div>
+        <div className={styles.sectionTitle}>Pilih Metode Pembayaran</div>
 
-        <div className={styles.paymentMethodBox}>QRIS</div>
+        <div className={styles.paymentBox}>
+          <div className={styles.paymentBoxHeader}>
+            <div className={styles.paymentBoxTitle}>Pembayaran Online</div>
 
-        <div className={styles.detailBox}>
-          <div className={styles.paymentRow}><div>Subtotal ({(payment.items || []).length} menu)</div><div className={styles.paymentValue}>{formatRp(subtotal)}</div></div>
-          <div className={styles.paymentRow}><div>PPN (11%)</div><div className={styles.paymentValue}>{formatRp(tax)}</div></div>
-          <div className={styles.paymentRow}><div>Fees</div><div className={styles.paymentValue}>Rp0</div></div>
-          <div className={styles.paymentTotalRow}><div>Total</div><div className={styles.paymentTotalValue}>{formatRp(total)}</div></div>
+            <Image 
+              src="/images/pembayaran-online.png"
+              alt="pembayaran online"
+              width={50}
+              height={50}
+              className={styles.paymentBoxIcon}
+            />
+          </div>
+        </div>
+
+
+        {/* QRIS */}
+        <div
+          className={`${styles.paymentItem}`}
+        >
+          <div className={styles.paymentItemLeft}>📷 QRIS</div>
+        </div>
+      </div>
+
+      {/* PAYMENT DETAIL */}
+      <div className={styles.paymentSection}>
+        <div className={styles.paymentTitle}>Detail Pembayaran</div>
+
+        <div className={styles.paymentRow}>
+          <div>Subtotal ({payment.items.length} menu)</div>
+          <div className={styles.paymentValue}>{formatRp(subtotal)}</div>
+        </div>
+
+        <div className={styles.paymentRow}>
+          <div>PPN (11%)</div>
+          <div className={styles.paymentValue}>{formatRp(tax)}</div>
+        </div>
+
+        <div className={styles.paymentRow}>
+          <div>Fees</div>
+          <div className={styles.paymentValue}>Rp0</div>
+        </div>
+
+        <div className={styles.paymentTotalRow}>
+          <div>Total</div>
+          <div className={styles.paymentTotalValue}>{formatRp(total)}</div>
         </div>
       </div>
 

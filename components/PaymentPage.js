@@ -82,18 +82,18 @@ export default function PaymentPage() {
         <div className={styles.sectionTitle}>Pilih Metode Pembayaran</div>
 
         <div className={styles.paymentBox}>
-  <div className={styles.paymentBoxHeader}>
-    <div className={styles.paymentBoxTitle}>Pembayaran Online</div>
+          <div className={styles.paymentBoxHeader}>
+            <div className={styles.paymentBoxTitle}>Pembayaran Online</div>
 
-    <Image 
-      src="/images/pembayaran-online.png"
-      alt="pembayaran online"
-      width={50}
-      height={50}
-      className={styles.paymentBoxIcon}
-    />
-  </div>
-</div>
+            <Image 
+              src="/images/pembayaran-online.png"
+              alt="pembayaran online"
+              width={50}
+              height={50}
+              className={styles.paymentBoxIcon}
+            />
+          </div>
+        </div>
 
 
         {/* QRIS */}

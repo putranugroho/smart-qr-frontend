@@ -51,18 +51,18 @@ export default function PaymentPage() {
         <label className={styles.label}>Nama</label>
         <div className={styles.inputWrap}>
           {/* <span className={styles.iconUser}>👤</span> */}
-          <input className={styles.input} placeholder="Michael Yoshinoya" />
+          <input className={styles.input} placeholder="Masukan Nama" />
         </div>
 
         <label className={styles.label}>Nomor WhatsApp</label>
         <div className={styles.phoneRow}>
           <div className={styles.countryCode}>+62 ▼</div>
-          <input className={styles.phoneInput} placeholder="81212121212" />
+          <input className={styles.phoneInput} placeholder="ex: 81234567890" />
         </div>
       </div>
 
       {/* REGISTER BOX */}
-      <div className={styles.registerBox}>
+      {/* <div className={styles.registerBox}>
         <div>
           <div className={styles.registerText}>
             Masuk atau daftarkan akun kamu<br />untuk mendapatkan point setiap transaksi
@@ -75,7 +75,7 @@ export default function PaymentPage() {
           alt="gift"
           className={styles.giftImage}
         />
-      </div>
+      </div> */}
 
       {/* PEMBAYARAN */}
       <div className={styles.section}>

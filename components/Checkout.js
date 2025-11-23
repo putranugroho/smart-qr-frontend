@@ -14,7 +14,10 @@ export default function CheckoutPage() {
   const [cart, setCart] = useState([])
 
   useEffect(() => {
-    setCart(getCart())
+    // read cart once from storage and set state (avoid logging stale state variable)
+    const c = getCart() || []
+    setCart(c)
+    console.log('checkout cart loaded', c)
   }, [])
 
   function handleQty(index, type) {
@@ -37,6 +40,41 @@ export default function CheckoutPage() {
   function handleDelete(index) {
     const updated = removeFromCartByIndex(index)
     setCart([...updated])
+  }
+
+  // build signature helper — must match signature logic used elsewhere (lib/cart)
+  function signatureForItem(it) {
+    try {
+      const product = String(it.productCode ?? it.id ?? '')
+      const addons = JSON.stringify(it.addons ?? [])
+      const note = String(it.note ?? '')
+      return [product, addons, note].join('|')
+    } catch (e) {
+      return String(it.productCode ?? it.id ?? '')
+    }
+  }
+
+  // when user taps Edit, navigate to item detail with index+signature (and store to sessionStorage)
+  function handleEdit(index) {
+    const it = cart[index]
+    if (!it) return
+    const productCode = encodeURIComponent(String(it.productCode ?? it.id ?? ''))
+    const sig = signatureForItem(it)
+    // store a short editing reference in sessionStorage as fallback/fast-channel
+    try {
+      sessionStorage.setItem('yoshi_edit', JSON.stringify({ index, signature: sig }))
+    } catch (e) {
+      // ignore if sessionStorage not available
+      console.warn('sessionStorage write failed', e)
+    }
+    // navigate to item detail; parent page (item page) can read sessionStorage or query params
+    const qs = new URLSearchParams({
+      index: String(index),
+      sig: sig,
+      from: 'checkout'
+    }).toString()
+
+    router.push(`/item/${productCode}?${qs}`)
   }
 
   const subtotal = cartSubtotal()
@@ -84,7 +122,12 @@ export default function CheckoutPage() {
                 height={64}
                 className={styles.itemImage}
               />
-              <button className={styles.editBtn}>Edit</button>
+              <button
+                className={styles.editBtn}
+                onClick={() => handleEdit(i)}
+              >
+                Edit
+              </button>
             </div>
 
             <div className={styles.itemInfo}>
@@ -96,17 +139,16 @@ export default function CheckoutPage() {
             </div>
 
             <div className={styles.itemRight}>
-            <div className={styles.itemPrice}>{formatRp(it.price * it.qty)}</div>
+              <div className={styles.itemPrice}>{formatRp(it.price * it.qty)}</div>
 
-            <div className={styles.qtyRow}>
-              <button className={styles.trashBtn} onClick={() => handleDelete(i)}>🗑</button>
+              <div className={styles.qtyRow}>
+                <button className={styles.trashBtn} onClick={() => handleDelete(i)}>🗑</button>
 
-              <button className={styles.minusBtn} onClick={() => handleQty(i, 'minus')}>-</button>
-              <div className={styles.qtyText}>{it.qty}</div>
-              <button className={styles.plusBtn} onClick={() => handleQty(i, 'plus')}>+</button>
+                <button className={styles.minusBtn} onClick={() => handleQty(i, 'minus')}>-</button>
+                <div className={styles.qtyText}>{it.qty}</div>
+                <button className={styles.plusBtn} onClick={() => handleQty(i, 'plus')}>+</button>
+              </div>
             </div>
-          </div>
-
           </div>
         ))}
       </div>

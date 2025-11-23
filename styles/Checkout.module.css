@@ -98,8 +98,8 @@
   position: absolute;
   top: 50px;
   left: 15px;
-  background: #FC661A;
-  color: white;
+  background: white;
+  color: #FC661A;
   font-size: 8px;
   padding: 4px 8px;
   border-radius: 99px;

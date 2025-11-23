@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import StickyCartBar from './StickyCartBar'
 import { useRouter } from 'next/router'
 import styles from '../styles/ItemDetail.module.css'
-import { addToCart } from '../lib/cart'
+import { addToCart, getCart, updateCart } from '../lib/cart'
 
 function formatRp(n) {
   if (n == null) return '-'
@@ -17,6 +17,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
   const productCode = propProductCode || q.productCode || propItem.code || propItem.productCode || propItem.id
 
+  // initial item state (may be overridden by cart-edit prefill or API)
   const initialItem = {
     title: q.title || propItem.name || propItem.title || '',
     price: q.price ? Number(q.price) : (propItem.price ?? 0),
@@ -25,14 +26,65 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   }
 
   const [item, setItem] = useState(initialItem)
-  const [addons, setAddons] = useState([])
-  // selected: single value per group (null or optionId)
-  const [selected, setSelected] = useState({})
+  const [addons, setAddons] = useState([]) // groups from API
+  const [selected, setSelected] = useState({}) // selected options per group
   const [qty, setQty] = useState(1)
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState(null)
 
+  // Editing context (if came from checkout)
+  const fromCheckout = String(router.query?.from || '') === 'checkout'
+  const editIndexQuery = router.query?.index != null ? Number(router.query.index) : null
+  const [editingIndex, setEditingIndex] = useState(editIndexQuery != null ? editIndexQuery : null)
+
+  // --- Prefill from cart (if editing) ASAP so UI uses cart values immediately ---
+  useEffect(() => {
+    // prefer explicit query index; else sessionStorage fallback 'yoshi_edit' (if parent set it)
+    const idx = editIndexQuery != null ? editIndexQuery : (() => {
+      try {
+        const s = sessionStorage.getItem('yoshi_edit')
+        if (!s) return null
+        const parsed = JSON.parse(s)
+        return typeof parsed.index === 'number' ? parsed.index : null
+      } catch (e) {
+        return null
+      }
+    })()
+
+    if (fromCheckout && idx != null) {
+      try {
+        const cart = getCart() || []
+        const cartItem = cart[idx]
+        if (cartItem) {
+          // Fill UI fields from cart item immediately
+          setEditingIndex(idx)
+          if (cartItem.title) setItem(prev => ({ ...prev, title: cartItem.title }))
+          if (cartItem.price != null) setItem(prev => ({ ...prev, price: Number(cartItem.price) }))
+          if (cartItem.image) setItem(prev => ({ ...prev, image: cartItem.image }))
+          if (cartItem.description) setItem(prev => ({ ...prev, description: cartItem.description }))
+          if (cartItem.qty != null) setQty(Number(cartItem.qty))
+          if (cartItem.note != null) setNote(String(cartItem.note))
+
+          // Map cart addons into `selected` shape (don't rely on API groups yet)
+          if (Array.isArray(cartItem.addons)) {
+            const sel = {}
+            cartItem.addons.forEach(a => {
+              // a.selected may be string or array — keep as-is
+              sel[a.group] = a.selected ?? null
+            })
+            setSelected(prev => ({ ...prev, ...sel }))
+          }
+        }
+      } catch (e) {
+        console.warn('prefill from cart failed', e)
+      }
+    }
+    // Only run once on mount / when query changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady])
+
+  // Fetch condiment groups for product (to present addon options)
   useEffect(() => {
     if (!productCode) return
     setLoading(true)
@@ -54,13 +106,15 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
           return
         }
 
+        // Update base item if API supplies better values (but don't override cart-edit fields already set)
         setItem(prev => ({
           title: prev.title || product.name || '',
-          price: prev.price || product.price || 0,
+          price: Number(prev.price || product.price || 0),
           image: prev.image || product.imagePath || '',
           description: prev.description || product.description || ''
         }))
 
+        // Build addon groups
         const groups = Array.isArray(product.condimentGroups) ? product.condimentGroups.map(g => {
           const groupKey = g.code || g.name || String(g.id)
           const options = Array.isArray(g.products) ? g.products.map(p => ({
@@ -85,41 +139,59 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
         setAddons(groups)
 
-        // init selected:
-        // -> if allowSkip: default null (not selected)
-        // -> else: pick first option if exists, else null
-        const sel = {}
-        groups.forEach(g => {
-          if (g.allowSkip) sel[g.group] = null
-          else sel[g.group] = g.options.length > 0 ? g.options[0].id : null
+        // Initialize selected defaults for groups that are NOT already set (preserve cart values)
+        setSelected(prevSelected => {
+          const result = { ...prevSelected }
+          groups.forEach(g => {
+            if (result[g.group] == null) {
+              // if allowSkip -> null default; else pick first option id if exists
+              result[g.group] = g.allowSkip ? null : (g.options.length > 0 ? g.options[0].id : null)
+            } else {
+              // if stored value exists but it's an id not matching any option (rare), keep it but that's okay
+            }
+          })
+          return result
         })
-        setSelected(sel)
       })
       .catch(e => {
         console.error('fetch condiment error', e)
         setErr(e.message || 'Fetch error')
       })
       .finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productCode])
 
+  // Subtotal calculation (base price + addon price) * qty
   const subtotal = useMemo(() => {
+    const base = Number(item.price || 0)
     const addonTotal = addons.reduce((acc, g) => {
       const key = g.group
       const val = selected[key]
+
+      if (val == null) return acc
+
+      if (Array.isArray(val)) {
+        // multiple selections stored as array
+        return acc + val.reduce((s, v) => {
+          const opt = g.options.find(o => o.id === v)
+          return s + (opt ? Number(opt.price || 0) : 0)
+        }, 0)
+      }
+
+      // single selection
       const opt = g.options.find(o => o.id === val)
       return acc + (opt ? Number(opt.price || 0) : 0)
     }, 0)
-    const base = Number(item.price || 0)
+
     return (base + addonTotal) * Math.max(1, Number(qty || 1))
   }, [addons, selected, item.price, qty])
 
-  // radio behaviour: allowSkip groups clicking same radio toggles off (null)
+  // toggle option (radio-like): if allowSkip clicking same toggles off
   function onToggleOption(groupKey, optionId, allowSkip) {
     setSelected(prev => {
       const clone = { ...prev }
       const current = clone[groupKey]
       if (allowSkip) {
-        // deselect when clicking same
         clone[groupKey] = current === optionId ? null : optionId
       } else {
         clone[groupKey] = optionId
@@ -138,30 +210,52 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     return true
   }
 
-// ganti handleAddToCart() dengan:
-function handleAddToCart() {
-  if (!validateSelection()) return
-
-  const order = {
-    productCode,
-    title: item.title,
-    price: Number(item.price || 0),
-    qty: Number(qty || 1),
-    note,
-    addons: addons.map(g => {
-      if (g.allowSkip) return { group: g.group, selected: (selected[g.group] || []).slice() }
-      return { group: g.group, selected: selected[g.group] ?? null }
-    })
+  function buildOrderObject() {
+    return {
+      productCode,
+      title: item.title || '',
+      price: Number(item.price || 0),
+      qty: Number(qty || 1),
+      image: item.image || '/images/gambar-menu.jpg',
+      note,
+      addons: addons.map(g => {
+        const val = selected[g.group]
+        return { group: g.group, selected: Array.isArray(val) ? val.slice() : (val ?? null) }
+      })
+    }
   }
 
-  // simpan ke localStorage melalui util
-  const newCart = addToCart(order)
+  // add or update cart item
+  function handleAddToCart() {
+    if (!validateSelection()) return
+    const order = buildOrderObject()
 
-  // optional: show toast/feedback
-  // redirect ke menu utama (sesuaikan route Anda, saya gunakan '/menu')
-  router.push('/menu')
-}
+    // determine editing index (prefer explicit editingIndex state)
+    const idx = editingIndex != null ? editingIndex : null
 
+    if (fromCheckout && idx != null) {
+      try {
+        updateCart(idx, order) // updateCart should write and return updated array (lib/cart)
+        // cleanup session edit flag
+        try { sessionStorage.removeItem('yoshi_edit') } catch (e) {}
+        router.push('/checkout')
+      } catch (e) {
+        console.error('updateCart failed', e)
+        alert('Gagal memperbarui pesanan. Coba lagi.')
+      }
+    } else {
+      try {
+        addToCart(order)
+        router.push('/menu')
+      } catch (e) {
+        console.error('addToCart failed', e)
+        alert('Gagal menambahkan ke keranjang. Coba lagi.')
+      }
+    }
+  }
+
+  // UI: unchanged. Ensure Image uses item.image, title uses item.title, price uses item.price,
+  // qty/note reflect state, radio checked uses selected[...] (which we filled from cart earlier)
   return (
     <div className={styles.page}>
       <div className={styles.headerArea}>
@@ -174,8 +268,7 @@ function handleAddToCart() {
         </div>
 
         <div className={styles.btnRight}>
-          {/* <button title="Fullscreen" className={styles.iconBtn} onClick={() => window.open(item.image || '/images/placeholder-390x390.png', '_blank')}> */}
-          <button title="Fullscreen" className={styles.iconBtn} onClick={() => window.open('/images/gambar-menu.jpg')}>
+          <button title="Fullscreen" className={styles.iconBtn} onClick={() => window.open(item.image || '/images/gambar-menu.jpg')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
               <path d="M9 3H5a2 2 0 0 0-2 2v4M15 3h4a2 2 0 0 1 2 2v4M9 21H5a2 2 0 0 1-2-2v-4M15 21h4a2 2 0 0 0 2-2v-4" stroke="#111827" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -224,19 +317,21 @@ function handleAddToCart() {
               {g.options.length > 0 ? g.options.map(opt => {
                 const groupKey = g.group
                 const allowSkip = !!g.allowSkip
-                const isSelected = selected[groupKey] === opt.id
+                const isSelected = (() => {
+                  const val = selected[groupKey]
+                  if (Array.isArray(val)) return val.includes(opt.id)
+                  return val === opt.id
+                })()
 
                 return (
                   <label key={opt.id} className={styles.optionLabel}>
                     <div className={styles.optionName}>
                       <div>{opt.name}</div>
-                      {/* {opt.description ? <div style={{ fontSize: 12, color: '#6B7280', marginTop: 6 }}>{opt.description}</div> : null} */}
                     </div>
 
                     <div className={styles.optionRight}>
                       <div className={styles.optionPrice}>{opt.price ? `+${formatRp(opt.price)}` : '+Rp0'}</div>
 
-                      {/* use radio for both types; allowSkip toggles to null when clicking same */}
                       <input
                         type="radio"
                         name={groupKey}

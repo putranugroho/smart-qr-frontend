@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import styles from "../styles/MenuTabs.module.css";
 
-export default function MenuTabs({ selected, onSelect, isHidden }) {
+export default function MenuTabs({ selected, onSelect, isHidden, onOpenFullMenu }) {
   const [items, setItems] = useState([]);
   const tabsRef = useRef(null);
   const itemRefs = useRef({});
@@ -51,7 +51,12 @@ export default function MenuTabs({ selected, onSelect, isHidden }) {
   }, [selected]);
 
   function openFullMenu() {
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (typeof onOpenFullMenu === 'function') {
+      onOpenFullMenu()
+    } else {
+      // fallback: just scroll to top
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   }
 
   return (

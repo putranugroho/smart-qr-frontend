@@ -6,6 +6,7 @@ import MenuTabs from "./MenuTabs";
 import SearchBar from "./SearchBar";
 import CardItem from "./CardItem";
 import OrderBar from "./OrderBar";
+import FullMenu from "./FullMenu";
 
 export default function Menu() {
   const router = useRouter();
@@ -14,9 +15,11 @@ export default function Menu() {
   const [categories, setCategories] = useState([]);
   const [activeCategory, setActiveCategory] = useState(null);
   const [queryText, setQueryText] = useState("");
-  const [viewMode, setViewMode] = useState("grid");
+  const [viewMode, setViewMode] = useState("grid"); // 'grid' | 'list'
   const [loading, setLoading] = useState(true);
   const [showBackTop, setShowBackTop] = useState(false);
+  const [showFullMenu, setShowFullMenu] = useState(false);
+  const [filterForCategory, setFilterForCategory] = useState(null);
 
   const sectionRefs = useRef({});
 
@@ -41,7 +44,7 @@ export default function Menu() {
               id: it.code,
               name: it.name,
               price: it.price,
-              image: it.imageUrl ?? "/images/gambar-menu.jpg",
+              image: it.imagePath ?? it.imageUrl ?? "/images/gambar-menu.jpg",
               category: c.name,
             })) ?? [],
         }));
@@ -142,6 +145,14 @@ export default function Menu() {
     }))
     .filter((cat) => cat.items.length > 0);
 
+  // Styles for category header (ke-2 mode)
+  const categoryHeaderContainerStyle = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  };
+
   return (
     <div className="bg-white min-h-screen">
       <Header />
@@ -151,12 +162,17 @@ export default function Menu() {
         selected={activeCategory}
         onSelect={scrollToCategory}
         isHidden={queryText.length > 0}
+        // when opening full menu from MenuTabs, ensure filterForCategory is cleared
+        onOpenFullMenu={() => {
+          setFilterForCategory(null)
+          setShowFullMenu(true)
+        }}
       />
 
       <SearchBar
         onSearch={handleSearch}
         onSearchChange={handleSearch}
-        onToggleView={setViewMode}
+        onToggleView={(v) => setViewMode(v)}
         isSearching={queryText.length > 0}
       />
 
@@ -216,10 +232,58 @@ export default function Menu() {
               ref={(el) => (sectionRefs.current[cat.name] = el)}
               style={{ marginTop: 32 }}
             >
-              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
-                {cat.name}
-              </h2>
+              {/* Header: title + filter button (responsive for grid/list) */}
+              <div style={categoryHeaderContainerStyle}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <h2
+                    style={{
+                      fontSize: 18,
+                      fontWeight: 700,
+                      margin: 0,
+                      textTransform: "none",
+                      ...(viewMode === "grid" ? { fontSize: 16 } : {}),
+                    }}
+                  >
+                    {cat.name}
+                  </h2>
 
+                  {viewMode === "list" && (
+                    <div style={{ color: "#6b7280", fontSize: 12 }}>
+                      ({cat.items.length} items)
+                    </div>
+                  )}
+                </div>
+
+                {/* Filter button */}
+                <div>
+                  <button
+                    onClick={() => {
+                      // set target filter category first, then open sheet
+                      setFilterForCategory(cat.name)
+                      setShowFullMenu(true)
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '6px 10px',
+                      height: 32,
+                      borderRadius: 6,
+                      background: '#fff',
+                      border: '0.5px solid rgba(252,102,26,0.5)',
+                      color: '#FC661A',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: 12
+                    }}
+                  >
+                    Filter
+                    <img src="/images/filter.png" width={12} height={12} alt="filter" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Items list/grid */}
               {viewMode === "list" ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   {cat.items.map((it) => (
@@ -227,7 +291,13 @@ export default function Menu() {
                   ))}
                 </div>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, 1fr)",
+                    gap: 12,
+                  }}
+                >
                   {cat.items.map((it) => (
                     <CardItem key={it.id} item={it} mode="grid" />
                   ))}
@@ -265,6 +335,31 @@ export default function Menu() {
       )}
 
       <div style={{ height: 60 }} />
+      {/* Full Menu bottom sheet */}
+      <FullMenu
+        open={showFullMenu}
+        categories={categories.map(c => c.name)}
+        currentCategory={activeCategory}
+        filterForCategory={filterForCategory} // optional; FullMenu will decide which view to show
+        onClose={() => {
+          setShowFullMenu(false)
+          // clear intent for filtering so next open is pure category view
+          setFilterForCategory(null)
+        }}
+        onSelect={(catName) => {
+          // when user selects a category inside fullmenu, close and scroll to it
+          setShowFullMenu(false)
+          setFilterForCategory(null)
+          setTimeout(()=>scrollToCategory(catName), 120)
+        }}
+        onApplyFilter={(cat, filters) => {
+          console.log('applied filter for', cat, filters)
+          setShowFullMenu(false)
+          setFilterForCategory(null)
+          // you can persist filters into state here for actual filtering logic later
+        }}
+      />
+
       <OrderBar />
     </div>
   );

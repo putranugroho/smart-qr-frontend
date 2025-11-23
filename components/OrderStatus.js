@@ -13,22 +13,17 @@ export default function OrderStatus() {
   const router = useRouter()
   const { id } = router.query
   const [payment, setPayment] = useState({ items: [], paymentTotal: 0 })
-  const [currentStep, setCurrentStep] = useState(2)
-    const [displayOrderId, setDisplayOrderId] = useState("")
+  const [currentStep, setCurrentStep] = useState(3)
+  const [displayOrderId, setDisplayOrderId] = useState("")
+  const [showAllItems, setShowAllItems] = useState(false) // new state
 
   useEffect(() => {
-    console.log("router.query");
-    console.log(router.query);
-    
     if (router.isReady) setDisplayOrderId(String(id))
     const p = getPayment() || {}
-    // fallback: if there's an items array inside payment, use it
     if (p && p.items && p.items.length) {
       setPayment(p)
-      // assume after completing payment user lands on order page -> move to "Makanan Sedang Disiapkan"
-      setCurrentStep(3)
+      setCurrentStep(2)
     } else {
-      // fallback to empty
       setPayment({ items: [], paymentTotal: 0 })
     }
   }, [router.isReady, id])
@@ -44,6 +39,16 @@ export default function OrderStatus() {
   const tax = Math.round(subtotal * 0.11)
   const total = subtotal + tax
 
+  const items = payment.items || []
+  const itemsCount = items.length
+
+  // decide which items to render: if showAllItems true -> all, else just first (if >=1)
+  const visibleItems = showAllItems ? items : (itemsCount > 0 ? [items[0]] : [])
+
+  function handleToggleShowAll() {
+    setShowAllItems(prev => !prev)
+  }
+
   return (
     <div className={styles.page}>
       {/* HEADER */}
@@ -58,18 +63,19 @@ export default function OrderStatus() {
           <div className={styles.orderType}>
             <Image
               src="/images/bell-icon.png"
-              alt="Chair Icon"
+              alt="Bell"
               width={12}
               height={12}
               style={{ paddingRight: 5 }}
             />
-            TBL 24 · Dine In</div>
+            TBL 24 · Dine In
+          </div>
           <div className={styles.storeName}>Yoshinoya - Mall Grand Indonesia</div>
         </div>
 
         <div className={styles.orderNumberBox}>
           <div className={styles.smallText}>Nomor Orderan</div>
-          <div className={styles.orderNumber}>{String(displayOrderId)}</div>
+          <div className={styles.orderNumber}>{String(displayOrderId || '-')}</div>
         </div>
       </div>
 
@@ -82,16 +88,12 @@ export default function OrderStatus() {
 
           <div className={styles.stepsWrap}>
             {steps.map((s) => {
-              const status = s.key >= currentStep ? 'done' : (s.key === currentStep ? 'ongoing' : 'upcoming')
+              // mapping sesuai keinginan: s.key < currentStep => done, s.key === currentStep => ongoing, else upcoming
+              const status = s.key > currentStep ? 'done' : (s.key === currentStep ? 'ongoing' : 'upcoming')
               return (
                 <div key={s.key} className={`${styles.stepItem} ${styles[status]}`}>
                   <div className={styles.iconCircle} aria-hidden>
-                    <Image
-                      src={s.img}
-                      alt="Chair Icon"
-                      width={24}
-                      height={24}
-                    />
+                    <Image src={s.img} alt={s.title} width={24} height={24} />
                   </div>
 
                   <div className={styles.stepTextWrap}>
@@ -107,20 +109,29 @@ export default function OrderStatus() {
 
       {/* ORDERED ITEMS */}
       <div className={styles.sectionPayment}>
-        <div className={styles.itemsTitle}>Ordered Items ({(payment.items || []).length})</div>
-          <div className={styles.trackLine}></div>
+        <div className={styles.itemsTitle}>Ordered Items ({itemsCount})</div>
+        <div className={styles.trackLine}></div>
 
         <div className={styles.itemsList}>
-          {(payment.items || []).map((it, i) => (
+          {visibleItems.length === 0 && (
+            <div className={styles.noItems}>Belum ada item dipesan.</div>
+          )}
+
+          {visibleItems.map((it, i) => (
             <div key={i} className={styles.itemRow}>
               <div className={styles.itemImageWrap}>
-                {/* use a fallback local image if product image not provided */}
-                <Image src={'/images/gambar-menu.jpg'} alt={it.title} width={64} height={64} className={styles.itemImage} />
+                <Image
+                  src={it.image || '/images/gambar-menu.jpg'}
+                  alt={it.title || it.name || 'item'}
+                  width={64}
+                  height={64}
+                  className={styles.itemImage}
+                />
               </div>
 
               <div className={styles.itemInfo}>
-                <div className={styles.itemTitle}>{it.title}</div>
-                <div className={styles.itemAddon}>{it.qty}x {it.note || 'No Note'}</div>
+                <div className={styles.itemTitle}>{it.title || it.name || it.itemName}</div>
+                <div className={styles.itemAddon}>{(it.qty || 1)}x {it.note || (it.addons && it.addons.length ? it.addons.map(a => a.group).join(', ') : 'No Note')}</div>
               </div>
 
               <div className={styles.itemPrice}>{formatRp(Number(it.price || 0) * (Number(it.qty || 1)))}</div>
@@ -128,10 +139,35 @@ export default function OrderStatus() {
           ))}
         </div>
 
-        <button className={styles.viewAllBtn} onClick={() => alert('implementasi: lihat semua item')}>Lihat Semua ▾</button>
+        {/* Show toggle button only if more than 1 item */}
+        {itemsCount > 1 && (
+          <button
+            className={styles.viewAllBtn}
+            onClick={handleToggleShowAll}
+            type="button"
+            aria-expanded={showAllItems}
+          >
+            <span className={styles.viewAllText}>
+              {showAllItems ? 'Lebih Sedikit' : 'Lihat Semua'}
+            </span>
+
+            <span className={styles.chevronWrap} aria-hidden>
+              <Image
+                src="/images/caret-down.png"       // ganti nama file sesuai file kamu
+                alt=""
+                width={12}
+                height={12}
+                style={{
+                  transform: showAllItems ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 180ms ease'
+                }}
+              />
+            </span>
+          </button>
+        )}
       </div>
 
-      {/* PAYMENT METHOD & DETAILS - reuse Checkout styles visually but we provide a compact layout */}
+      {/* PAYMENT METHOD & DETAILS */}
       <div className={styles.section}>
         <div className={styles.sectionTitle}>Pilih Metode Pembayaran</div>
 
@@ -139,7 +175,7 @@ export default function OrderStatus() {
           <div className={styles.paymentBoxHeader}>
             <div className={styles.paymentBoxTitle}>Pembayaran Online</div>
 
-            <Image 
+            <Image
               src="/images/pembayaran-online.png"
               alt="pembayaran online"
               width={50}
@@ -149,11 +185,7 @@ export default function OrderStatus() {
           </div>
         </div>
 
-
-        {/* QRIS */}
-        <div
-          className={`${styles.paymentItem}`}
-        >
+        <div className={styles.paymentItem}>
           <div className={styles.paymentItemLeft}>📷 QRIS</div>
         </div>
       </div>
@@ -163,7 +195,7 @@ export default function OrderStatus() {
         <div className={styles.paymentTitle}>Detail Pembayaran</div>
 
         <div className={styles.paymentRow}>
-          <div>Subtotal ({payment.items.length} menu)</div>
+          <div>Subtotal ({itemsCount} menu)</div>
           <div className={styles.paymentValue}>{formatRp(subtotal)}</div>
         </div>
 
@@ -182,7 +214,6 @@ export default function OrderStatus() {
           <div className={styles.paymentTotalValue}>{formatRp(total)}</div>
         </div>
       </div>
-
     </div>
   )
 }

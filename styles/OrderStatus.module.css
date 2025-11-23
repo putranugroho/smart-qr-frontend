@@ -179,6 +179,9 @@
   letter-spacing: 0%;
 }
 
+.stepItem.upcoming  {
+  opacity: 0.5;
+}
 .upcoming .iconCircle {
   background: linear-gradient(180deg, rgba(16, 16, 16, 0.05) 0%, rgba(16, 16, 16, 0.02) 100%);
   border: 1px solid rgba(16,16,16,0.08);
@@ -401,4 +404,130 @@
 
 .selected {
   border-color: #FC661A;
+}
+
+/* --- (existing content from your OrderStatus.module.css) --- */
+/* paste your existing css blocks here (header, blueBox, track, etc.) */
+/* I'll only show the new/changed parts so you can merge easily */
+
+/* Ordered items */
+.itemsTitle {
+  font-weight: 700;
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+.itemsList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.itemRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  padding: 6px 0;
+}
+.itemImageWrap {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+}
+.itemImage {
+  border-radius: 6px;
+  object-fit: cover;
+}
+.itemInfo {
+  flex: 1;
+}
+.itemTitle {
+  font-weight: 700;
+}
+.itemAddon {
+  font-size: 12px;
+  color: #666;
+}
+.itemPrice {
+  font-weight: 700;
+}
+
+/* No items fallback */
+.noItems {
+  padding: 12px 20px;
+  color: #6b7280;
+}
+
+/* ===== View all button (toggle) ===== */
+/* tombol lihat semua / lebih sedikit - terpusat */
+.viewAllBtn {
+  margin-top: 14px;
+  background: none;
+  border: none;
+  color: #FC661A;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;       /* inline so it can be centered by parent */
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  padding: 8px 12px;
+  width: 100%;
+  text-align: center;
+}
+
+/* teks di tombol - mudah diarahkan stylingnya */
+.viewAllText {
+  display: inline-block;
+  line-height: 1;
+}
+
+/* wrap icon supaya mudah atur spacing */
+.chevronWrap {
+  display: inline-flex;
+  width: 12px;
+  height: 12px;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+/* kecilkan gambar jika perlu (backup) */
+.viewAllBtn img {
+  display: block;
+  width: 12px;
+  height: 12px;
+}
+
+
+/* when open, optionally change color / style */
+.viewAllOpen {
+  color: #111827;
+}
+
+/* chevron */
+.chevron {
+  display: inline-block;
+  transition: transform 160ms ease;
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* rotate chevron if open (we use text arrows so no need transform, but keep for future icon) */
+.viewAllOpen .chevron {
+  transform: rotate(180deg);
+}
+
+/* small responsive tweaks */
+@media (max-width: 420px) {
+  .trackLine {
+    max-width: 100%;
+  }
+  .itemRow {
+    gap: 10px;
+  }
+  .itemImageWrap {
+    width: 56px;
+    height: 56px;
+  }
 }

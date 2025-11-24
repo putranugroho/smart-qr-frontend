@@ -16,13 +16,15 @@ function formatRp(n) {
  *  - setQty
  *  - subtotal
  *  - onAdd
+ *  - addAnimating (bool) -> apply visual pulse to the button
  */
 export default function StickyCartBar({
   qty = 1,
   setQty = () => {},
   subtotal = 0,
   onAdd = () => {},
-  style = {}
+  style = {},
+  addAnimating = false
 }) {
   const hasItems = Number(subtotal) > 0
 
@@ -74,7 +76,7 @@ export default function StickyCartBar({
             aria-label="Tambah Pesanan"
             className={`${styles.addBtn} ${
               hasItems ? styles.addBtnActive : styles.addBtnInactive
-            }`}
+            } ${addAnimating ? styles.addPulse : ''}`}
             type="button"
           >
             {/* Icon */}

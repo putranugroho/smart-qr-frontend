@@ -40,7 +40,14 @@ export default function PaymentPage() {
       {/* ORDER INFO */}
       <div className={styles.orderInfo}>
         <div className={styles.orderInfoText}>Tipe Order</div>
-        <div className={styles.orderInfoRight}>TBL 24 • Dine In ▼</div>
+        <div className={styles.orderInfoRight}>TBL 24 • Dine In</div>
+        <Image
+          src="/images/caret-down.png"
+          alt="Bell"
+          width={12}
+          height={12}
+          style={{ paddingRight: 5 }}
+        />
       </div>
 
       {/* INFORMASI PEMESAN */}

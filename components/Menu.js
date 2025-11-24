@@ -1,6 +1,7 @@
 // components/Menu.js
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
+import { getUser } from '../lib/auth'
 import Header from "./Header";
 import MenuTabs from "./MenuTabs";
 import SearchBar from "./SearchBar";
@@ -21,12 +22,41 @@ export default function Menu() {
   const [showFullMenu, setShowFullMenu] = useState(false);
   const [filterForCategory, setFilterForCategory] = useState(null);
 
+  // New: order bar state (eat-in / takeaway).
+  // default safe shape so render never fails
+  const [orderMode, setOrderMode] = useState({
+    type: "",
+    location: ""
+  });
+
   const sectionRefs = useRef({});
 
-  // Fetch categories
+  // Fetch categories and init orderMode from user
   useEffect(() => {
-    const API_URL =
-      "/api/proxy/menu-category?storeCode=SMS&orderCategoryCode=DI";
+    // safely read user
+    try {
+      const user = getUser?.() || null;
+      if (user) {
+        const formatted = {
+          // if orderType DI (dine-in) prefer tableNumber if present
+          type: user.orderType === "DI" ? (user.tableNumber || "TBL 24") : "Takeaway",
+          // you can derive/store location in user; fallback to default string
+          location: user.storeLocationName || user.location || "Yoshinoya - Mall Grand Indonesia"
+        };
+        setOrderMode(formatted);
+      } else {
+        // keep defaults or set a placeholder if you prefer
+        setOrderMode({
+          type: "",
+          location: ""
+        });
+      }
+    } catch (e) {
+      console.warn('getUser failed', e);
+    }
+
+    // fetch categories
+    const API_URL = "/api/proxy/menu-category?storeCode=SMS&orderCategoryCode=DI";
 
     setLoading(true);
 
@@ -53,7 +83,11 @@ export default function Menu() {
         const target = mapped[0]?.name;
         setActiveCategory(target);
 
+        // small delay to allow DOM measuring
         setTimeout(() => scrollToCategory(target), 200);
+      })
+      .catch((e) => {
+        console.error('Failed fetch categories', e);
       })
       .finally(() => setTimeout(() => setLoading(false), 500));
   }, []);
@@ -155,6 +189,90 @@ export default function Menu() {
 
   return (
     <div className="bg-white min-h-screen">
+      {/* Top status bar (eat-in / takeaway indicator) */}
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <div
+          role="button"
+          onClick={() => {
+            // optional future action
+          }}
+          style={{
+            width: '100%',
+            maxWidth: 390,
+            height: 32,
+            padding: '4px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            boxSizing: 'border-box',
+            background:
+              orderMode?.type === "Takeaway"
+                ? 'linear-gradient(90.35deg, #EB4646 17.45%, #FF8686 116.56%)'
+                : 'linear-gradient(90.35deg, #0061FF 17.45%, #5193FF 116.56%)',
+            color: '#ffffff',
+            borderBottom: '1px solid rgba(0,0,0,0.06)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            
+            {/* Icon chair hanya muncul jika dine-in */}
+            {orderMode?.type !== "Takeaway" && (
+              <img
+                src="/images/chair-icon.png"
+                alt="table"
+                width={14}
+                height={14}
+                style={{ display: 'block' }}
+              />
+            )}
+
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'row',
+                gap: 8,
+                alignItems: 'baseline',
+                lineHeight: 1
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: 'Inter, system-ui',
+                  fontWeight: 600,
+                  fontSize: 12
+                }}
+              >
+                {orderMode?.type || ''}
+              </div>
+
+              <div
+                style={{
+                  fontFamily: 'Inter, system-ui',
+                  fontWeight: 400,
+                  fontSize: 12,
+                  opacity: 0.95
+                }}
+              >
+                {orderMode?.location ? `• ${orderMode.location}` : ''}
+              </div>
+            </div>
+          </div>
+
+          {/* right arrow icon */}
+          <div style={{ display: 'flex', alignItems: 'center', marginLeft: 8 }}>
+            <img
+              src="/images/caret-down-white.png"
+              alt=""
+              width={16}
+              height={16}
+              style={{ display: 'block' }}
+            />
+          </div>
+        </div>
+      </div>
+
+
       <Header />
 
       {/* MenuTabs tampil hanya jika query kosong */}

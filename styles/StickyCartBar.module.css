@@ -111,7 +111,9 @@
   gap: 12px;
   padding: 8px 14px;
   box-sizing: border-box;
-  border: none;
+  border-width: 1px;
+  border-style: solid;
+  border-color: #0F0F0F;
   cursor: pointer;
   transition: box-shadow 160ms ease, transform 90ms ease;
   color: #ffffff;
@@ -126,7 +128,7 @@
 }
 
 .addBtnActive {
-  background: linear-gradient(90deg, #FF8040 0%, #FC661A 100%);
+  background: #FEF2E2;
   box-shadow: 0 6px 18px rgba(252,102,26,0.18);
 }
 
@@ -165,15 +167,17 @@
   font-size: 14px;
   line-height: 1;
   white-space: nowrap;
+  color: #0F0F0F;
 }
 
 /* label text on the right side of the button (ke kanan) */
 .addLabel {
   font-family: Inter;
-  font-weight: 400;
+  font-weight: bold;
   font-size: 14px;
   line-height: 1;
   opacity: 0.95;
+  color: #0F0F0F;
   margin-left: auto; /* push label to far right inside addTextWrap */
 }
 
@@ -206,4 +210,15 @@
   .addPrice, .addLabel {
     font-size: 13px;
   }
+}
+
+/* Add-button pulse animation when addAnimating === true */
+@keyframes addPulseKey {
+  0% { transform: scale(1); box-shadow: 0 6px 18px rgba(252,102,26,0.18); }
+  40% { transform: scale(1.06); box-shadow: 0 10px 26px rgba(252,102,26,0.22); }
+  100% { transform: scale(1); box-shadow: 0 6px 18px rgba(252,102,26,0.18); }
+}
+
+.addPulse {
+  animation: addPulseKey 540ms cubic-bezier(.2,.9,.2,1);
 }

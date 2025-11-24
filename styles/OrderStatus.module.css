@@ -45,6 +45,7 @@
 .orderType {
   font-weight: 700;
   font-size: 12px;
+  display: flex;
 }
 .storeName {
   font-weight: 400;
@@ -52,13 +53,13 @@
 }
 
 .orderNumberBox {
-  width: 64px;
-  height: 32px;
-  margin-bottom : -35px;
+  width: 75px;
+  height: 45x;
+  margin-bottom : -40px;
   background: rgba(255,255,255,0.95);
   color: #000;
   border-radius: 8px 8px 8px 8px;
-  padding: 8px 12px;
+  padding: 8px 0px;
   display: flex;
   flex-direction: column;
   justify-content: center;

@@ -3,13 +3,28 @@ import Image from 'next/image'
 import { useRouter } from 'next/router'
 import styles from '../styles/HeroLocation.module.css'
 import cardStyles from '../styles/OptionCard.module.css'
+import { userSignIn } from '../lib/auth'
+
 
 export default function HeroLocation() {
   const router = useRouter()
-
-  const goToMenu = (mode = 'dinein') => {
-    const url = mode === 'dinein' ? '/menu' : `/menu?mode=${encodeURIComponent(mode)}`
-    router.push(url)
+  const goToMenu = (mode) => {
+    if (mode === 'dinein') {
+      const userAuth = {
+        storeLocation: 'SMS',
+        orderType: 'DI',
+        tableNumber: 'TBL 24',
+      }
+      userSignIn(userAuth)
+      router.push("/menu")
+    } else {
+      const userAuth = {
+        storeLocation: 'SMS',
+        orderType: 'TA',
+        tableNumber: '',
+      }
+      userSignIn(userAuth)
+      router.push("/menu")}
   }
 
   const handleKeyActivate = (e, mode) => {

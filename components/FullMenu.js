@@ -5,24 +5,25 @@ import styles from '../styles/FullMenu.module.css'
 
 export default function FullMenu({
   open = false,
-  categories = [],           // array of category names
-  currentCategory = null,    // currently active category (string)
+  categories = [],
+  currentCategory = null,
   onClose = () => {},
   onSelect = () => {},
-  onOpenFilter = () => {},   // callback when open filter requested
-  filterForCategory = null,  // name of category for which filter should open automatically
-  onApplyFilter = () => {},  // (categoryName, filters) => {}
+  onOpenFilter = () => {},
+  filterForCategory = null,
+  onApplyFilter = () => {},
 }) {
   const [visible, setVisible] = useState(Boolean(open))
-  // localOpenFilter determines whether the FILTER UI is shown.
-  // It should be true only when filterForCategory is provided (open via filter button).
+  // show filter UI (only when opening via filter or user opened it)
   const [localOpenFilter, setLocalOpenFilter] = useState(Boolean(filterForCategory && open))
   const [selectedCategory, setSelectedCategory] = useState(currentCategory || categories[0] || null)
 
-  // filters: store arrays (for multi-select controls)
-  // default structure is: { size: ['All'], side: ['All'], meat: ['All'] }
+  // filters default (arrays) - handled when filter panel opens
   const [filters, setFilters] = useState({})
   const sheetRef = useRef(null)
+
+  // collapsed = initial short sheet; expanded = tall (92vh)
+  const [expanded, setExpanded] = useState(false)
 
   const DEFAULT_FILTERS = {
     size: ['All'],
@@ -30,37 +31,41 @@ export default function FullMenu({
     meat: ['All']
   }
 
-  // sync open -> visible
+  // sync open -> visible; whenever visible becomes true, default to collapsed
   useEffect(() => {
     setVisible(Boolean(open))
-  }, [open])
+    if (open) {
+      // always start collapsed when sheet opens (user can expand)
+      setExpanded(false)
+      // only auto-open filter panel if filterForCategory truthy (but keep collapsed)
+      setLocalOpenFilter(Boolean(filterForCategory))
+    } else {
+      setLocalOpenFilter(false)
+    }
+  }, [open, filterForCategory])
 
-  // when categories/currentCategory change, ensure selection valid
   useEffect(() => {
     setSelectedCategory(currentCategory || categories[0] || null)
   }, [currentCategory, categories])
 
-  // when filterForCategory changes:
-  // - if provided -> open filter panel and select that category
-  // - if null/undefined -> ensure filter panel is closed (important to avoid showing both)
+  // when filterForCategory changes: select category, show filter panel (but do NOT auto-expand)
   useEffect(() => {
     if (filterForCategory) {
       setSelectedCategory(filterForCategory)
       setLocalOpenFilter(true)
       setVisible(true)
+      // intentionally keep collapsed: setExpanded(false)
+      setExpanded(false)
     } else {
-      // explicit close filter UI if no target filter
       setLocalOpenFilter(false)
     }
   }, [filterForCategory, categories])
 
-  // ensure that whenever filter panel opens we have the defaults for missing keys
+  // ensure defaults when opening filter
   useEffect(() => {
     if (localOpenFilter) {
-      // if filters empty or missing keys, set defaults (but preserve existing non-empty selections)
       setFilters(prev => {
         const merged = { ...DEFAULT_FILTERS, ...prev }
-        // if prev had keys but empty arrays, keep DEFAULT
         Object.keys(DEFAULT_FILTERS).forEach(k => {
           if (!Array.isArray(merged[k]) || merged[k].length === 0) {
             merged[k] = [...DEFAULT_FILTERS[k]]
@@ -71,13 +76,15 @@ export default function FullMenu({
     }
   }, [localOpenFilter])
 
-  // lock body scroll while visible
+  // prevent body scroll while visible
   useEffect(() => {
     document.body.style.overflow = visible ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [visible])
 
-  // touch/drag handlers for sheet (basic drag-to-close / expand)
+  // Touch/drag handler supporting:
+  // - drag down to close (like before)
+  // - drag up to expand (new)
   useEffect(() => {
     const el = sheetRef.current
     if (!el) return
@@ -85,43 +92,69 @@ export default function FullMenu({
     let startY = 0
     let currentY = 0
     let dragging = false
-    let sheetHeight = el.getBoundingClientRect().height
+    let startExpanded = expanded
+    // we use element height to compute thresholds
+    function sheetHeight() {
+      // use viewport height when expanded, otherwise collapsed height from CSS (approx)
+      return startExpanded ? Math.min(window.innerHeight * 0.92, 653) : Math.min(320, window.innerHeight * 0.6)
+    }
 
     function onStart(e) {
       dragging = true
       startY = e.touches ? e.touches[0].clientY : e.clientY
-      sheetHeight = el.getBoundingClientRect().height
+      currentY = startY
+      startExpanded = expanded
       el.style.transition = 'none'
     }
 
     function onMove(e) {
       if (!dragging) return
       currentY = e.touches ? e.touches[0].clientY : e.clientY
-      const dy = Math.max(0, currentY - startY)
-      // translate downward only
-      el.style.transform = `translateY(${dy}px)`
+      const dy = currentY - startY
+
+      // If sheet is collapsed and user drags UP (dy < 0) we allow upward movement to indicate expand
+      // If sheet is expanded and user drags DOWN (dy > 0) allow downward movement to indicate collapse/close
+      // We'll translate on Y (positive = move down)
+      // Limit translation so UI remains bound
+      const maxTranslate = window.innerHeight // large safe value
+      const translate = Math.max(-maxTranslate, Math.min(maxTranslate, dy))
+      el.style.transform = `translateY(${translate}px)`
     }
 
     function onEnd() {
       if (!dragging) return
       dragging = false
       el.style.transition = 'transform 220ms ease'
-      const dy = Math.max(0, currentY - startY)
-      // threshold to close: > 30% of sheet height
-      if (dy > (sheetHeight * 0.35)) {
-        // close
-        el.style.transform = `translateY(${sheetHeight}px)`
-        // wait for transition then close
+      const dy = currentY - startY
+      const h = sheetRef.current ? sheetRef.current.getBoundingClientRect().height : sheetHeight()
+
+      // if user dragged down enough -> close
+      if (dy > (h * 0.35)) {
+        el.style.transform = `translateY(${h}px)`
         setTimeout(() => {
           el.style.transform = ''
-          // also reset localOpenFilter to avoid stale state next open
           setLocalOpenFilter(false)
+          setExpanded(false)
           onClose()
         }, 220)
-      } else {
-        // snap back
-        el.style.transform = ''
+        startY = 0
+        currentY = 0
+        return
       }
+
+      // if user dragged up enough (negative dy) -> expand
+      if (dy < -80) {
+        // expand sheet
+        setExpanded(true)
+        // snap back transform to 0 (sheet will animate to expanded CSS height)
+        el.style.transform = ''
+        startY = 0
+        currentY = 0
+        return
+      }
+
+      // otherwise snap back to original (either collapsed or expanded)
+      el.style.transform = ''
       startY = 0
       currentY = 0
     }
@@ -141,51 +174,38 @@ export default function FullMenu({
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onEnd)
     }
-  }, [onClose, visible])
+  }, [onClose, expanded, visible])
 
-  // helper to toggle tag in array filter with special handling for 'All'
+  // helper toggle tag with 'All' special handling
   function toggleTag(key, value) {
     setFilters(prev => {
       const copy = { ...prev }
       const arr = Array.isArray(copy[key]) ? [...copy[key]] : []
 
-      // if toggling 'All' -> set only 'All'
       if (value === 'All') {
         copy[key] = ['All']
         return copy
       }
 
-      // toggling a non-All tag -> remove 'All' first
       const idxAll = arr.indexOf('All')
       if (idxAll !== -1) {
-        // replace with the new value
         copy[key] = [value]
         return copy
       }
 
-      // otherwise toggle in/out normally
       const idx = arr.indexOf(value)
-      if (idx === -1) {
-        arr.push(value)
-      } else {
-        arr.splice(idx, 1)
-      }
+      if (idx === -1) arr.push(value); else arr.splice(idx, 1)
 
-      // if after removal nothing remains -> fall back to All
-      if (arr.length === 0) {
-        copy[key] = ['All']
-      } else {
-        copy[key] = arr
-      }
+      if (arr.length === 0) copy[key] = ['All']
+      else copy[key] = arr
+
       return copy
     })
   }
 
   function applyFilter() {
-    // pass filters to parent (consider converting single-value arrays to value if needed)
     onApplyFilter(selectedCategory, filters)
     setLocalOpenFilter(false)
-    // close sheet after applying filter (parent may choose different behavior)
     onClose()
   }
 
@@ -197,32 +217,39 @@ export default function FullMenu({
 
   return (
     <>
-      {/* overlay covers entire window incl sticky header/tabs and orderbar */}
       <div
         className={styles.overlay}
         onClick={() => {
-          // clicking outside closes sheet and clear filterForCategory intent
           setLocalOpenFilter(false)
           onClose()
         }}
       />
 
       <div className={styles.sheetWrap} aria-hidden={!visible}>
-        <div className={styles.sheet} ref={sheetRef} role="dialog" aria-modal="true">
+        {/* apply collapsed/expanded class for CSS height control */}
+        <div
+          className={`${styles.sheet} ${expanded ? styles.expanded : styles.collapsed}`}
+          ref={sheetRef}
+          role="dialog"
+          aria-modal="true"
+        >
           {/* drag handle */}
-          <div className={styles.handleArea}>
+          <div
+            className={styles.handleArea}
+            onClick={() => setExpanded(prev => !prev)} // click to toggle expand/collapse
+          >
             <div className={styles.handleBar} />
           </div>
 
           <div className={styles.sheetContent}>
-            {/* CATEGORY view (only shown when not filtering) */}
+            {/* CATEGORY view */}
             {!localOpenFilter && (
               <>
-                {/* Header */}
                 <div className={styles.sheetHeader}>
-                    <div className={styles.sheetTitle}>Category Item</div>
-                    <button className={styles.closeBtn} onClick={() => { setLocalOpenFilter(false); onClose() }}>✕</button>
+                  <div className={styles.sheetTitle}>Category Item</div>
+                  <button className={styles.closeBtn} onClick={() => { setLocalOpenFilter(false); onClose() }}>✕</button>
                 </div>
+
                 <div className={styles.categoryList}>
                   {categories.map((c) => {
                     const isActive = String(c) === String(selectedCategory)
@@ -232,7 +259,6 @@ export default function FullMenu({
                         className={`${styles.categoryItem} ${isActive ? styles.categoryActive : ''}`}
                         onClick={() => {
                           setSelectedCategory(c)
-                          // selecting category in fullmenu should also notify parent
                           onSelect?.(c)
                         }}
                       >
@@ -245,7 +271,7 @@ export default function FullMenu({
               </>
             )}
 
-            {/* FILTER view (only shown when localOpenFilter = true) */}
+            {/* FILTER view */}
             {localOpenFilter && (
               <div className={styles.filterPanel}>
                 <div className={styles.filterGroup}>
@@ -296,7 +322,6 @@ export default function FullMenu({
                 <div className={styles.filterActions}>
                   <button className={styles.applyBtn} onClick={applyFilter}>
                     <span>Terapkan Filter</span>
-                    {/* optionally show a count or arrow at right; keep space-between */}
                     <span style={{ opacity: 0 }}></span>
                   </button>
                 </div>

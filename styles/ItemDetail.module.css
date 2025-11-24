@@ -237,3 +237,111 @@
   box-sizing: border-box;
   background: transparent;
 }
+
+/* small toast shown after add */
+.addToast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 110px; /* above sticky area */
+  background: rgba(17,24,39,0.96);
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 6px 22px rgba(2,6,23,0.2);
+  z-index: 1600;
+  animation: toastInOut 820ms ease;
+  pointer-events: none;
+}
+
+@keyframes toastInOut {
+  0% { opacity: 0; transform: translateX(-50%) translateY(6px) scale(.98); }
+  15% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  85% { opacity: 1; transform: translateX(-50%) translateY(-6px) scale(1); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-12px) scale(.98); }
+}
+
+/* --- Modal "Menu Ditambahkan" popup --- */
+.addModalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.36);
+  z-index: 1700;
+  backdrop-filter: blur(2px);
+}
+
+.addModal {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1750;
+  width: min(360px, calc(100% - 40px));
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(2,6,23,0.18);
+  background: linear-gradient(180deg, #fff 0%, #fff 60%);
+  overflow: hidden;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.addModalContent {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.addModalIcon {
+  margin-top: 6px;
+  width: 96px;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.addModalTitle {
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  font-weight: 700;
+  font-size: 18px;
+  color: #111827;
+  text-align: center;
+  padding-top: 4px;
+}
+
+.addModalActions {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 12px 8px 20px;
+}
+
+.addModalCloseBtn {
+  min-width: 120px;
+  height: 40px;
+  border-radius: 9999px;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(2,6,23,0.06);
+}
+
+/* ensure modal is accessible on very small screens */
+@media (max-width: 420px) {
+  .addModal {
+    width: calc(100% - 28px);
+  }
+  .addModalIcon {
+    width: 80px;
+    height: 80px;
+  }
+  .addModalTitle {
+    font-size: 16px;
+  }
+}

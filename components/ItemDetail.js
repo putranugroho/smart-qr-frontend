@@ -1,6 +1,6 @@
 // components/ItemDetail.js
 import Image from 'next/image'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import StickyCartBar from './StickyCartBar'
 import { useRouter } from 'next/router'
 import styles from '../styles/ItemDetail.module.css'
@@ -10,6 +10,8 @@ function formatRp(n) {
   if (n == null) return '-'
   return 'Rp' + new Intl.NumberFormat('id-ID').format(Number(n || 0))
 }
+
+const NONE_OPTION_ID = '__NONE__' // sentinel for "Tanpa add ons"
 
 export default function ItemDetail({ productCode: propProductCode, item: propItem = {} }) {
   const router = useRouter()
@@ -32,15 +34,21 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState(null)
+  const [noCondiments, setNoCondiments] = useState(false)
+  const [missingAddons, setMissingAddons] = useState(null)
 
   // Editing context (if came from checkout)
   const fromCheckout = String(router.query?.from || '') === 'checkout'
   const editIndexQuery = router.query?.index != null ? Number(router.query.index) : null
   const [editingIndex, setEditingIndex] = useState(editIndexQuery != null ? editIndexQuery : null)
 
+  // Animation / feedback state
+  const [addAnimating, setAddAnimating] = useState(false)
+  const [showPopup, setShowPopup] = useState(false)
+  const toastTimerRef = useRef(null)
+
   // --- Prefill from cart (if editing) ASAP so UI uses cart values immediately ---
   useEffect(() => {
-    // prefer explicit query index; else sessionStorage fallback 'yoshi_edit' (if parent set it)
     const idx = editIndexQuery != null ? editIndexQuery : (() => {
       try {
         const s = sessionStorage.getItem('yoshi_edit')
@@ -57,7 +65,6 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         const cart = getCart() || []
         const cartItem = cart[idx]
         if (cartItem) {
-          // Fill UI fields from cart item immediately
           setEditingIndex(idx)
           if (cartItem.title) setItem(prev => ({ ...prev, title: cartItem.title }))
           if (cartItem.price != null) setItem(prev => ({ ...prev, price: Number(cartItem.price) }))
@@ -70,7 +77,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
           if (Array.isArray(cartItem.addons)) {
             const sel = {}
             cartItem.addons.forEach(a => {
-              // a.selected may be string or array — keep as-is
+              // a.selected may be string/array/object — adopt simple mapping
               sel[a.group] = a.selected ?? null
             })
             setSelected(prev => ({ ...prev, ...sel }))
@@ -80,7 +87,6 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         console.warn('prefill from cart failed', e)
       }
     }
-    // Only run once on mount / when query changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady])
 
@@ -89,6 +95,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     if (!productCode) return
     setLoading(true)
     setErr(null)
+    setNoCondiments(false)
 
     const orderCategoryCode = 'DI'
     const storeCode = 'SMS'
@@ -102,17 +109,13 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
       .then(json => {
         const product = Array.isArray(json.data) && json.data.length > 0 ? json.data[0] : null
         if (!product) {
-          setErr('Tidak ada data product condiment')
+          setAddons([])
+          setNoCondiments(true)
+
+          // initialize selection for no-condiment case
+          setSelected(prev => ({ ...prev, ["__NO_ADDONS__"]: NONE_OPTION_ID }))
           return
         }
-
-        // Update base item if API supplies better values (but don't override cart-edit fields already set)
-        setItem(prev => ({
-          title: prev.title || product.name || '',
-          price: Number(prev.price || product.price || 0),
-          image: prev.image || product.imagePath || '',
-          description: prev.description || product.description || ''
-        }))
 
         // Build addon groups
         const groups = Array.isArray(product.condimentGroups) ? product.condimentGroups.map(g => {
@@ -138,16 +141,23 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         }) : []
 
         setAddons(groups)
+        setNoCondiments(groups.length === 0)
+
+        // Update base item if API supplies better values (but don't override cart-edit fields already set)
+        setItem(prev => (({
+          title: prev.title || product.name || '',
+          price: Number(prev.price || product.price || 0),
+          image: prev.image || product.imagePath || '',
+          description: prev.description || product.description || ''
+        })))
 
         // Initialize selected defaults for groups that are NOT already set (preserve cart values)
         setSelected(prevSelected => {
           const result = { ...prevSelected }
           groups.forEach(g => {
             if (result[g.group] == null) {
-              // if allowSkip -> null default; else pick first option id if exists
-              result[g.group] = g.allowSkip ? null : (g.options.length > 0 ? g.options[0].id : null)
-            } else {
-              // if stored value exists but it's an id not matching any option (rare), keep it but that's okay
+              // NOTE: keep null so user must actively choose.
+              result[g.group] = null
             }
           })
           return result
@@ -156,6 +166,8 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
       .catch(e => {
         console.error('fetch condiment error', e)
         setErr(e.message || 'Fetch error')
+        setAddons([])
+        setNoCondiments(true)
       })
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -169,16 +181,15 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
       const val = selected[key]
 
       if (val == null) return acc
+      if (val === NONE_OPTION_ID) return acc // explicit none chosen -> no addon price
 
       if (Array.isArray(val)) {
-        // multiple selections stored as array
         return acc + val.reduce((s, v) => {
           const opt = g.options.find(o => o.id === v)
           return s + (opt ? Number(opt.price || 0) : 0)
         }, 0)
       }
 
-      // single selection
       const opt = g.options.find(o => o.id === val)
       return acc + (opt ? Number(opt.price || 0) : 0)
     }, 0)
@@ -191,6 +202,14 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     setSelected(prev => {
       const clone = { ...prev }
       const current = clone[groupKey]
+
+      // if user chose the explicit NONE option
+      if (optionId === NONE_OPTION_ID) {
+        clone[groupKey] = NONE_OPTION_ID
+        return clone
+      }
+
+      // otherwise normal behavior:
       if (allowSkip) {
         clone[groupKey] = current === optionId ? null : optionId
       } else {
@@ -201,16 +220,84 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   }
 
   function validateSelection() {
-    const missing = addons.filter(g => !g.allowSkip && (selected[g.group] == null))
-    if (missing.length > 0) {
-      const names = missing.map(m => m.name || m.group).join(', ')
-      alert(`Silakan pilih: ${names}`)
-      return false
-    }
-    return true
+  const missing = addons.filter(g => selected[g.group] == null)
+
+  if (missing.length > 0) {
+    const names = missing.map(m => m.name || m.group).join(', ')
+    setMissingAddons(names)   // <-- Tampilkan di popup
+    setShowPopup(true)
+    return false
+  }
+
+  return true
+}
+
+
+  // helper: find option object by id in a group
+  function findOption(group, optId) {
+    if (!group || !Array.isArray(group.options)) return null
+    return group.options.find(o => String(o.id) === String(optId)) || null
   }
 
   function buildOrderObject() {
+    const addonsForCart = addons.map(g => {
+      const val = selected[g.group]
+
+      // user explicitly chose "none" for this group OR no selection (null)
+      if (val === NONE_OPTION_ID || val == null) {
+        return {
+          group: g.group,
+          groupName: g.name ?? g.group,
+          selected: null
+        }
+      }
+
+      // multiple selections (array)
+      if (Array.isArray(val)) {
+        const items = val.map(v => {
+          const opt = findOption(g, v)
+          if (opt) {
+            return {
+              id: opt.id ?? null,
+              code: opt.id ?? String(opt.rawId ?? opt.id ?? ''),
+              name: opt.name ?? '',
+              price: Number(opt.price || 0),
+              image: opt.image || ''
+            }
+          }
+          return { id: v, code: String(v), name: String(v), price: 0, image: '' }
+        })
+        return {
+          group: g.group,
+          groupName: g.name ?? g.group,
+          selected: items
+        }
+      }
+
+      // single selection
+      const opt = findOption(g, val)
+      if (opt) {
+        return {
+          group: g.group,
+          groupName: g.name ?? g.group,
+          selected: {
+            id: opt.id ?? null,
+            code: opt.id ?? String(opt.rawId ?? opt.id ?? ''),
+            name: opt.name ?? '',
+            price: Number(opt.price || 0),
+            image: opt.image || ''
+          }
+        }
+      }
+
+      // fallback: unknown id -> store as code only
+      return {
+        group: g.group,
+        groupName: g.name ?? g.group,
+        selected: { id: val, code: String(val), name: String(val), price: 0, image: '' }
+      }
+    })
+
     return {
       productCode,
       title: item.title || '',
@@ -218,44 +305,57 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
       qty: Number(qty || 1),
       image: item.image || '/images/gambar-menu.jpg',
       note,
-      addons: addons.map(g => {
-        const val = selected[g.group]
-        return { group: g.group, selected: Array.isArray(val) ? val.slice() : (val ?? null) }
-      })
+      addons: addonsForCart
     }
   }
 
-  // add or update cart item
+  // add or update cart item — with animation then popup
   function handleAddToCart() {
-    if (!validateSelection()) return
-    const order = buildOrderObject()
+  if (addons.length > 0 && !validateSelection()) return
 
-    // determine editing index (prefer explicit editingIndex state)
-    const idx = editingIndex != null ? editingIndex : null
+  const order = buildOrderObject()
 
-    if (fromCheckout && idx != null) {
-      try {
-        updateCart(idx, order) // updateCart should write and return updated array (lib/cart)
-        // cleanup session edit flag
-        try { sessionStorage.removeItem('yoshi_edit') } catch (e) {}
-        router.push('/checkout')
-      } catch (e) {
-        console.error('updateCart failed', e)
-        alert('Gagal memperbarui pesanan. Coba lagi.')
-      }
+  try {
+    if (fromCheckout && editingIndex != null) {
+      updateCart(editingIndex, order)
     } else {
-      try {
-        addToCart(order)
-        router.push('/menu')
-      } catch (e) {
-        console.error('addToCart failed', e)
-        alert('Gagal menambahkan ke keranjang. Coba lagi.')
-      }
+      addToCart(order)
+    }
+  } catch (e) {
+    console.error('persist cart error', e)
+  }
+
+  setMissingAddons(null) // pastikan popup bukan “missing”
+  
+  setAddAnimating(true)
+  if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+
+  toastTimerRef.current = setTimeout(() => {
+    setAddAnimating(false)
+    setShowPopup(true)
+  }, 520)
+}
+
+
+  // close popup: then navigate depending on edit/fromCheckout
+  function handleClosePopup() {
+    setShowPopup(false)
+    // cleanup editing session key if any
+    try { sessionStorage.removeItem('yoshi_edit') } catch (e) {}
+    if (fromCheckout && editingIndex != null) {
+      router.push('/checkout')
+    } else {
+      router.push('/menu')
     }
   }
 
-  // UI: unchanged. Ensure Image uses item.image, title uses item.title, price uses item.price,
-  // qty/note reflect state, radio checked uses selected[...] (which we filled from cart earlier)
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    }
+  }, [])
+
+  // UI
   return (
     <div className={styles.page}>
       <div className={styles.headerArea}>
@@ -304,7 +404,44 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         {loading && <div style={{ padding: 12 }}>Memuat addon...</div>}
         {err && <div style={{ padding: 12, color: 'crimson' }}>{err}</div>}
 
-        {!loading && addons.map(g => (
+        {/* CASE: no condiment groups from API -> show single "Tanpa add ons" block */}
+        {!loading && noCondiments && (
+          <section className={styles.addonGroup}>
+            <div className={styles.groupHeader}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                <div className={styles.groupTitle}>Tanpa Add Ons</div>
+                <div className={styles.groupSub}></div>
+              </div>
+            </div>
+
+            {/* Radio Button Tanpa Add Ons */}
+            <label className={styles.optionLabel} style={{ opacity: 0.95 }}>
+              <div className={styles.optionName}>
+                <div>Tanpa add ons</div>
+              </div>
+
+              <div className={styles.optionRight}>
+                <div className={styles.optionPrice}>+Rp0</div>
+
+                <input
+                  type="radio"
+                  name="__NO_ADDONS__"
+                  checked={selected["__NO_ADDONS__"] === NONE_OPTION_ID}
+                  onChange={() =>
+                    setSelected(prev => ({
+                      ...prev,
+                      ["__NO_ADDONS__"]: NONE_OPTION_ID
+                    }))
+                  }
+                  className={styles.radio}
+                />
+              </div>
+            </label>
+          </section>
+        )}
+
+        {/* Render groups when available */}
+        {!loading && !noCondiments && addons.map(g => (
           <section key={g.group} className={styles.addonGroup}>
             <div className={styles.groupHeader}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
@@ -314,6 +451,26 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
             </div>
 
             <div>
+              {/* If allowSkip true: render explicit "Tanpa add ons" radio option */}
+              {g.allowSkip && (
+                <label className={styles.optionLabel} style={{ opacity: 0.95 }}>
+                  <div className={styles.optionName}>
+                    <div>Tanpa add ons</div>
+                  </div>
+
+                  <div className={styles.optionRight}>
+                    <div className={styles.optionPrice}>+Rp0</div>
+                    <input
+                      type="radio"
+                      name={g.group}
+                      checked={selected[g.group] === NONE_OPTION_ID}
+                      onChange={() => onToggleOption(g.group, NONE_OPTION_ID, true)}
+                      className={styles.radio}
+                    />
+                  </div>
+                </label>
+              )}
+
               {g.options.length > 0 ? g.options.map(opt => {
                 const groupKey = g.group
                 const allowSkip = !!g.allowSkip
@@ -359,9 +516,71 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
       <div className={styles.stickyOuter}>
         <div className={styles.stickyInner}>
-          <StickyCartBar qty={qty} setQty={setQty} subtotal={subtotal} onAdd={handleAddToCart} />
+          <StickyCartBar
+            qty={qty}
+            setQty={setQty}
+            subtotal={subtotal}
+            onAdd={handleAddToCart}
+            addAnimating={addAnimating}
+          />
         </div>
       </div>
+
+      {/* Popup modal (instead of toast) */}
+      {showPopup && (
+        <>
+          <div className={styles.addModalOverlay} onClick={() => {
+            setShowPopup(false)
+            setMissingAddons(null)
+          }} />
+
+          <div className={styles.addModal} role="dialog" aria-modal="true">
+            <div className={styles.addModalContent}>
+
+              {missingAddons ? (
+                <>
+                  <div className={styles.addModalIcon}>
+                    <Image src="/images/warning.png" alt="warning" width={80} height={80} />
+                  </div>
+                  <div className={styles.addModalTitle}>
+                    Pilih Add Ons Terlebih Dahulu
+                  </div>
+                  <div className={styles.addModalSubtitle}>
+                    Anda belum memilih: <b>{missingAddons}</b>
+                  </div>
+
+                  <div className={styles.addModalActions}>
+                    <button
+                      className={styles.addModalCloseBtn}
+                      onClick={() => {
+                        setShowPopup(false)
+                        setMissingAddons(null)
+                      }}
+                    >
+                      Mengerti
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className={styles.addModalIcon}>
+                    <Image src={"/images/order-success.png"} alt="success" width={96} height={96} />
+                  </div>
+                  <div className={styles.addModalTitle}>Menu Ditambahkan!</div>
+
+                  <div className={styles.addModalActions}>
+                    <button className={styles.addModalCloseBtn} onClick={handleClosePopup}>
+                      Tutup
+                    </button>
+                  </div>
+                </>
+              )}
+
+            </div>
+          </div>
+        </>
+      )}
+
     </div>
   )
 }

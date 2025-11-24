@@ -20,12 +20,10 @@
   pointer-events: none;
 }
 
-/* bottom sheet */
+/* bottom sheet base */
 .sheet {
   width: 100%;
   max-width: 390px;
-  height: 92vh;
-  max-height: 653px;
   border-top-left-radius: 24px;
   border-top-right-radius: 24px;
   background: #fff;
@@ -36,7 +34,19 @@
   flex-direction: column;
   overflow: hidden;
   touch-action: none;
-  will-change: transform;
+  will-change: transform, height;
+  transition: height 220ms ease;
+}
+
+/* collapsed & expanded helpers (JS toggles class) */
+.collapsed {
+  height: 260px;   /* initial short height */
+  max-height: 260px;
+}
+
+.expanded {
+  height: 92vh;    /* full expanded */
+  max-height: 653px;
 }
 
 /* drag handle area */
@@ -46,6 +56,7 @@
   padding-top: 12px;
   padding-bottom: 6px;
   cursor: grab;
+  background: transparent;
 }
 .handleArea:active { cursor: grabbing; }
 .handleBar {
@@ -191,7 +202,7 @@
 .filterActions {
   display: flex;
   gap: 12px;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
   margin-top: 14px;
 }
@@ -202,9 +213,10 @@
   cursor: pointer;
 }
 
-/* APPLY button updated to requested layout */
+/* APPLY button: requested layout but responsive-friendly */
 .applyBtn {
-  width: 350px;
+  width: 100%;
+  max-width: 350px;   /* requested width as max */
   height: 42px;
   align-items: center;
   padding: 8px 24px;
@@ -222,4 +234,10 @@
   margin-top: 12px;
   color: #6b7280;
   font-size: 13px;
+}
+
+/* small responsive tweak */
+@media (max-width: 420px) {
+  .collapsed { height: 240px; max-height: 240px; }
+  .applyBtn { padding: 8px 18px; }
 }

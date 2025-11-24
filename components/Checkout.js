@@ -77,6 +77,26 @@ export default function CheckoutPage() {
     router.push(`/item/${productCode}?${qs}`)
   }
 
+  // Helper to render addons array in readable form
+  function renderAddons(addons) {
+    if (!addons || addons.length === 0) return null
+
+    const list = addons
+      .filter(a => a.selected) // hanya addon yg dipilih
+      .map((a, idx) => <div key={idx}>- {a.selected.name}</div>)
+
+    if (list.length === 0) return null
+
+    return (
+      <div>
+        <div className={styles.addonGroupTitle}>Add on :</div>
+        {list}
+      </div>
+    )
+  }
+
+
+
   const subtotal = cartSubtotal()
   const tax = Math.round(subtotal * 0.11)
   const total = subtotal + tax
@@ -116,25 +136,22 @@ export default function CheckoutPage() {
           <div key={i} className={styles.cartItem}>
             <div className={styles.itemImageWrap}>
               <Image
-                src="/images/gambar-menu.jpg"
+                src={it.image || "/images/gambar-menu.jpg"}
                 alt={it.title}
                 width={64}
                 height={64}
                 className={styles.itemImage}
               />
-              <button
-                className={styles.editBtn}
-                onClick={() => handleEdit(i)}
-              >
-                Edit
-              </button>
             </div>
 
             <div className={styles.itemInfo}>
               <div className={styles.itemTitle}>{it.title}</div>
 
+              {/* Show addons (all groups + selected) */}
               <div className={styles.itemAddon}>
-                {it.qty}x {it.note || 'No Note'}
+                {renderAddons(it.addons)}
+                {/* show note if present */}
+                {it.note ? <div className={styles.addonNote}>Catatan: {String(it.note)}</div> : null}
               </div>
             </div>
 
@@ -142,8 +159,31 @@ export default function CheckoutPage() {
               <div className={styles.itemPrice}>{formatRp(it.price * it.qty)}</div>
 
               <div className={styles.qtyRow}>
-                <button className={styles.trashBtn} onClick={() => handleDelete(i)}>🗑</button>
+                {/* delete */}
+                <button
+                  className={styles.trashBtn}
+                  onClick={() => handleDelete(i)}
+                  title="Hapus item"
+                  aria-label={`Hapus item ${it.title}`}
+                >
+                  🗑
+                </button>
 
+                {/* edit icon */}
+                <button
+                  className={styles.editIconBtn}
+                  onClick={() => handleEdit(i)}
+                  title="Edit item"
+                  aria-label={`Edit item ${it.title}`}
+                >
+                  {/* inline SVG pencil */}
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" fill="#111827"/>
+                    <path d="M20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="#111827"/>
+                  </svg>
+                </button>
+
+                {/* qty controls */}
                 <button className={styles.minusBtn} onClick={() => handleQty(i, 'minus')}>-</button>
                 <div className={styles.qtyText}>{it.qty}</div>
                 <button className={styles.plusBtn} onClick={() => handleQty(i, 'plus')}>+</button>

@@ -64,8 +64,8 @@ export default function OrderStatus() {
             <Image
               src="/images/bell-icon.png"
               alt="Bell"
-              width={12}
-              height={12}
+              width={20}
+              height={20}
               style={{ paddingRight: 5 }}
             />
             TBL 24 · Dine In

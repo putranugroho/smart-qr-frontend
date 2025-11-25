@@ -1,6 +1,7 @@
 // components/AddPopup.js
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import Image from 'next/image'
+import { useRouter } from 'next/router'
 
 export default function AddPopup({
   visible = false,
@@ -14,6 +15,7 @@ export default function AddPopup({
   const [pos, setPos] = useState({ top: 0, left: 0 })
   const [show, setShow] = useState(Boolean(visible))
   const popupRef = useRef(null)
+  const router = useRouter()
 
   // sync visible prop -> internal
   useEffect(() => {
@@ -115,7 +117,10 @@ export default function AddPopup({
         ) : (
           <>
             {/* Row: Dine In */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button 
+                style={{ display: 'flex', alignItems: 'center', gap: 10, border: 'none', background: 'white' }}
+                onClick={() => router.push('/menu')}
+            >
               <div style={{ width: 16, height: 16, flex: '0 0 16px' }}>
                 <Image src="/images/fork-knife-icon.png" alt="Dine In" width={16} height={16} />
               </div>
@@ -135,10 +140,13 @@ export default function AddPopup({
                   color: '#6b7280'
                 }} />
               </div>
-            </div>
+            </button>
 
             {/* Row: Takeaway */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button 
+                style={{ display: 'flex', alignItems: 'center', gap: 10, border: 'none', background: 'white' }}
+                onClick={() => router.push('/menu')}
+            >
               <div style={{ width: 16, height: 16, flex: '0 0 16px' }}>
                 <Image src="/images/tote-icon.png" alt="Takeaway" width={16} height={16} />
               </div>
@@ -158,7 +166,7 @@ export default function AddPopup({
                   color: '#6b7280'
                 }} />
               </div>
-            </div>
+            </button>
           </>
         )}
       </div>

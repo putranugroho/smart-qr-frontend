@@ -68,7 +68,7 @@ export default function OrderStatus() {
               height={20}
               style={{ paddingRight: 5 }}
             />
-            TBL 24 · Dine In
+            Table 24 · Dine In
           </div>
           <div className={styles.storeName}>Yoshinoya - Mall Grand Indonesia</div>
         </div>

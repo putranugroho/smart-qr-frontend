@@ -152,7 +152,23 @@ export default function CheckoutPage() {
       {/* ORDER INFO BAR */}
       <div className={styles.orderInfo}>
         <div className={styles.orderInfoText}>Tipe Order</div>
-        <div className={styles.orderInfoRight}>TBL 24 • Dine In</div>
+        <div className={styles.orderInfoRight}>
+            <Image
+              src="/images/bell-icon.png"
+              alt="Bell"
+              width={19}
+              height={19}
+              style={{ paddingRight: 5 }}
+            />
+          Table 24 • Dine In
+            <Image
+              src="/images/caret-down.png"
+              alt="Bell"
+              width={19}
+              height={19}
+              style={{ paddingLeft: 5 }}
+            />
+        </div>
       </div>
 
       {/* ORDERED ITEMS TITLE */}

@@ -28,7 +28,7 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
   if (mode === "list") {
     return (
       <div className={styles.listCard} onClick={handleClick}>
-        <Image src={imgSrc} alt={name} width={72} height={72} className={styles.listImage} />
+        <Image src={imgSrc} alt={name} width={90} height={72} className={styles.listImage} />
         <div className={styles.listLeft}>
           <div className={styles.listTitle}>{name}</div>
           <div className={styles.listSpacer} />

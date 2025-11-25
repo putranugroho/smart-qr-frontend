@@ -3,7 +3,7 @@
 /* ========== GRID (original style preserved) ========== */
 .card {
   width: 167px;
-  height: 297px;
+  /* height: 297px; */
   display: flex;
   flex-direction: column;
   gap: 7px;
@@ -17,7 +17,7 @@
 
 .cardImage {
   width: 100%;
-  height: 167px;
+  /* height: 167px; */
   border-radius: 8px;
   overflow: hidden;
   flex-shrink: 0; /* ensure image never shrinks */
@@ -28,6 +28,7 @@
 }
 
 .cardBody {
+  height: 80px;
   padding: 4px 2px;
 }
 
@@ -42,15 +43,15 @@
 /* ensure title is fixed-height 2 lines so every card aligns */
 .cardTitle {
   font-family: "Inter", sans-serif;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   color: #111827;
 
   display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2; /* clamp to 2 lines */
+  /* -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2; /* clamp to 2 lines
   overflow: hidden;
-  text-overflow: ellipsis;
+  text-overflow: ellipsis; */
 
   line-height: 1.4;
   height: calc(14px * 1.4 * 2); /* approx 39.2px */

@@ -42,7 +42,12 @@ const nextConfig = {
     return [
       {
         source: '/(.*)',
-        headers: securityHeaders,
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: "img-src 'self' data: https://yoshinoya-store-api.akasia.id https://yoshinoya-ho-api.akasia.id https://purecatamphetamine.github.io;"
+          }
+        ]
       },
     ];
   },

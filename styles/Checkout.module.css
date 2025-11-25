@@ -47,6 +47,8 @@
 }
 .orderInfoRight {
   font-weight: 600;
+  display: flex;
+  gap: 2px;
 }
 
 /* SECTION TITLE */

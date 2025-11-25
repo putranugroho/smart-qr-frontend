@@ -17,6 +17,7 @@ function formatRp(n) {
  *  - subtotal
  *  - onAdd
  *  - addAnimating (bool) -> apply visual pulse to the button
+ *  - addLabel (string) -> label shown on the button (default: 'Tambah Pesanan')
  */
 export default function StickyCartBar({
   qty = 1,
@@ -24,7 +25,8 @@ export default function StickyCartBar({
   subtotal = 0,
   onAdd = () => {},
   style = {},
-  addAnimating = false
+  addAnimating = false,
+  addLabel = 'Tambah Pesanan'
 }) {
   const hasItems = Number(subtotal) > 0
 
@@ -73,7 +75,7 @@ export default function StickyCartBar({
         <div className={styles.rowBottom}>
           <button
             onClick={onAdd}
-            aria-label="Tambah Pesanan"
+            aria-label={addLabel}
             className={`${styles.addBtn} ${
               hasItems ? styles.addBtnActive : styles.addBtnInactive
             } ${addAnimating ? styles.addPulse : ''}`}
@@ -87,7 +89,7 @@ export default function StickyCartBar({
             {/* Price + Label */}
             <div className={styles.addTextWrap}>
               <div className={styles.addPrice}>{formatRp(subtotal)}</div>
-              <div className={styles.addLabel}>Tambah Pesanan</div>
+              <div className={styles.addLabel}>{addLabel}</div>
             </div>
 
             <div style={{ width: 8 }} /> {/* spacer kanan */}

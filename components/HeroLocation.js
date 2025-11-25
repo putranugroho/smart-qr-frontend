@@ -13,7 +13,7 @@ export default function HeroLocation() {
       const userAuth = {
         storeLocation: 'MGI',
         orderType: 'DI',
-        tableNumber: 'TBL 24',
+        tableNumber: 'Table 24',
       }
       userSignIn(userAuth)
       router.push("/menu")
@@ -65,7 +65,7 @@ export default function HeroLocation() {
                   width={18}
                   height={18}
                 />
-                <span style={{ fontSize: 14 }}>TBL 24</span>
+                <span style={{ fontSize: 14 }}>Table 24</span>
               </button>
             </div>
 

@@ -1,6 +1,6 @@
 // components/ItemDetail.js
 import Image from 'next/image'
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import StickyCartBar from './StickyCartBar'
 import { useRouter } from 'next/router'
 import styles from '../styles/ItemDetail.module.css'
@@ -220,18 +220,18 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   }
 
   function validateSelection() {
-  const missing = addons.filter(g => selected[g.group] == null)
+    // For each addon group, ensure there is a selection (either an option id or the NONE sentinel).
+    const missing = addons.filter(g => selected[g.group] == null)
 
-  if (missing.length > 0) {
-    const names = missing.map(m => m.name || m.group).join(', ')
-    setMissingAddons(names)   // <-- Tampilkan di popup
-    setShowPopup(true)
-    return false
+    if (missing.length > 0) {
+      const names = missing.map(m => m.name || m.group).join(', ')
+      setMissingAddons(names)   // <-- Tampilkan di popup
+      setShowPopup(true)
+      return false
+    }
+
+    return true
   }
-
-  return true
-}
-
 
   // helper: find option object by id in a group
   function findOption(group, optId) {
@@ -311,31 +311,30 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
   // add or update cart item — with animation then popup
   function handleAddToCart() {
-  if (addons.length > 0 && !validateSelection()) return
+    if (addons.length > 0 && !validateSelection()) return
 
-  const order = buildOrderObject()
+    const order = buildOrderObject()
 
-  try {
-    if (fromCheckout && editingIndex != null) {
-      updateCart(editingIndex, order)
-    } else {
-      addToCart(order)
+    try {
+      if (fromCheckout && editingIndex != null) {
+        updateCart(editingIndex, order)
+      } else {
+        addToCart(order)
+      }
+    } catch (e) {
+      console.error('persist cart error', e)
     }
-  } catch (e) {
-    console.error('persist cart error', e)
+
+    setMissingAddons(null) // pastikan popup bukan “missing”
+    
+    setAddAnimating(true)
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+
+    toastTimerRef.current = setTimeout(() => {
+      setAddAnimating(false)
+      setShowPopup(true)
+    }, 520)
   }
-
-  setMissingAddons(null) // pastikan popup bukan “missing”
-  
-  setAddAnimating(true)
-  if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-
-  toastTimerRef.current = setTimeout(() => {
-    setAddAnimating(false)
-    setShowPopup(true)
-  }, 520)
-}
-
 
   // close popup: then navigate depending on edit/fromCheckout
   function handleClosePopup() {
@@ -355,12 +354,40 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     }
   }, [])
 
+  // AUTO CLOSE POPUP + REDIRECT setelah 2 detik,
+  // kecuali jika popup adalah warning missingAddons
+  useEffect(() => {
+    if (!showPopup) return
+    if (missingAddons) return // do not auto-close warning modal
+
+    const t = setTimeout(() => {
+      handleClosePopup()
+    }, 2000)
+
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showPopup, missingAddons])
+
+  // computed label for sticky button (so StickyCartBar can update text)
+  const addBtnLabel = (fromCheckout && editingIndex != null) ? 'Ubah Pesanan' : 'Tambah Pesanan'
+
   // UI
   return (
     <div className={styles.page}>
       <div className={styles.headerArea}>
         <div className={styles.btnLeft}>
-          <button onClick={() => router.push(`/menu`)} aria-label="Cancel" className={styles.iconBtn}>
+          <button
+            onClick={() => {
+              // if user entered the page from checkout editing flow, back should go to checkout
+              if (fromCheckout && editingIndex != null) {
+                router.push('/checkout')
+              } else {
+                router.push('/menu')
+              }
+            }}
+            aria-label="Cancel"
+            className={styles.iconBtn}
+          >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
               <path d="M6 6l12 12M6 18L18 6" stroke="#111827" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -377,7 +404,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
         <div className={styles.imageWrapper}>
           <Image
-            src={item.image || '/images/placeholder-390x390.png'}
+            src={item.image || '/images/gambar-menu.jpg'}
             alt={item.title || 'item'}
             width={390}
             height={390}
@@ -522,6 +549,9 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
             subtotal={subtotal}
             onAdd={handleAddToCart}
             addAnimating={addAnimating}
+            // send label so StickyCartBar (if updated) can show different text when editing
+            addLabel={addBtnLabel}
+            isEditing={fromCheckout && editingIndex != null}
           />
         </div>
       </div>
@@ -566,12 +596,15 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
                   <div className={styles.addModalIcon}>
                     <Image src={"/images/order-success.png"} alt="success" width={96} height={96} />
                   </div>
-                  <div className={styles.addModalTitle}>Menu Ditambahkan!</div>
 
-                  <div className={styles.addModalActions}>
-                    <button className={styles.addModalCloseBtn} onClick={handleClosePopup}>
-                      Tutup
-                    </button>
+                  {/* Title depends on whether user was editing from checkout */}
+                  <div className={styles.addModalTitle}>
+                    {fromCheckout && editingIndex != null ? 'Menu Diubah!' : 'Menu Ditambahkan!'}
+                  </div>
+
+                  {/* Show price under the title */}
+                  <div className={styles.addModalSubtitle} style={{ fontWeight: 600, fontSize: 16 }}>
+                    Harga : {formatRp(subtotal)}
                   </div>
                 </>
               )}
@@ -580,7 +613,6 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
           </div>
         </>
       )}
-
     </div>
   )
 }

@@ -32,7 +32,7 @@ export default function HeroLocation() {
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                     <path d="M3 7h18M3 12h18M3 17h18" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
                   </svg>
-                  <span className="text-sm">TBL 24</span>
+                  <span className="text-sm">Table 24</span>
                 </button>
               </div>
             </div>

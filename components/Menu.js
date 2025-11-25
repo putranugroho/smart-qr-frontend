@@ -39,7 +39,7 @@ export default function Menu() {
       if (user) {
         const formatted = {
           // if orderType DI (dine-in) prefer tableNumber if present
-          type: user.orderType === "DI" ? (user.tableNumber || "TBL 24") : "Takeaway",
+          type: user.orderType === "DI" ? (user.tableNumber || "Table 24") : "Takeaway",
           // you can derive/store location in user; fallback to default string
           location: user.storeLocationName || user.location || "Yoshinoya - Mall Grand Indonesia"
         };
@@ -348,7 +348,7 @@ export default function Menu() {
               key={cat.id}
               data-cat={cat.name}
               ref={(el) => (sectionRefs.current[cat.name] = el)}
-              style={{ marginTop: 32 }}
+              // style={{ marginTop: 32 }}
             >
               {/* Header: title + filter button (responsive for grid/list) */}
               <div style={categoryHeaderContainerStyle}>

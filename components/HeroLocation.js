@@ -11,7 +11,7 @@ export default function HeroLocation() {
   const goToMenu = (mode) => {
     if (mode === 'dinein') {
       const userAuth = {
-        storeLocation: 'SMS',
+        storeLocation: 'MGI',
         orderType: 'DI',
         tableNumber: 'TBL 24',
       }
@@ -19,7 +19,7 @@ export default function HeroLocation() {
       router.push("/menu")
     } else {
       const userAuth = {
-        storeLocation: 'SMS',
+        storeLocation: 'MGI',
         orderType: 'TA',
         tableNumber: '',
       }

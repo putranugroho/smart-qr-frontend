@@ -10,7 +10,7 @@ export default function MenuTabs({ selected, onSelect, isHidden, onOpenFullMenu 
 
   // Fetch API categories for tabs and filter totalItems
   useEffect(() => {
-    const API_URL = "/api/proxy/menu-category?storeCode=SMS&orderCategoryCode=DI";
+    const API_URL = "/api/proxy/menu-category?storeCode=MGI&orderCategoryCode=DI";
 
     fetch(API_URL)
       .then((r) => r.json())

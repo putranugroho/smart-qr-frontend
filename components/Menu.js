@@ -56,7 +56,7 @@ export default function Menu() {
     }
 
     // fetch categories
-    const API_URL = "/api/proxy/menu-category?storeCode=SMS&orderCategoryCode=DI";
+    const API_URL = "/api/proxy/menu-category?storeCode=MGI&orderCategoryCode=DI";
 
     setLoading(true);
 

@@ -51,7 +51,7 @@ export default function PaymentStatus() {
     return (
       <div className={styles.page}>
         <header className={styles.header}>
-          <button className={styles.backBtn} onClick={() => router.push('/payment')}>←</button>
+          <button className={styles.backBtn} onClick={() => router.push('/checkout')}>←</button>
           <div className={styles.headerTitle}>Pembayaran</div>
         </header>
 
@@ -79,7 +79,7 @@ export default function PaymentStatus() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <button className={styles.backBtn} onClick={() => router.push('/paymentpage')}>←</button>
+        <button className={styles.backBtn} onClick={() => router.push('/checkout')}>←</button>
         <div className={styles.headerTitle}>Pembayaran</div>
       </header>
 

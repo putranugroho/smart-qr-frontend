@@ -1,9 +1,10 @@
 // pages/checkout.js
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/router'
 import Image from 'next/image'
 import styles from '../styles/Checkout.module.css'
-import { getCart, updateCart, removeFromCartByIndex, cartSubtotal, cartPaymentTotal } from '../lib/cart'
+import AddPopup from '../components/AddPopup'
+import { getCart, updateCart, removeFromCartByIndex, cartPaymentTotal } from '../lib/cart'
 
 function formatRp(n) {
   return 'Rp' + new Intl.NumberFormat('id-ID').format(Number(n || 0))
@@ -11,15 +12,45 @@ function formatRp(n) {
 
 export default function CheckoutPage() {
   const router = useRouter()
-  const [cart, setCart] = useState([])
 
+  // cart state (loaded from storage on client)
+  const [cart, setCart] = useState([])
+  const [cartLoaded, setCartLoaded] = useState(false)
+
+  // totals state (initialize 0 so SSR and initial client render match)
+  const [subtotal, setSubtotal] = useState(0)
+  const [tax, setTax] = useState(0)
+  const [total, setTotal] = useState(0)
+
+  // popup state
+  const [showAddPopup, setShowAddPopup] = useState(false)
+  const addBtnRef = useRef(null)
+  const popupTimerRef = useRef(null)
+
+  // load cart from storage on client only
   useEffect(() => {
-    // read cart once from storage and set state (avoid logging stale state variable)
     const c = getCart() || []
     setCart(c)
-    console.log('checkout cart loaded', c)
+    setCartLoaded(true)
   }, [])
 
+  // compute totals whenever `cart` changes (client only)
+  useEffect(() => {
+    // safe compute from cart array -> avoids reading storage during render
+    const s = (cart || []).reduce((acc, it) => {
+      const price = Number(it.price || 0)
+      const qty = Number(it.qty || 0) || 0
+      return acc + (price * qty)
+    }, 0)
+    const t = Math.round(s * 0.11)
+    const tot = s + t
+
+    setSubtotal(s)
+    setTax(t)
+    setTotal(tot)
+  }, [cart])
+
+  // qty update
   function handleQty(index, type) {
     const item = cart[index]
     if (!item) return
@@ -32,8 +63,8 @@ export default function CheckoutPage() {
     setCart([...updated])
   }
 
-  function confirmPayment(total) {
-    cartPaymentTotal(total)
+  function confirmPayment(totalAmt) {
+    cartPaymentTotal(totalAmt)
     router.push('/payment')
   }
 
@@ -42,7 +73,7 @@ export default function CheckoutPage() {
     setCart([...updated])
   }
 
-  // build signature helper — must match signature logic used elsewhere (lib/cart)
+  // build signature helper
   function signatureForItem(it) {
     try {
       const product = String(it.productCode ?? it.id ?? '')
@@ -54,65 +85,71 @@ export default function CheckoutPage() {
     }
   }
 
-  // when user taps Edit, navigate to item detail with index+signature (and store to sessionStorage)
+  // navigate to edit
   function handleEdit(index) {
     const it = cart[index]
     if (!it) return
     const productCode = encodeURIComponent(String(it.productCode ?? it.id ?? ''))
     const sig = signatureForItem(it)
-    // store a short editing reference in sessionStorage as fallback/fast-channel
     try {
       sessionStorage.setItem('yoshi_edit', JSON.stringify({ index, signature: sig }))
     } catch (e) {
-      // ignore if sessionStorage not available
       console.warn('sessionStorage write failed', e)
     }
-    // navigate to item detail; parent page (item page) can read sessionStorage or query params
     const qs = new URLSearchParams({
       index: String(index),
       sig: sig,
       from: 'checkout'
     }).toString()
-
     router.push(`/item/${productCode}?${qs}`)
   }
 
-  // Helper to render addons array in readable form
+  // Render addons: show only selected addon names; if none -> null
   function renderAddons(addons) {
     if (!addons || addons.length === 0) return null
 
-    const list = addons
-      .filter(a => a.selected) // hanya addon yg dipilih
-      .map((a, idx) => <div key={idx}>- {a.selected.name}</div>)
-
-    if (list.length === 0) return null
+    const lines = []
+    addons.forEach(a => {
+      const sel = a.selected
+      if (!sel) return
+      if (Array.isArray(sel)) {
+        sel.forEach(it => {
+          if (it && it.name) lines.push(it.name)
+        })
+      } else if (typeof sel === 'object' && sel.name) {
+        lines.push(sel.name)
+      } else if (typeof sel === 'string') {
+        lines.push(sel)
+      }
+    })
+    if (lines.length === 0) return null
 
     return (
       <div>
-        <div className={styles.addonGroupTitle}>Add on :</div>
-        {list}
+        <div className={styles.addonGroup}>Add on :</div>
+        {lines.map((n, idx) => <div key={idx} className={styles.addonLine}>- {n}</div>)}
       </div>
     )
   }
 
+  // Show "Tambah" popup anchored to button
+  function handleShowTambahPopup() {
+    setShowAddPopup(true)
+  }
 
-
-  const subtotal = cartSubtotal()
-  const tax = Math.round(subtotal * 0.11)
-  const total = subtotal + tax
+  function closeAddPopup() {
+    setShowAddPopup(false)
+  }
 
   return (
     <div className={styles.page}>
-
       {/* HEADER */}
       <header className={styles.header}>
-        <button className={styles.backBtn} onClick={() => router.push('/menu')}>
-          ←
-        </button>
+        <button className={styles.backBtn} onClick={() => router.push('/menu')}>←</button>
         <div className={styles.headerTitle}>Order</div>
       </header>
 
-      {/* TIPE ORDER / TABLE */}
+      {/* ORDER INFO BAR */}
       <div className={styles.orderInfo}>
         <div className={styles.orderInfoText}>Tipe Order</div>
         <div className={styles.orderInfoRight}>TBL 24 • Dine In</div>
@@ -121,16 +158,27 @@ export default function CheckoutPage() {
       {/* ORDERED ITEMS TITLE */}
       <div className={styles.sectionTitleWrap}>
         <div className={styles.sectionTitle}>Ordered items ({cart.length})</div>
-        <button className={styles.addMoreBtn} onClick={() => router.push('/menu')}>
+        <button
+          ref={addBtnRef}
+          className={styles.addMoreBtn}
+          onClick={handleShowTambahPopup}
+          aria-haspopup="true"
+          aria-expanded={showAddPopup}
+        >
           Tambah
+          <Image
+            src="/images/caret-down.png"
+            alt=""
+            width={12}
+            height={12}
+            style={{ paddingLeft: "3px" }}
+          />
         </button>
       </div>
 
       {/* ITEMS LIST */}
       <div className={styles.itemsList}>
-        {cart.length === 0 && (
-          <div style={{ padding: 20 }}>Keranjang kosong</div>
-        )}
+        {cart.length === 0 && <div style={{ padding: 20 }}>Keranjang kosong</div>}
 
         {cart.map((it, i) => (
           <div key={i} className={styles.cartItem}>
@@ -147,43 +195,26 @@ export default function CheckoutPage() {
             <div className={styles.itemInfo}>
               <div className={styles.itemTitle}>{it.title}</div>
 
-              {/* Show addons (all groups + selected) */}
               <div className={styles.itemAddon}>
                 {renderAddons(it.addons)}
-                {/* show note if present */}
                 {it.note ? <div className={styles.addonNote}>Catatan: {String(it.note)}</div> : null}
               </div>
             </div>
 
             <div className={styles.itemRight}>
+              {/* show formatted subtotal/price based on client-calculated totals */}
               <div className={styles.itemPrice}>{formatRp(it.price * it.qty)}</div>
 
               <div className={styles.qtyRow}>
-                {/* delete */}
-                <button
-                  className={styles.trashBtn}
-                  onClick={() => handleDelete(i)}
-                  title="Hapus item"
-                  aria-label={`Hapus item ${it.title}`}
-                >
-                  🗑
-                </button>
-
-                {/* edit icon */}
-                <button
-                  className={styles.editIconBtn}
-                  onClick={() => handleEdit(i)}
-                  title="Edit item"
-                  aria-label={`Edit item ${it.title}`}
-                >
-                  {/* inline SVG pencil */}
+                <button className={styles.editIconBtn} onClick={() => handleEdit(i)} title="Edit item" aria-label={`Edit item ${it.title}`}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
                     <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" fill="#111827"/>
                     <path d="M20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="#111827"/>
                   </svg>
                 </button>
 
-                {/* qty controls */}
+                <button className={styles.trashBtn} onClick={() => handleDelete(i)} title="Hapus item" aria-label={`Hapus item ${it.title}`}>🗑</button>
+
                 <button className={styles.minusBtn} onClick={() => handleQty(i, 'minus')}>-</button>
                 <div className={styles.qtyText}>{it.qty}</div>
                 <button className={styles.plusBtn} onClick={() => handleQty(i, 'plus')}>+</button>
@@ -199,6 +230,7 @@ export default function CheckoutPage() {
 
         <div className={styles.paymentRow}>
           <div>Subtotal ({cart.length} menu)</div>
+          {/* display subtotal (initially 0 on SSR/client before cart loads) */}
           <div className={styles.paymentValue}>{formatRp(subtotal)}</div>
         </div>
 
@@ -220,16 +252,24 @@ export default function CheckoutPage() {
 
       {/* STICKY BOTTOM BAR */}
       <div className={styles.stickyBar}>
-        <div className={styles.totalLabel}>Total Pembayaran</div>
-        <div className={styles.totalAmount}>{formatRp(total)}</div>
+        <div className={styles.rowTop}>
+          <div className={styles.totalLabel}>Total Pembayaran</div>
+          <div className={styles.totalAmount}>{formatRp(total)}</div>
+        </div>
 
-        <button
-          className={styles.payBtn}
-          onClick={() => confirmPayment(total)}
-        >
-          Proses Pembayaran
-        </button>
+        <button className={styles.payBtn} onClick={() => confirmPayment(total)}>Proses Pembayaran</button>
       </div>
+
+      {/* AddPopup anchored to addBtnRef */}
+      <AddPopup
+        visible={showAddPopup}
+        anchorRef={addBtnRef}
+        onClose={closeAddPopup}
+        width={150}
+        height={84}
+        autoHideMs={0}
+      >
+      </AddPopup>
     </div>
   )
 }

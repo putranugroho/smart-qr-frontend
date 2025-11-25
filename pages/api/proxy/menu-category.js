@@ -1,7 +1,7 @@
 // pages/api/proxy/menu-category.js
 export default async function handler(req, res) {
   try {
-    const { storeCode = 'SMS', orderCategoryCode = 'DI' } = req.query;
+    const { storeCode = 'MGI', orderCategoryCode = 'DI' } = req.query;
 
     const qs = new URLSearchParams();
     if (storeCode) qs.set('storeCode', storeCode);

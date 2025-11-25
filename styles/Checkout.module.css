@@ -52,7 +52,6 @@
 /* SECTION TITLE */
 .sectionTitleWrap {
   padding: 20px;
-  padding-bottom: 4px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -70,6 +69,7 @@
   font-size: 12px;
   background: white;
   color: #FC661A;
+  display: flex;
 }
 
 /* ITEMS LIST */
@@ -243,8 +243,17 @@
   right: 0;
   bottom: 0;
   background: #ffffff;
-  padding: 16px;
+  padding: 0px 16px 16px;
   border-top: 1px solid #eee;
+}
+
+.rowTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 6px;
+  min-height: 40px;
 }
 
 .totalLabel {
@@ -287,3 +296,9 @@
   color: #111827;
   font-weight: 600;
 }
+
+/* ensure add-on/notes style exist (you already added these) */
+.addonLine { font-size: 12px; color: #6b7280; margin-top: 4px; }
+.addonGroup { font-weight: 600; color: #111827; margin-right: 6px; }
+.addonValue { font-weight: 400; }
+.addonNote { margin-top: 6px; font-size: 12px; color: #111827; font-weight: 600; }

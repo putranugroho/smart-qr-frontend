@@ -3,7 +3,7 @@ export default async function handler(req, res) {
   try {
     const {
       productCode = '',
-      storeCode = 'SMS',
+      storeCode = 'MGI',
       orderCategoryCode = 'DI',
       page,
       pageSize

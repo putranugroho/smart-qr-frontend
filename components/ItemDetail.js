@@ -98,7 +98,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     setNoCondiments(false)
 
     const orderCategoryCode = 'DI'
-    const storeCode = 'SMS'
+    const storeCode = 'MGI'
     const url = `/api/proxy/condiment?productCode=${encodeURIComponent(productCode)}&orderCategoryCode=${encodeURIComponent(orderCategoryCode)}&storeCode=${encodeURIComponent(storeCode)}`
 
     fetch(url)

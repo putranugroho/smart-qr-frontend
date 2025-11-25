@@ -38,7 +38,7 @@ export default function HeroLocation() {
     <section className={styles.heroRoot}>
       <div className={styles.heroImageWrap}>
         <Image
-          src="/images/hero.jpg"
+          src="/images/new-hero.png"
           alt="hero"
           width={1200}
           height={420}
@@ -51,7 +51,7 @@ export default function HeroLocation() {
         <div className={styles.cardRounded}>
           <div className={styles.cardInner}>
             <h3 className={styles.headerTitle}>Yoshinoya Mall Grand Indonesia</h3>
-            <p className={styles.leadMuted}>Jl. Sudirman No. 24, Jakarta Barat, Jakarta, Indonesia</p>
+            <p className={styles.leadMuted}>Jl. M.H. Thamrin No.1, Kb. Melati, Kecamatan Tanah Abang, Kota Jakarta Pusat, Daerah Khusus Ibukota Jakarta 10230</p>
 
             <div className={styles.btnWrap}>
               <button

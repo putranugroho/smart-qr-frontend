@@ -74,10 +74,10 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
           if (cartItem.note != null) setNote(String(cartItem.note))
 
           // Map cart addons into `selected` shape (don't rely on API groups yet)
+          // a.selected may be object / array / string — store raw; we'll normalize after groups fetched
           if (Array.isArray(cartItem.addons)) {
             const sel = {}
             cartItem.addons.forEach(a => {
-              // a.selected may be string/array/object — adopt simple mapping
               sel[a.group] = a.selected ?? null
             })
             setSelected(prev => ({ ...prev, ...sel }))
@@ -89,6 +89,42 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady])
+
+  // --- Helpers to normalize prefilled selected values against fetched addon options ---
+  function extractIdFromValue(val, group) {
+    // val may be string/number/object. We try to resolve to group option id if possible.
+    if (val == null) return null
+    if (val === NONE_OPTION_ID) return NONE_OPTION_ID
+
+    // if primitive, try to match directly to option.id or option.rawId
+    if (typeof val === 'string' || typeof val === 'number') {
+      const s = String(val)
+      const found = (group.options || []).find(o => String(o.id) === s || String(o.rawId) === s)
+      return found ? found.id : s // return s as fallback (still usable)
+    }
+
+    // if object, prefer id, then code, then rawId
+    if (typeof val === 'object') {
+      const cand = String(val.id ?? val.code ?? val.rawId ?? val.name ?? '')
+      if (!cand) return null
+      const found = (group.options || []).find(o => String(o.id) === cand || String(o.rawId) === cand)
+      return found ? found.id : cand
+    }
+
+    return null
+  }
+
+  function normalizeSelectedForGroup(raw, group) {
+    if (raw == null) return null
+    if (raw === NONE_OPTION_ID) return NONE_OPTION_ID
+    // array of things
+    if (Array.isArray(raw)) {
+      const mapped = raw.map(v => extractIdFromValue(v, group)).filter(v => v != null)
+      return mapped
+    }
+    // single value
+    return extractIdFromValue(raw, group)
+  }
 
   // Fetch condiment groups for product (to present addon options)
   useEffect(() => {
@@ -151,13 +187,26 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
           description: prev.description || product.description || ''
         })))
 
-        // Initialize selected defaults for groups that are NOT already set (preserve cart values)
+        // Initialize selected defaults for groups that are NOT already set (preserve cart values),
+        // AND normalize any prefilled selected values (from cart) into the group's option ids.
         setSelected(prevSelected => {
           const result = { ...prevSelected }
           groups.forEach(g => {
-            if (result[g.group] == null) {
-              // NOTE: keep null so user must actively choose.
-              result[g.group] = null
+            const key = g.group
+            const existing = result[key]
+
+            if (existing == null) {
+              // keep null so user must actively choose.
+              result[key] = null
+            } else {
+              // normalize (handles object/array/string from cart)
+              const norm = normalizeSelectedForGroup(existing, g)
+              // If normalized result is an array but empty, set to null so validate triggers
+              if (Array.isArray(norm) && norm.length === 0) {
+                result[key] = null
+              } else {
+                result[key] = norm
+              }
             }
           })
           return result
@@ -185,12 +234,12 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
       if (Array.isArray(val)) {
         return acc + val.reduce((s, v) => {
-          const opt = g.options.find(o => o.id === v)
+          const opt = g.options.find(o => String(o.id) === String(v))
           return s + (opt ? Number(opt.price || 0) : 0)
         }, 0)
       }
 
-      const opt = g.options.find(o => o.id === val)
+      const opt = g.options.find(o => String(o.id) === String(val))
       return acc + (opt ? Number(opt.price || 0) : 0)
     }, 0)
 
@@ -221,7 +270,12 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
   function validateSelection() {
     // For each addon group, ensure there is a selection (either an option id or the NONE sentinel).
-    const missing = addons.filter(g => selected[g.group] == null)
+    const missing = addons.filter(g => {
+      const val = selected[g.group]
+      if (val == null) return true
+      if (Array.isArray(val) && val.length === 0) return true
+      return false
+    })
 
     if (missing.length > 0) {
       const names = missing.map(m => m.name || m.group).join(', ')
@@ -338,13 +392,17 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
   // close popup: then navigate depending on edit/fromCheckout
   function handleClosePopup() {
-    setShowPopup(false)
-    // cleanup editing session key if any
-    try { sessionStorage.removeItem('yoshi_edit') } catch (e) {}
-    if (fromCheckout && editingIndex != null) {
-      router.push('/checkout')
+    if (missingAddons) {
+      setShowPopup(false)
     } else {
-      router.push('/menu')
+      setShowPopup(false)
+      // cleanup editing session key if any
+      try { sessionStorage.removeItem('yoshi_edit') } catch (e) {}
+      if (fromCheckout && editingIndex != null) {
+        router.push('/checkout')
+      } else {
+        router.push('/menu')
+      }
     }
   }
 
@@ -358,7 +416,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   // kecuali jika popup adalah warning missingAddons
   useEffect(() => {
     if (!showPopup) return
-    if (missingAddons) return // do not auto-close warning modal
+    if (!missingAddons) return
 
     const t = setTimeout(() => {
       handleClosePopup()
@@ -406,8 +464,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
           <Image
             src={item.image || '/images/gambar-menu.jpg'}
             alt={item.title || 'item'}
-            width={390}
-            height={390}
+            fill
             className={styles.image}
             priority
           />
@@ -501,10 +558,10 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
               {g.options.length > 0 ? g.options.map(opt => {
                 const groupKey = g.group
                 const allowSkip = !!g.allowSkip
+                const val = selected[groupKey]
                 const isSelected = (() => {
-                  const val = selected[groupKey]
-                  if (Array.isArray(val)) return val.includes(opt.id)
-                  return val === opt.id
+                  if (Array.isArray(val)) return val.some(v => String(v) === String(opt.id))
+                  return String(val) === String(opt.id)
                 })()
 
                 return (
@@ -577,18 +634,6 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
                   </div>
                   <div className={styles.addModalSubtitle}>
                     Anda belum memilih: <b>{missingAddons}</b>
-                  </div>
-
-                  <div className={styles.addModalActions}>
-                    <button
-                      className={styles.addModalCloseBtn}
-                      onClick={() => {
-                        setShowPopup(false)
-                        setMissingAddons(null)
-                      }}
-                    >
-                      Mengerti
-                    </button>
                   </div>
                 </>
               ) : (

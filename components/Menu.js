@@ -9,11 +9,24 @@ import CardItem from "./CardItem";
 import OrderBar from "./OrderBar";
 import FullMenu from "./FullMenu";
 
+/**
+ * Lazy-loading Menu
+ *
+ * - initial fetch: get categories (id, name, totalItems). Do NOT fetch all items immediately.
+ * - for each category, items field is null until the category's section intersects viewport.
+ * - when category becomes visible, fetch items for that category only.
+ *
+ * Note: this expects a "menu-items" endpoint that returns items by categoryId:
+ * /api/proxy/menu-items?categoryId=...&storeCode=MGI&orderCategoryCode=DI
+ * If your backend returns items inside category from the first call, this code will
+ * use them and skip per-category fetch.
+ */
+
 export default function Menu() {
   const router = useRouter();
   const { mode } = router.query;
 
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories] = useState([]); // each: { id, name, items: null|[] , totalItems }
   const [activeCategory, setActiveCategory] = useState(null);
   const [queryText, setQueryText] = useState("");
   const [viewMode, setViewMode] = useState("grid"); // 'grid' | 'list'
@@ -23,29 +36,28 @@ export default function Menu() {
   const [filterForCategory, setFilterForCategory] = useState(null);
 
   // New: order bar state (eat-in / takeaway).
-  // default safe shape so render never fails
   const [orderMode, setOrderMode] = useState({
     type: "",
     location: ""
   });
 
   const sectionRefs = useRef({});
+  const observerRef = useRef(null);
+  const loadingItemsRef = useRef({}); // guard per-category loading
+  const pendingFetchQueue = useRef([]); // optional queue if needed
 
-  // Fetch categories and init orderMode from user
+  // Fetch categories meta & init orderMode from user
   useEffect(() => {
-    // safely read user
+    // read user
     try {
       const user = getUser?.() || null;
       if (user) {
         const formatted = {
-          // if orderType DI (dine-in) prefer tableNumber if present
           type: user.orderType === "DI" ? (user.tableNumber || "Table 24") : "Takeaway",
-          // you can derive/store location in user; fallback to default string
           location: user.storeLocationName || user.location || "Yoshinoya - Mall Grand Indonesia"
         };
         setOrderMode(formatted);
       } else {
-        // keep defaults or set a placeholder if you prefer
         setOrderMode({
           type: "",
           location: ""
@@ -55,42 +67,176 @@ export default function Menu() {
       console.warn('getUser failed', e);
     }
 
-    // fetch categories
     const API_URL = "/api/proxy/menu-category?storeCode=MGI&orderCategoryCode=DI";
 
     setLoading(true);
 
     fetch(API_URL)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((json) => {
         const raw = Array.isArray(json?.data) ? json.data : [];
-        const available = raw.filter((c) => Number(c.totalItems) > 0);
 
-        const mapped = available.map((c) => ({
-          id: c.id,
-          name: c.name,
-          items:
-            c.items?.map((it) => ({
-              id: it.code,
-              name: it.name,
-              price: it.price,
-              image: it.imagePath ?? it.imageUrl ?? "/images/gambar-menu.jpg",
-              category: c.name,
-            })) ?? [],
-        }));
+        // Build initial categories meta; keep items if present in payload otherwise null
+        const mapped = raw
+          .filter((c) => Number(c.totalItems ?? (c.items?.length ?? 0)) > 0)
+          .map((c) => {
+            const name = c.name || `Category ${String(c.id || '')}`;
+            const itemsFromPayload = Array.isArray(c.items) && c.items.length > 0
+              ? c.items.map(it => ({
+                id: it.code ?? it.id,
+                name: it.name,
+                price: it.price,
+                image: it.imagePath ?? it.imageUrl ?? "/images/gambar-menu.jpg",
+                category: name
+              }))
+              : null; // do not eagerly load items if not provided
+            return {
+              id: c.id,
+              name,
+              totalItems: Number(c.totalItems ?? (itemsFromPayload ? itemsFromPayload.length : 0)),
+              items: itemsFromPayload // null -> will lazy load later
+            };
+          });
 
         setCategories(mapped);
+
         const target = mapped[0]?.name;
         setActiveCategory(target);
-
-        // small delay to allow DOM measuring
-        setTimeout(() => scrollToCategory(target), 200);
       })
       .catch((e) => {
         console.error('Failed fetch categories', e);
       })
-      .finally(() => setTimeout(() => setLoading(false), 500));
+      .finally(() => setTimeout(() => setLoading(false), 350));
   }, []);
+
+  // IntersectionObserver: when category section enters viewport -> fetch items for that category
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!('IntersectionObserver' in window)) return; // old browsers fallback: could lazy-load all
+
+    // cleanup previous observer
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observerRef.current = null;
+    }
+
+    observerRef.current = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        // threshold check: we want to load when top of section is near viewport
+        if (entry.isIntersecting) {
+          const catName = entry.target.datasetCat || entry.target.getAttribute('data-cat');
+          if (!catName) return;
+          const catObj = categories.find(c => c.name === catName);
+          if (!catObj) return;
+
+          // only fetch if items are null (not loaded yet)
+          if (catObj.items == null && !loadingItemsRef.current[String(catObj.id)]) {
+            // mark as loading so we don't duplicate requests
+            loadingItemsRef.current[String(catObj.id)] = true;
+            fetchItemsForCategory(catObj.id, catObj.name)
+              .finally(() => {
+                // small cooldown before allowing re-fetch (if needed)
+                setTimeout(() => {
+                  loadingItemsRef.current[String(catObj.id)] = false;
+                }, 300);
+              });
+          }
+        }
+      });
+    }, {
+      root: null,
+      rootMargin: '0px 0px 260px 0px', // preload when section is 260px below viewport
+      threshold: 0.01
+    });
+
+    // observe all category sections
+    Object.values(sectionRefs.current).forEach((el) => {
+      if (el && observerRef.current) {
+        // normalize dataset key for easier lookup
+        if (!el.datasetCat && el.getAttribute('data-cat')) {
+          el.datasetCat = el.getAttribute('data-cat');
+        }
+        observerRef.current.observe(el);
+      }
+    });
+
+    return () => {
+      if (observerRef.current) observerRef.current.disconnect();
+    };
+  }, [categories]);
+
+  // fetch items for a single category (lazy)
+  function fetchItemsForCategory(categoryId, categoryName) {
+    // If API supports direct category items request, use it. Otherwise, fallback to full category fetch.
+    // Example endpoint (you may need to adjust to your real endpoint):
+    const url = `/api/proxy/menu-items?categoryId=${encodeURIComponent(categoryId)}&storeCode=MGI&orderCategoryCode=DI`;
+
+    // Mark UI: set placeholder items = []? We'll keep items=null until data arrives and show skeleton in UI.
+    return fetch(url)
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(json => {
+        // normalize incoming items shape
+        const rawItems = Array.isArray(json?.data) ? json.data : (Array.isArray(json?.items) ? json.items : []);
+        const mappedItems = rawItems.map(it => ({
+          id: it.code ?? it.id,
+          name: it.name,
+          price: it.price,
+          image: it.imagePath ?? it.imageUrl ?? "/images/gambar-menu.jpg",
+          category: categoryName
+        }));
+
+        // update categories with loaded items
+        setCategories(prev => prev.map(c => {
+          if (String(c.id) === String(categoryId) || c.name === categoryName) {
+            return { ...c, items: mappedItems };
+          }
+          return c;
+        }));
+      })
+      .catch(err => {
+        console.warn('fetchItemsForCategory failed', err);
+
+        // fallback: try to fetch category details endpoint (older APIs might return the category object)
+        const fallback = `/api/proxy/menu-category?storeCode=MGI&orderCategoryCode=DI&categoryId=${encodeURIComponent(categoryId)}`;
+        return fetch(fallback)
+          .then(r => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.json();
+          })
+          .then(json => {
+            const product = Array.isArray(json?.data) && json.data.length > 0 ? json.data[0] : null;
+            const rawItems = product?.items ?? [];
+            const mappedItems = (Array.isArray(rawItems) ? rawItems : []).map(it => ({
+              id: it.code ?? it.id,
+              name: it.name,
+              price: it.price,
+              image: it.imagePath ?? it.imageUrl ?? "/images/gambar-menu.jpg",
+              category: categoryName
+            }));
+            setCategories(prev => prev.map(c => {
+              if (String(c.id) === String(categoryId) || c.name === categoryName) {
+                return { ...c, items: mappedItems };
+              }
+              return c;
+            }));
+          })
+          .catch(e => {
+            // on error, set items to empty array to avoid retry loop
+            setCategories(prev => prev.map(c => {
+              if (String(c.id) === String(categoryId) || c.name === categoryName) {
+                return { ...c, items: [] };
+              }
+              return c;
+            }));
+          });
+      });
+  }
 
   // Scroll to category
   function scrollToCategory(cat) {
@@ -107,6 +253,15 @@ export default function Menu() {
 
     window.scrollTo({ top, behavior: "smooth" });
     setActiveCategory(cat);
+
+    // proactively fetch that category items when user jumps to it
+    const cObj = categories.find(c => c.name === cat);
+    if (cObj && cObj.items == null && !loadingItemsRef.current[String(cObj.id)]) {
+      loadingItemsRef.current[String(cObj.id)] = true;
+      fetchItemsForCategory(cObj.id, cObj.name).finally(() => {
+        setTimeout(() => { loadingItemsRef.current[String(cObj.id)] = false; }, 300);
+      });
+    }
   }
 
   // Handle search
@@ -128,7 +283,7 @@ export default function Menu() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Scrollspy
+  // Scrollspy (only when not searching)
   useEffect(() => {
     if (queryText.length > 0) return; // disable scrollspy saat searching
 
@@ -169,23 +324,53 @@ export default function Menu() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [categories, activeCategory, queryText]);
 
-  // Filter items
+  // Filter items for rendering (search-friendly)
   const filteredCategories = categories
     .map((cat) => ({
       ...cat,
-      items: cat.items.filter((it) =>
+      items: (cat.items ?? []).filter((it) =>
         it.name.toLowerCase().includes(queryText.toLowerCase())
-      ),
+      )
     }))
-    .filter((cat) => cat.items.length > 0);
+    .filter((cat) => {
+      // if items == null (not loaded yet) but search is active, we can't match items -> skip category
+      if (queryText.length > 0) {
+        return cat.items && cat.items.length > 0;
+      }
+      // if not searching, show categories even if items null (we will show skeleton)
+      return (cat.items == null) ? true : cat.items.length > 0;
+    });
 
-  // Styles for category header (ke-2 mode)
   const categoryHeaderContainerStyle = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
   };
+
+  // UI helpers: skeleton for a category while its items are still null
+  function renderCategorySkeleton() {
+    return (
+      <div>
+        {[1,2].map(i => (
+          <div key={i} style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+            <div style={{
+              width: viewMode === "grid" ? 140/2 : 72,
+              height: viewMode === "grid" ? 120 : 72,
+              borderRadius: 8,
+              background: "linear-gradient(90deg,#eeeeee 25%, #f5f5f5 50%, #eeeeee 75%)",
+              backgroundSize: "200% 100%",
+              animation: "shimmer 1.2s infinite"
+            }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ height: 16, width: "60%", borderRadius: 4, marginBottom: 8, background: "linear-gradient(90deg,#e9e9e9 25%, #f7f7f7 50%, #e9e9e9 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.2s infinite" }} />
+              <div style={{ height: 12, width: "40%", borderRadius: 4, background: "linear-gradient(90deg,#e9e9e9 25%, #f7f7f7 50%, #e9e9e9 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.2s infinite" }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white min-h-screen">
@@ -215,8 +400,6 @@ export default function Menu() {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            
-            {/* Icon chair hanya muncul jika dine-in */}
             {orderMode?.type !== "Takeaway" && (
               <img
                 src="/images/chair-icon.png"
@@ -227,60 +410,29 @@ export default function Menu() {
               />
             )}
 
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'row',
-                gap: 8,
-                alignItems: 'baseline',
-                lineHeight: 1
-              }}
-            >
-              <div
-                style={{
-                  fontFamily: 'Inter, system-ui',
-                  fontWeight: 600,
-                  fontSize: 12
-                }}
-              >
+            <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'baseline', lineHeight: 1 }}>
+              <div style={{ fontFamily: 'Inter, system-ui', fontWeight: 600, fontSize: 12 }}>
                 {orderMode?.type || ''}
               </div>
 
-              <div
-                style={{
-                  fontFamily: 'Inter, system-ui',
-                  fontWeight: 400,
-                  fontSize: 12,
-                  opacity: 0.95
-                }}
-              >
+              <div style={{ fontFamily: 'Inter, system-ui', fontWeight: 400, fontSize: 12, opacity: 0.95 }}>
                 {orderMode?.location ? `• ${orderMode.location}` : ''}
               </div>
             </div>
           </div>
 
-          {/* right arrow icon */}
           <div style={{ display: 'flex', alignItems: 'center', marginLeft: 8 }}>
-            <img
-              src="/images/caret-down-white.png"
-              alt=""
-              width={16}
-              height={16}
-              style={{ display: 'block' }}
-            />
+            <img src="/images/caret-down-white.png" alt="" width={16} height={16} style={{ display: 'block' }} />
           </div>
         </div>
       </div>
 
-
       <Header />
 
-      {/* MenuTabs tampil hanya jika query kosong */}
       <MenuTabs
         selected={activeCategory}
         onSelect={scrollToCategory}
         isHidden={queryText.length > 0}
-        // when opening full menu from MenuTabs, ensure filterForCategory is cleared
         onOpenFullMenu={() => {
           setFilterForCategory(null)
           setShowFullMenu(true)
@@ -294,46 +446,25 @@ export default function Menu() {
         isSearching={queryText.length > 0}
       />
 
-      {/* Loading shimmer */}
+      {/* Loading shimmer for overall page */}
       {loading && (
         <div style={{ padding: "0 16px", marginTop: 20 }}>
           {[1, 2, 3, 4].map((i) => (
             <div key={i} style={{ display: "flex", gap: 12, marginBottom: 20 }}>
-              <div
-                style={{
-                  width: 72,
-                  height: 72,
-                  borderRadius: 8,
-                  background:
-                    "linear-gradient(90deg,#eeeeee 25%, #f5f5f5 50%, #eeeeee 75%)",
-                  backgroundSize: "200% 100%",
-                  animation: "shimmer 1.2s infinite",
-                }}
-              />
+              <div style={{
+                width: 72,
+                height: 72,
+                borderRadius: 8,
+                background:
+                  "linear-gradient(90deg,#eeeeee 25%, #f5f5f5 50%, #eeeeee 75%)",
+                backgroundSize: "200% 100%",
+                animation: "shimmer 1.2s infinite",
+              }} />
               <div style={{ flex: 1 }}>
-                <div
-                  style={{
-                    height: 16,
-                    width: "70%",
-                    borderRadius: 4,
-                    marginBottom: 8,
-                    background:
-                      "linear-gradient(90deg,#e9e9e9 25%, #f7f7f7 50%, #e9e9e9 75%)",
-                    backgroundSize: "200% 100%",
-                    animation: "shimmer 1.2s infinite",
-                  }}
-                />
-                <div
-                  style={{
-                    height: 14,
-                    width: "40%",
-                    borderRadius: 4,
-                    background:
-                      "linear-gradient(90deg,#e9e9e9 25%, #f7f7f7 50%, #e9e9e9 75%)",
-                    backgroundSize: "200% 100%",
-                    animation: "shimmer 1.2s infinite",
-                  }}
-                />
+                <div style={{ height: 16, width: "70%", borderRadius: 4, marginBottom: 8, background:
+                    "linear-gradient(90deg,#e9e9e9 25%, #f7f7f7 50%, #e9e9e9 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.2s infinite" }} />
+                <div style={{ height: 14, width: "40%", borderRadius: 4, background:
+                    "linear-gradient(90deg,#e9e9e9 25%, #f7f7f7 50%, #e9e9e9 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.2s infinite" }} />
               </div>
             </div>
           ))}
@@ -342,41 +473,31 @@ export default function Menu() {
 
       {/* Items */}
       {!loading && (
-        <div style={{ maxWidth: 420, margin: "0 auto", padding: "0 16px 24px" }}>
+        <div style={{ maxWidth: 420, margin: "0 auto", padding: "0 5px 24px" }}>
           {filteredCategories.map((cat) => (
             <div
               key={cat.id}
               data-cat={cat.name}
               ref={(el) => (sectionRefs.current[cat.name] = el)}
-              // style={{ marginTop: 32 }}
+              style={{ marginTop: 18 }}
             >
-              {/* Header: title + filter button (responsive for grid/list) */}
+              {/* Header */}
               <div style={categoryHeaderContainerStyle}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <h2
-                    style={{
-                      fontSize: 18,
-                      fontWeight: 700,
-                      margin: 0,
-                      textTransform: "none",
-                      ...(viewMode === "grid" ? { fontSize: 16 } : {}),
-                    }}
-                  >
+                  <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, textTransform: "none", ...(viewMode === "grid" ? { fontSize: 16 } : {}) }}>
                     {cat.name}
                   </h2>
 
                   {viewMode === "list" && (
                     <div style={{ color: "#6b7280", fontSize: 12 }}>
-                      ({cat.items.length} items)
+                      ({cat.totalItems ?? (cat.items ? cat.items.length : 0)} items)
                     </div>
                   )}
                 </div>
 
-                {/* Filter button */}
                 <div>
                   <button
                     onClick={() => {
-                      // set target filter category first, then open sheet
                       setFilterForCategory(cat.name)
                       setShowFullMenu(true)
                     }}
@@ -401,21 +522,20 @@ export default function Menu() {
                 </div>
               </div>
 
-              {/* Items list/grid */}
-              {viewMode === "list" ? (
+              {/* Items area */}
+              {cat.items == null ? (
+                // not loaded yet -> show skeleton and let intersection observer trigger fetch
+                renderCategorySkeleton()
+              ) : cat.items.length === 0 ? (
+                <div style={{ padding: 12, color: '#6b7280' }}>Tidak ada item</div>
+              ) : viewMode === "list" ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   {cat.items.map((it) => (
                     <CardItem key={it.id} item={it} mode="list" />
                   ))}
                 </div>
               ) : (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2, 1fr)",
-                    gap: 12,
-                  }}
-                >
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
                   {cat.items.map((it) => (
                     <CardItem key={it.id} item={it} mode="grid" />
                   ))}
@@ -458,14 +578,12 @@ export default function Menu() {
         open={showFullMenu}
         categories={categories.map(c => c.name)}
         currentCategory={activeCategory}
-        filterForCategory={filterForCategory} // optional; FullMenu will decide which view to show
+        filterForCategory={filterForCategory}
         onClose={() => {
           setShowFullMenu(false)
-          // clear intent for filtering so next open is pure category view
           setFilterForCategory(null)
         }}
         onSelect={(catName) => {
-          // when user selects a category inside fullmenu, close and scroll to it
           setShowFullMenu(false)
           setFilterForCategory(null)
           setTimeout(()=>scrollToCategory(catName), 120)
@@ -474,7 +592,6 @@ export default function Menu() {
           console.log('applied filter for', cat, filters)
           setShowFullMenu(false)
           setFilterForCategory(null)
-          // you can persist filters into state here for actual filtering logic later
         }}
       />
 

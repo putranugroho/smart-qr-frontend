@@ -202,8 +202,7 @@ export default function CheckoutPage() {
               <Image
                 src={it.image || "/images/gambar-menu.jpg"}
                 alt={it.title}
-                width={64}
-                height={64}
+                fill
                 className={styles.itemImage}
               />
             </div>

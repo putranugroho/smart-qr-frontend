@@ -88,14 +88,18 @@
 
 .itemImageWrap {
   position: relative;
-}
-
-.itemImage {
   width: 64px;
   height: 64px;
   border-radius: 6px;
-  object-fit: cover;
+  overflow: hidden;
+  background: #ffffff; /* agar ruang kosong terlihat rapi */
 }
+
+.itemImage {
+  object-fit: contain; /* TANPA CROPPING */
+  background-color: #ffffff;
+}
+
 
 /* removed the floating Edit button on the image */
 /*.editBtn {

@@ -11,7 +11,7 @@ export default function Home() {
       <main>
         <HeroLocation />
         {/* place InfoBox just after hero/options */}
-        <div className="mt-4">
+        <div className="mt-2 mb-2">
           <InfoBox />
         </div>
         <PaymentBar />

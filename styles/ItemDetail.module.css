@@ -48,19 +48,17 @@
 */
 .imageWrapper {
   width: 100%;
-  height: min(390px, 100vw); /* responsive: never exceed 390px, otherwise follow viewport width */
+  height: min(390px, 100vw);
+  position: relative;
   overflow: hidden;
-  background: #f3f4f6;
-  display: block;
+  background: #ffffff; /* background untuk area kosong */
 }
 
-/* ensure inner image fills wrapper responsively */
 .image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
+  object-fit: contain;  /* gambar TIDAK terpotong */
+  background-color: #ffffff;
 }
+
 
 /* detail box */
 .detailBox {

@@ -53,8 +53,14 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
   return (
     <div className={styles.card} onClick={handleClick}>
       <div className={styles.cardImage}>
-        <Image src={imgSrc} alt={name} width={167} height={167} className={styles.cardImageTag} />
+        <Image
+          src={imgSrc}
+          alt={name}
+          fill
+          className={styles.cardImageTag}
+        />
       </div>
+
 
       <div className={styles.cardBody}>
         <div className={styles.cardPrice}>{formatRp(item.price)}</div>

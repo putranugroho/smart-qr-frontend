@@ -36,7 +36,7 @@ export default function OrderStatus() {
   ]
 
   const subtotal = payment.paymentTotal || 0
-  const tax = Math.round(subtotal * 0.11)
+  const tax = Math.round(subtotal * 0.10)
   const total = subtotal + tax
 
   const items = payment.items || []
@@ -200,7 +200,7 @@ export default function OrderStatus() {
         </div>
 
         <div className={styles.paymentRow}>
-          <div>PPN (11%)</div>
+          <div>PB1 (10%)</div>
           <div className={styles.paymentValue}>{formatRp(tax)}</div>
         </div>
 

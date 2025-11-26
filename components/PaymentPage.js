@@ -110,7 +110,10 @@ export default function PaymentPage() {
           className={`${styles.paymentItem} ${selectedMethod === 'qris' ? styles.selected : ''}`}
           onClick={() => setSelectedMethod('qris')}
         >
-          <div className={styles.paymentItemLeft}>📷 QRIS</div>
+          <div className={styles.paymentItemLeft}>
+          <Image src="/images/pay-qris.png" alt="gopay" width={55} height={14} className={styles.iconImg} />
+            QRIS
+            </div>
           <div className={styles.radio}>{selectedMethod === 'qris' ? '✔' : ''}</div>
         </div>
 
@@ -119,8 +122,21 @@ export default function PaymentPage() {
           className={`${styles.paymentItem} ${selectedMethod === 'shopee' ? styles.selected : ''}`}
           onClick={() => setSelectedMethod('shopee')}
         >
-          <div className={styles.paymentItemLeft}>🛒 ShopeePay</div>
+          <div className={styles.paymentItemLeft}>
+          <Image src="/images/pay-shopee.png" alt="gopay" width={55} height={14} className={styles.iconImg} />
+            ShopeePay</div>
           <div className={styles.radio}>{selectedMethod === 'shopee' ? '✔' : ''}</div>
+        </div>
+
+        {/* GoPay */}
+        <div
+          className={`${styles.paymentItem} ${selectedMethod === 'gopay' ? styles.selected : ''}`}
+          onClick={() => setSelectedMethod('gopay')}
+        >
+          <div className={styles.paymentItemLeft}>
+          <Image src="/images/pay-gopay.png" alt="gopay" width={55} height={14} className={styles.iconImg} />
+            GoPay</div>
+          <div className={styles.radio}>{selectedMethod === 'gopay' ? '✔' : ''}</div>
         </div>
 
         {/* OVO */}
@@ -128,8 +144,21 @@ export default function PaymentPage() {
           className={`${styles.paymentItem} ${selectedMethod === 'ovo' ? styles.selected : ''}`}
           onClick={() => setSelectedMethod('ovo')}
         >
-          <div className={styles.paymentItemLeft}>🟣 OVO</div>
+          <div className={styles.paymentItemLeft}>
+          <Image src="/images/pay-ovo.png" alt="gopay" width={55} height={14} className={styles.iconImg} />
+            OVO</div>
           <div className={styles.radio}>{selectedMethod === 'ovo' ? '✔' : ''}</div>
+        </div>
+
+        {/* Dana */}
+        <div
+          className={`${styles.paymentItem} ${selectedMethod === 'dana' ? styles.selected : ''}`}
+          onClick={() => setSelectedMethod('dana')}
+        >
+          <div className={styles.paymentItemLeft}>
+          <Image src="/images/pay-dana.png" alt="gopay" width={55} height={14} className={styles.iconImg} />
+            Dana</div>
+          <div className={styles.radio}>{selectedMethod === 'dana' ? '✔' : ''}</div>
         </div>
       </div>
 

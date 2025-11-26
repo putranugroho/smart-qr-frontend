@@ -133,6 +133,10 @@
 .itemRight {
   text-align: right;
 }
+.itemIcon {
+  text-align: right;
+  display: grid;
+}
 
 .itemPrice {
   font-weight: 600;

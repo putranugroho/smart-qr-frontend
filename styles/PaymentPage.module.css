@@ -180,7 +180,12 @@ letter-spacing: 0%;
 }
 
 .paymentItemLeft {
+  display: flex;
   font-size: 14px;
+}
+
+.iconImg {
+  margin-right: 25px;
 }
 
 .radio {

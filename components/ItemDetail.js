@@ -11,7 +11,7 @@ function formatRp(n) {
   return 'Rp' + new Intl.NumberFormat('id-ID').format(Number(n || 0))
 }
 
-const NONE_OPTION_ID = '__NONE__' // sentinel for "Tanpa add ons"
+const NONE_OPTION_ID = '__NONE__'
 
 export default function ItemDetail({ productCode: propProductCode, item: propItem = {} }) {
   const router = useRouter()
@@ -19,7 +19,6 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
   const productCode = propProductCode || q.productCode || propItem.code || propItem.productCode || propItem.id
 
-  // initial item state (may be overridden by cart-edit prefill or API)
   const initialItem = {
     title: q.title || propItem.name || propItem.title || '',
     price: q.price ? Number(q.price) : (propItem.price ?? 0),
@@ -28,8 +27,8 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   }
 
   const [item, setItem] = useState(initialItem)
-  const [addons, setAddons] = useState([]) // groups from API
-  const [selected, setSelected] = useState({}) // selected options per group
+  const [addons, setAddons] = useState([])
+  const [selected, setSelected] = useState({})
   const [qty, setQty] = useState(1)
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
@@ -37,17 +36,24 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   const [noCondiments, setNoCondiments] = useState(false)
   const [missingAddons, setMissingAddons] = useState(null)
 
-  // Editing context (if came from checkout)
   const fromCheckout = String(router.query?.from || '') === 'checkout'
   const editIndexQuery = router.query?.index != null ? Number(router.query.index) : null
   const [editingIndex, setEditingIndex] = useState(editIndexQuery != null ? editIndexQuery : null)
 
-  // Animation / feedback state
   const [addAnimating, setAddAnimating] = useState(false)
   const [showPopup, setShowPopup] = useState(false)
   const toastTimerRef = useRef(null)
 
-  // --- Prefill from cart (if editing) ASAP so UI uses cart values immediately ---
+  // Save last_item on mount so Menu can restore to it when returning
+  useEffect(() => {
+    try {
+      if (productCode) {
+        sessionStorage.setItem('last_item', String(productCode));
+      }
+    } catch (e) {}
+  }, [productCode])
+
+  // Prefill from cart (editing)
   useEffect(() => {
     const idx = editIndexQuery != null ? editIndexQuery : (() => {
       try {
@@ -73,8 +79,6 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
           if (cartItem.qty != null) setQty(Number(cartItem.qty))
           if (cartItem.note != null) setNote(String(cartItem.note))
 
-          // Map cart addons into `selected` shape (don't rely on API groups yet)
-          // a.selected may be object / array / string — store raw; we'll normalize after groups fetched
           if (Array.isArray(cartItem.addons)) {
             const sel = {}
             cartItem.addons.forEach(a => {
@@ -90,43 +94,34 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady])
 
-  // --- Helpers to normalize prefilled selected values against fetched addon options ---
+  // Helpers & fetch condiment groups (unchanged except minor)
   function extractIdFromValue(val, group) {
-    // val may be string/number/object. We try to resolve to group option id if possible.
     if (val == null) return null
     if (val === NONE_OPTION_ID) return NONE_OPTION_ID
-
-    // if primitive, try to match directly to option.id or option.rawId
     if (typeof val === 'string' || typeof val === 'number') {
       const s = String(val)
       const found = (group.options || []).find(o => String(o.id) === s || String(o.rawId) === s)
-      return found ? found.id : s // return s as fallback (still usable)
+      return found ? found.id : s
     }
-
-    // if object, prefer id, then code, then rawId
     if (typeof val === 'object') {
       const cand = String(val.id ?? val.code ?? val.rawId ?? val.name ?? '')
       if (!cand) return null
       const found = (group.options || []).find(o => String(o.id) === cand || String(o.rawId) === cand)
       return found ? found.id : cand
     }
-
     return null
   }
 
   function normalizeSelectedForGroup(raw, group) {
     if (raw == null) return null
     if (raw === NONE_OPTION_ID) return NONE_OPTION_ID
-    // array of things
     if (Array.isArray(raw)) {
       const mapped = raw.map(v => extractIdFromValue(v, group)).filter(v => v != null)
       return mapped
     }
-    // single value
     return extractIdFromValue(raw, group)
   }
 
-  // Fetch condiment groups for product (to present addon options)
   useEffect(() => {
     if (!productCode) return
     setLoading(true)
@@ -147,13 +142,10 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         if (!product) {
           setAddons([])
           setNoCondiments(true)
-
-          // initialize selection for no-condiment case
           setSelected(prev => ({ ...prev, ["__NO_ADDONS__"]: NONE_OPTION_ID }))
           return
         }
 
-        // Build addon groups
         const groups = Array.isArray(product.condimentGroups) ? product.condimentGroups.map(g => {
           const groupKey = g.code || g.name || String(g.id)
           const options = Array.isArray(g.products) ? g.products.map(p => ({
@@ -179,7 +171,6 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         setAddons(groups)
         setNoCondiments(groups.length === 0)
 
-        // Update base item if API supplies better values (but don't override cart-edit fields already set)
         setItem(prev => (({
           title: prev.title || product.name || '',
           price: Number(prev.price || product.price || 0),
@@ -187,21 +178,15 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
           description: prev.description || product.description || ''
         })))
 
-        // Initialize selected defaults for groups that are NOT already set (preserve cart values),
-        // AND normalize any prefilled selected values (from cart) into the group's option ids.
         setSelected(prevSelected => {
           const result = { ...prevSelected }
           groups.forEach(g => {
             const key = g.group
             const existing = result[key]
-
             if (existing == null) {
-              // keep null so user must actively choose.
               result[key] = null
             } else {
-              // normalize (handles object/array/string from cart)
               const norm = normalizeSelectedForGroup(existing, g)
-              // If normalized result is an array but empty, set to null so validate triggers
               if (Array.isArray(norm) && norm.length === 0) {
                 result[key] = null
               } else {
@@ -222,43 +207,33 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productCode])
 
-  // Subtotal calculation (base price + addon price) * qty
   const subtotal = useMemo(() => {
     const base = Number(item.price || 0)
     const addonTotal = addons.reduce((acc, g) => {
       const key = g.group
       const val = selected[key]
-
       if (val == null) return acc
-      if (val === NONE_OPTION_ID) return acc // explicit none chosen -> no addon price
-
+      if (val === NONE_OPTION_ID) return acc
       if (Array.isArray(val)) {
         return acc + val.reduce((s, v) => {
           const opt = g.options.find(o => String(o.id) === String(v))
           return s + (opt ? Number(opt.price || 0) : 0)
         }, 0)
       }
-
       const opt = g.options.find(o => String(o.id) === String(val))
       return acc + (opt ? Number(opt.price || 0) : 0)
     }, 0)
-
     return (base + addonTotal) * Math.max(1, Number(qty || 1))
   }, [addons, selected, item.price, qty])
 
-  // toggle option (radio-like): if allowSkip clicking same toggles off
   function onToggleOption(groupKey, optionId, allowSkip) {
     setSelected(prev => {
       const clone = { ...prev }
       const current = clone[groupKey]
-
-      // if user chose the explicit NONE option
       if (optionId === NONE_OPTION_ID) {
         clone[groupKey] = NONE_OPTION_ID
         return clone
       }
-
-      // otherwise normal behavior:
       if (allowSkip) {
         clone[groupKey] = current === optionId ? null : optionId
       } else {
@@ -269,25 +244,21 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   }
 
   function validateSelection() {
-    // For each addon group, ensure there is a selection (either an option id or the NONE sentinel).
     const missing = addons.filter(g => {
       const val = selected[g.group]
       if (val == null) return true
       if (Array.isArray(val) && val.length === 0) return true
       return false
     })
-
     if (missing.length > 0) {
       const names = missing.map(m => m.name || m.group).join(', ')
-      setMissingAddons(names)   // <-- Tampilkan di popup
+      setMissingAddons(names)
       setShowPopup(true)
       return false
     }
-
     return true
   }
 
-  // helper: find option object by id in a group
   function findOption(group, optId) {
     if (!group || !Array.isArray(group.options)) return null
     return group.options.find(o => String(o.id) === String(optId)) || null
@@ -296,60 +267,24 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   function buildOrderObject() {
     const addonsForCart = addons.map(g => {
       const val = selected[g.group]
-
-      // user explicitly chose "none" for this group OR no selection (null)
       if (val === NONE_OPTION_ID || val == null) {
-        return {
-          group: g.group,
-          groupName: g.name ?? g.group,
-          selected: null
-        }
+        return { group: g.group, groupName: g.name ?? g.group, selected: null }
       }
-
-      // multiple selections (array)
       if (Array.isArray(val)) {
         const items = val.map(v => {
           const opt = findOption(g, v)
           if (opt) {
-            return {
-              id: opt.id ?? null,
-              code: opt.id ?? String(opt.rawId ?? opt.id ?? ''),
-              name: opt.name ?? '',
-              price: Number(opt.price || 0),
-              image: opt.image || ''
-            }
+            return { id: opt.id ?? null, code: opt.id ?? String(opt.rawId ?? opt.id ?? ''), name: opt.name ?? '', price: Number(opt.price || 0), image: opt.image || '' }
           }
           return { id: v, code: String(v), name: String(v), price: 0, image: '' }
         })
-        return {
-          group: g.group,
-          groupName: g.name ?? g.group,
-          selected: items
-        }
+        return { group: g.group, groupName: g.name ?? g.group, selected: items }
       }
-
-      // single selection
       const opt = findOption(g, val)
       if (opt) {
-        return {
-          group: g.group,
-          groupName: g.name ?? g.group,
-          selected: {
-            id: opt.id ?? null,
-            code: opt.id ?? String(opt.rawId ?? opt.id ?? ''),
-            name: opt.name ?? '',
-            price: Number(opt.price || 0),
-            image: opt.image || ''
-          }
-        }
+        return { group: g.group, groupName: g.name ?? g.group, selected: { id: opt.id ?? null, code: opt.id ?? String(opt.rawId ?? opt.id ?? ''), name: opt.name ?? '', price: Number(opt.price || 0), image: opt.image || '' } }
       }
-
-      // fallback: unknown id -> store as code only
-      return {
-        group: g.group,
-        groupName: g.name ?? g.group,
-        selected: { id: val, code: String(val), name: String(val), price: 0, image: '' }
-      }
+      return { group: g.group, groupName: g.name ?? g.group, selected: { id: val, code: String(val), name: String(val), price: 0, image: '' } }
     })
 
     return {
@@ -363,7 +298,6 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     }
   }
 
-  // add or update cart item — with animation then popup
   function handleAddToCart() {
     if (addons.length > 0 && !validateSelection()) return
 
@@ -379,8 +313,11 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
       console.error('persist cart error', e)
     }
 
-    setMissingAddons(null) // pastikan popup bukan “missing”
-    
+    setMissingAddons(null)
+
+    // save scroll so menu can restore precisely where user was
+    try { sessionStorage.setItem('menu_scroll', String(window.scrollY || 0)); } catch (e) {}
+
     setAddAnimating(true)
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
 
@@ -390,19 +327,27 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     }, 520)
   }
 
-  // close popup: then navigate depending on edit/fromCheckout
+  // close popup: then navigate
   function handleClosePopup() {
     if (missingAddons) {
       setShowPopup(false)
+      return
+    }
+
+    setShowPopup(false)
+    try { sessionStorage.removeItem('yoshi_edit') } catch (e) {}
+
+    // save last_item (again) and current scroll
+    try {
+      if (productCode) sessionStorage.setItem('last_item', String(productCode))
+      sessionStorage.setItem('menu_scroll', String(window.scrollY || 0))
+    } catch (e) {}
+
+    if (fromCheckout && editingIndex != null) {
+      router.push('/checkout')
     } else {
-      setShowPopup(false)
-      // cleanup editing session key if any
-      try { sessionStorage.removeItem('yoshi_edit') } catch (e) {}
-      if (fromCheckout && editingIndex != null) {
-        router.push('/checkout')
-      } else {
-        router.push('/menu')
-      }
+      // navigate back to menu; Menu will restore
+      router.push('/menu')
     }
   }
 
@@ -412,8 +357,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     }
   }, [])
 
-  // AUTO CLOSE POPUP + REDIRECT setelah 2 detik,
-  // kecuali jika popup adalah warning missingAddons
+  // AUTO CLOSE POPUP + REDIRECT setelah 2s (kecuali missingAddons)
   useEffect(() => {
     if (!showPopup) return
     if (missingAddons) return
@@ -421,25 +365,27 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     const t = setTimeout(() => {
       handleClosePopup()
     }, 2000)
-
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPopup, missingAddons])
 
-  // computed label for sticky button (so StickyCartBar can update text)
   const addBtnLabel = (fromCheckout && editingIndex != null) ? 'Ubah Pesanan' : 'Tambah Pesanan'
 
-  // UI
+  // UI (unchanged)
   return (
     <div className={styles.page}>
       <div className={styles.headerArea}>
         <div className={styles.btnLeft}>
           <button
             onClick={() => {
-              // if user entered the page from checkout editing flow, back should go to checkout
               if (fromCheckout && editingIndex != null) {
                 router.push('/checkout')
               } else {
+                // save last_item and scroll then go back
+                try {
+                  if (productCode) sessionStorage.setItem('last_item', String(productCode))
+                  sessionStorage.setItem('menu_scroll', String(window.scrollY || 0))
+                } catch (e) {}
                 router.push('/menu')
               }
             }}
@@ -488,7 +434,6 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         {loading && <div style={{ padding: 12 }}>Memuat addon...</div>}
         {err && <div style={{ padding: 12, color: 'crimson' }}>{err}</div>}
 
-        {/* CASE: no condiment groups from API -> show single "Tanpa add ons" block */}
         {!loading && noCondiments && (
           <section className={styles.addonGroup}>
             <div className={styles.groupHeader}>
@@ -498,7 +443,6 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
               </div>
             </div>
 
-            {/* Radio Button Tanpa Add Ons */}
             <label className={styles.optionLabel} style={{ opacity: 0.95 }}>
               <div className={styles.optionName}>
                 <div>Tanpa add ons</div>
@@ -511,12 +455,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
                   type="radio"
                   name="__NO_ADDONS__"
                   checked={selected["__NO_ADDONS__"] === NONE_OPTION_ID}
-                  onChange={() =>
-                    setSelected(prev => ({
-                      ...prev,
-                      ["__NO_ADDONS__"]: NONE_OPTION_ID
-                    }))
-                  }
+                  onChange={() => setSelected(prev => ({ ...prev, ["__NO_ADDONS__"]: NONE_OPTION_ID }))}
                   className={styles.radio}
                 />
               </div>
@@ -524,7 +463,6 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
           </section>
         )}
 
-        {/* Render groups when available */}
         {!loading && !noCondiments && addons.map(g => (
           <section key={g.group} className={styles.addonGroup}>
             <div className={styles.groupHeader}>
@@ -535,7 +473,6 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
             </div>
 
             <div>
-              {/* If allowSkip true: render explicit "Tanpa add ons" radio option */}
               {g.allowSkip && (
                 <label className={styles.optionLabel} style={{ opacity: 0.95 }}>
                   <div className={styles.optionName}>
@@ -606,14 +543,12 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
             subtotal={subtotal}
             onAdd={handleAddToCart}
             addAnimating={addAnimating}
-            // send label so StickyCartBar (if updated) can show different text when editing
             addLabel={addBtnLabel}
             isEditing={fromCheckout && editingIndex != null}
           />
         </div>
       </div>
 
-      {/* Popup modal (instead of toast) */}
       {showPopup && (
         <>
           <div className={styles.addModalOverlay} onClick={() => {
@@ -642,12 +577,10 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
                     <Image src={"/images/order-success.png"} alt="success" width={96} height={96} />
                   </div>
 
-                  {/* Title depends on whether user was editing from checkout */}
                   <div className={styles.addModalTitle}>
                     {fromCheckout && editingIndex != null ? 'Menu Diubah!' : 'Menu Ditambahkan!'}
                   </div>
 
-                  {/* Show price under the title */}
                   <div className={styles.addModalSubtitle} style={{ fontWeight: 600, fontSize: 16 }}>
                     Harga : {formatRp(subtotal)}
                   </div>

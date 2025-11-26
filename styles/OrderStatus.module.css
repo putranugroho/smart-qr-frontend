@@ -29,7 +29,7 @@
 
 /* BLUE BOX */
 .blueBox {
-  width: 358px;
+  width: auto;
   height: 74px;
   background: linear-gradient(90deg, #0061FF 17%, #5193FF 100%);
   color: #fff;

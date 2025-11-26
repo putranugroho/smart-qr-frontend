@@ -1,6 +1,7 @@
 // components/Menu.js
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
+import useSWR from "swr";
 import { getUser } from '../lib/auth'
 import Header from "./Header";
 import MenuTabs from "./MenuTabs";
@@ -9,19 +10,14 @@ import CardItem from "./CardItem";
 import OrderBar from "./OrderBar";
 import FullMenu from "./FullMenu";
 
-/**
- * Lazy-loading Menu
- *
- * - initial fetch: get categories (id, name, totalItems). Do NOT fetch all items immediately.
- * - for each category, items field is null until the category's section intersects viewport.
- * - when category becomes visible, fetch items for that category only.
- *
- * Note: this expects a "menu-items" endpoint that returns items by categoryId:
- * /api/proxy/menu-items?categoryId=...&storeCode=MGI&orderCategoryCode=DI
- * If your backend returns items inside category from the first call, this code will
- * use them and skip per-category fetch.
- */
+const fetcher = (url) => fetch(url).then(r => {
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+});
 
+/**
+ * Lazy-loading Menu with SWR caching + scroll restore
+ */
 export default function Menu() {
   const router = useRouter();
   const { mode } = router.query;
@@ -30,7 +26,7 @@ export default function Menu() {
   const [activeCategory, setActiveCategory] = useState(null);
   const [queryText, setQueryText] = useState("");
   const [viewMode, setViewMode] = useState("grid"); // 'grid' | 'list'
-  const [loading, setLoading] = useState(true);
+  const [loadingLocal, setLoadingLocal] = useState(true);
   const [showBackTop, setShowBackTop] = useState(false);
   const [showFullMenu, setShowFullMenu] = useState(false);
   const [filterForCategory, setFilterForCategory] = useState(null);
@@ -44,11 +40,53 @@ export default function Menu() {
   const sectionRefs = useRef({});
   const observerRef = useRef(null);
   const loadingItemsRef = useRef({}); // guard per-category loading
-  const pendingFetchQueue = useRef([]); // optional queue if needed
 
-  // Fetch categories meta & init orderMode from user
+  // SWR: fetch categories meta once and cache it
+  const categoriesApi = "/api/proxy/menu-category?storeCode=MGI&orderCategoryCode=DI";
+  const { data: catData, error: catError } = useSWR(categoriesApi, fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 60 * 1000
+  });
+
+  // setCategories when swr data ready
   useEffect(() => {
-    // read user
+    if (!catData || !Array.isArray(catData.data)) {
+      if (catError) console.error('Failed fetch categories', catError);
+      return;
+    }
+
+    const raw = Array.isArray(catData?.data) ? catData.data : [];
+
+    // Build initial categories meta; keep items if present in payload otherwise null
+    const mapped = raw
+      .filter((c) => Number(c.totalItems ?? (c.items?.length ?? 0)) > 0)
+      .map((c) => {
+        const name = c.name || `Category ${String(c.id || '')}`;
+        const itemsFromPayload = Array.isArray(c.items) && c.items.length > 0
+          ? c.items.map(it => ({
+            id: it.code ?? it.id,
+            name: it.name,
+            price: it.price,
+            image: it.imagePath ?? it.imageUrl ?? "/images/gambar-menu.jpg",
+            category: name
+          }))
+          : null; // do not eagerly load items if not provided
+        return {
+          id: c.id,
+          name,
+          totalItems: Number(c.totalItems ?? (itemsFromPayload ? itemsFromPayload.length : 0)),
+          items: itemsFromPayload // null -> will lazy load later
+        };
+      });
+
+    setCategories(mapped);
+    const target = mapped[0]?.name;
+    setActiveCategory(target);
+    setTimeout(() => setLoadingLocal(false), 180);
+  }, [catData, catError]);
+
+  // read user
+  useEffect(() => {
     try {
       const user = getUser?.() || null;
       if (user) {
@@ -66,56 +104,12 @@ export default function Menu() {
     } catch (e) {
       console.warn('getUser failed', e);
     }
-
-    const API_URL = "/api/proxy/menu-category?storeCode=MGI&orderCategoryCode=DI";
-
-    setLoading(true);
-
-    fetch(API_URL)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((json) => {
-        const raw = Array.isArray(json?.data) ? json.data : [];
-
-        // Build initial categories meta; keep items if present in payload otherwise null
-        const mapped = raw
-          .filter((c) => Number(c.totalItems ?? (c.items?.length ?? 0)) > 0)
-          .map((c) => {
-            const name = c.name || `Category ${String(c.id || '')}`;
-            const itemsFromPayload = Array.isArray(c.items) && c.items.length > 0
-              ? c.items.map(it => ({
-                id: it.code ?? it.id,
-                name: it.name,
-                price: it.price,
-                image: it.imagePath ?? it.imageUrl ?? "/images/gambar-menu.jpg",
-                category: name
-              }))
-              : null; // do not eagerly load items if not provided
-            return {
-              id: c.id,
-              name,
-              totalItems: Number(c.totalItems ?? (itemsFromPayload ? itemsFromPayload.length : 0)),
-              items: itemsFromPayload // null -> will lazy load later
-            };
-          });
-
-        setCategories(mapped);
-
-        const target = mapped[0]?.name;
-        setActiveCategory(target);
-      })
-      .catch((e) => {
-        console.error('Failed fetch categories', e);
-      })
-      .finally(() => setTimeout(() => setLoading(false), 350));
   }, []);
 
   // IntersectionObserver: when category section enters viewport -> fetch items for that category
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (!('IntersectionObserver' in window)) return; // old browsers fallback: could lazy-load all
+    if (!('IntersectionObserver' in window)) return;
 
     // cleanup previous observer
     if (observerRef.current) {
@@ -125,20 +119,16 @@ export default function Menu() {
 
     observerRef.current = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
-        // threshold check: we want to load when top of section is near viewport
         if (entry.isIntersecting) {
           const catName = entry.target.datasetCat || entry.target.getAttribute('data-cat');
           if (!catName) return;
           const catObj = categories.find(c => c.name === catName);
           if (!catObj) return;
 
-          // only fetch if items are null (not loaded yet)
           if (catObj.items == null && !loadingItemsRef.current[String(catObj.id)]) {
-            // mark as loading so we don't duplicate requests
             loadingItemsRef.current[String(catObj.id)] = true;
             fetchItemsForCategory(catObj.id, catObj.name)
               .finally(() => {
-                // small cooldown before allowing re-fetch (if needed)
                 setTimeout(() => {
                   loadingItemsRef.current[String(catObj.id)] = false;
                 }, 300);
@@ -148,14 +138,12 @@ export default function Menu() {
       });
     }, {
       root: null,
-      rootMargin: '0px 0px 260px 0px', // preload when section is 260px below viewport
+      rootMargin: '0px 0px 260px 0px',
       threshold: 0.01
     });
 
-    // observe all category sections
     Object.values(sectionRefs.current).forEach((el) => {
       if (el && observerRef.current) {
-        // normalize dataset key for easier lookup
         if (!el.datasetCat && el.getAttribute('data-cat')) {
           el.datasetCat = el.getAttribute('data-cat');
         }
@@ -170,18 +158,14 @@ export default function Menu() {
 
   // fetch items for a single category (lazy)
   function fetchItemsForCategory(categoryId, categoryName) {
-    // If API supports direct category items request, use it. Otherwise, fallback to full category fetch.
-    // Example endpoint (you may need to adjust to your real endpoint):
     const url = `/api/proxy/menu-items?categoryId=${encodeURIComponent(categoryId)}&storeCode=MGI&orderCategoryCode=DI`;
 
-    // Mark UI: set placeholder items = []? We'll keep items=null until data arrives and show skeleton in UI.
     return fetch(url)
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
       .then(json => {
-        // normalize incoming items shape
         const rawItems = Array.isArray(json?.data) ? json.data : (Array.isArray(json?.items) ? json.items : []);
         const mappedItems = rawItems.map(it => ({
           id: it.code ?? it.id,
@@ -191,7 +175,6 @@ export default function Menu() {
           category: categoryName
         }));
 
-        // update categories with loaded items
         setCategories(prev => prev.map(c => {
           if (String(c.id) === String(categoryId) || c.name === categoryName) {
             return { ...c, items: mappedItems };
@@ -201,8 +184,7 @@ export default function Menu() {
       })
       .catch(err => {
         console.warn('fetchItemsForCategory failed', err);
-
-        // fallback: try to fetch category details endpoint (older APIs might return the category object)
+        // fallback try category endpoint
         const fallback = `/api/proxy/menu-category?storeCode=MGI&orderCategoryCode=DI&categoryId=${encodeURIComponent(categoryId)}`;
         return fetch(fallback)
           .then(r => {
@@ -227,7 +209,6 @@ export default function Menu() {
             }));
           })
           .catch(e => {
-            // on error, set items to empty array to avoid retry loop
             setCategories(prev => prev.map(c => {
               if (String(c.id) === String(categoryId) || c.name === categoryName) {
                 return { ...c, items: [] };
@@ -254,7 +235,6 @@ export default function Menu() {
     window.scrollTo({ top, behavior: "smooth" });
     setActiveCategory(cat);
 
-    // proactively fetch that category items when user jumps to it
     const cObj = categories.find(c => c.name === cat);
     if (cObj && cObj.items == null && !loadingItemsRef.current[String(cObj.id)]) {
       loadingItemsRef.current[String(cObj.id)] = true;
@@ -267,7 +247,6 @@ export default function Menu() {
   // Handle search
   function handleSearch(text) {
     setQueryText(text);
-    // saat search aktif → pindahkan tampilan ke paling atas
     if (text.length > 0) {
       const headerH = document.querySelector("header")?.offsetHeight || 0;
       window.scrollTo({ top: headerH, behavior: "smooth" });
@@ -285,7 +264,7 @@ export default function Menu() {
 
   // Scrollspy (only when not searching)
   useEffect(() => {
-    if (queryText.length > 0) return; // disable scrollspy saat searching
+    if (queryText.length > 0) return;
 
     let ticking = false;
     function handleScroll() {
@@ -333,13 +312,47 @@ export default function Menu() {
       )
     }))
     .filter((cat) => {
-      // if items == null (not loaded yet) but search is active, we can't match items -> skip category
       if (queryText.length > 0) {
         return cat.items && cat.items.length > 0;
       }
-      // if not searching, show categories even if items null (we will show skeleton)
       return (cat.items == null) ? true : cat.items.length > 0;
     });
+
+  // Restore scroll & highlight last item when returning from ItemDetail
+  useEffect(() => {
+    // run after small delay so DOM sections mount / observer runs and items may be loaded by intersection observer
+    const t = setTimeout(() => {
+      try {
+        const last = sessionStorage.getItem('last_item');
+        const scroll = sessionStorage.getItem('menu_scroll');
+        if (last) {
+          // try to find element by id
+          const el = document.getElementById(`menu-item-${last}`);
+          if (el) {
+            // scroll so item is centered under header/tabs
+            const headerH = document.querySelector("header")?.offsetHeight || 0;
+            const tabsH = 56;
+            const top = window.scrollY + el.getBoundingClientRect().top - (headerH + tabsH + 8);
+            window.scrollTo({ top, behavior: "auto" });
+            // also bring the element into view (fallback)
+            try { el.scrollIntoView({ block: 'center' }); } catch(e) {}
+            // clear last_item after restore
+            sessionStorage.removeItem('last_item');
+            sessionStorage.removeItem('menu_scroll');
+            return;
+          }
+        }
+        if (scroll) {
+          window.scrollTo({ top: Number(scroll || 0), behavior: "auto" });
+          sessionStorage.removeItem('menu_scroll');
+        }
+      } catch (e) {
+        // ignore
+      }
+    }, 260);
+
+    return () => clearTimeout(t);
+  }, [categories]);
 
   const categoryHeaderContainerStyle = {
     display: "flex",
@@ -348,7 +361,6 @@ export default function Menu() {
     marginBottom: 12,
   };
 
-  // UI helpers: skeleton for a category while its items are still null
   function renderCategorySkeleton() {
     return (
       <div>
@@ -374,13 +386,10 @@ export default function Menu() {
 
   return (
     <div className="bg-white min-h-screen">
-      {/* Top status bar (eat-in / takeaway indicator) */}
       <div style={{ display: 'flex', justifyContent: 'center' }}>
         <div
           role="button"
-          onClick={() => {
-            // optional future action
-          }}
+          onClick={() => {}}
           style={{
             width: '100%',
             maxWidth: 390,
@@ -429,6 +438,7 @@ export default function Menu() {
 
       <Header />
 
+      {/* pass category names into MenuTabs so MenuTabs doesn't fetch separately */}
       <MenuTabs
         selected={activeCategory}
         onSelect={scrollToCategory}
@@ -437,6 +447,7 @@ export default function Menu() {
           setFilterForCategory(null)
           setShowFullMenu(true)
         }}
+        items={categories.map(c => c.name)}
       />
 
       <SearchBar
@@ -446,8 +457,7 @@ export default function Menu() {
         isSearching={queryText.length > 0}
       />
 
-      {/* Loading shimmer for overall page */}
-      {loading && (
+      {loadingLocal && (
         <div style={{ padding: "0 16px", marginTop: 20 }}>
           {[1, 2, 3, 4].map((i) => (
             <div key={i} style={{ display: "flex", gap: 12, marginBottom: 20 }}>
@@ -471,8 +481,7 @@ export default function Menu() {
         </div>
       )}
 
-      {/* Items */}
-      {!loading && (
+      {!loadingLocal && (
         <div style={{ maxWidth: 420, margin: "0 auto", padding: "0 5px 24px" }}>
           {filteredCategories.map((cat) => (
             <div
@@ -481,7 +490,6 @@ export default function Menu() {
               ref={(el) => (sectionRefs.current[cat.name] = el)}
               style={{ marginTop: 18 }}
             >
-              {/* Header */}
               <div style={categoryHeaderContainerStyle}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, textTransform: "none", ...(viewMode === "grid" ? { fontSize: 16 } : {}) }}>
@@ -522,9 +530,7 @@ export default function Menu() {
                 </div>
               </div>
 
-              {/* Items area */}
               {cat.items == null ? (
-                // not loaded yet -> show skeleton and let intersection observer trigger fetch
                 renderCategorySkeleton()
               ) : cat.items.length === 0 ? (
                 <div style={{ padding: 12, color: '#6b7280' }}>Tidak ada item</div>
@@ -546,7 +552,6 @@ export default function Menu() {
         </div>
       )}
 
-      {/* Back to Top */}
       {showBackTop && (
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
@@ -573,7 +578,6 @@ export default function Menu() {
       )}
 
       <div style={{ height: 60 }} />
-      {/* Full Menu bottom sheet */}
       <FullMenu
         open={showFullMenu}
         categories={categories.map(c => c.name)}
@@ -589,7 +593,6 @@ export default function Menu() {
           setTimeout(()=>scrollToCategory(catName), 120)
         }}
         onApplyFilter={(cat, filters) => {
-          console.log('applied filter for', cat, filters)
           setShowFullMenu(false)
           setFilterForCategory(null)
         }}

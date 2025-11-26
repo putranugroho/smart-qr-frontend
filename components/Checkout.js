@@ -42,7 +42,7 @@ export default function CheckoutPage() {
       const qty = Number(it.qty || 0) || 0
       return acc + (price * qty)
     }, 0)
-    const t = Math.round(s * 0.11)
+    const t = Math.round(s * 0.10)
     const tot = s + t
 
     setSubtotal(s)
@@ -216,11 +216,7 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            <div className={styles.itemRight}>
-              {/* show formatted subtotal/price based on client-calculated totals */}
-              <div className={styles.itemPrice}>{formatRp(it.price * it.qty)}</div>
-
-              <div className={styles.qtyRow}>
+            <div className={styles.itemRight} style={{display:"grid"}}>
                 <button className={styles.editIconBtn} onClick={() => handleEdit(i)} title="Edit item" aria-label={`Edit item ${it.title}`}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
                     <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" fill="#111827"/>
@@ -229,6 +225,21 @@ export default function CheckoutPage() {
                 </button>
 
                 <button className={styles.trashBtn} onClick={() => handleDelete(i)} title="Hapus item" aria-label={`Hapus item ${it.title}`}>🗑</button>
+            </div>
+
+            <div className={styles.itemRight}>
+              {/* show formatted subtotal/price based on client-calculated totals */}
+              <div className={styles.itemPrice}>{formatRp(it.price * it.qty)}</div>
+
+              <div className={styles.qtyRow}>
+                {/* <button className={styles.editIconBtn} onClick={() => handleEdit(i)} title="Edit item" aria-label={`Edit item ${it.title}`}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" fill="#111827"/>
+                    <path d="M20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="#111827"/>
+                  </svg>
+                </button>
+
+                <button className={styles.trashBtn} onClick={() => handleDelete(i)} title="Hapus item" aria-label={`Hapus item ${it.title}`}>🗑</button> */}
 
                 <button className={styles.minusBtn} onClick={() => handleQty(i, 'minus')}>-</button>
                 <div className={styles.qtyText}>{it.qty}</div>
@@ -250,14 +261,14 @@ export default function CheckoutPage() {
         </div>
 
         <div className={styles.paymentRow}>
-          <div>PPN (11%)</div>
+          <div>PB1 (10%)</div>
           <div className={styles.paymentValue}>{formatRp(tax)}</div>
         </div>
 
-        <div className={styles.paymentRow}>
-          <div>Fees</div>
+        {/* <div className={styles.paymentRow}>
+          <div>Rounding</div>
           <div className={styles.paymentValue}>Rp0</div>
-        </div>
+        </div> */}
 
         <div className={styles.paymentTotalRow}>
           <div>Total</div>

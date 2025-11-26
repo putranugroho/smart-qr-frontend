@@ -1,29 +1,12 @@
 // components/MenuTabs.js
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import styles from "../styles/MenuTabs.module.css";
 
-export default function MenuTabs({ selected, onSelect, isHidden, onOpenFullMenu }) {
-  const [items, setItems] = useState([]);
+export default function MenuTabs({ selected, onSelect, isHidden, onOpenFullMenu, items = [] }) {
   const tabsRef = useRef(null);
   const itemRefs = useRef({});
-  const [topOffset, setTopOffset] = useState(0);
-
-  // Fetch API categories for tabs and filter totalItems
-  useEffect(() => {
-    const API_URL = "/api/proxy/menu-category?storeCode=MGI&orderCategoryCode=DI";
-
-    fetch(API_URL)
-      .then((r) => r.json())
-      .then((json) => {
-        const cleaned =
-          json?.data
-            ?.filter((c) => Number(c.totalItems) > 0)
-            ?.map((c) => c.name)
-            ?.filter(Boolean) || [];
-        setItems(cleaned);
-      })
-      .catch((err) => console.error("MenuTabs API Error:", err));
-  }, []);
+  const headerRef = useRef(null);
+  const [topOffset, setTopOffset] = React.useState(0);
 
   // Calculate sticky offset under header
   useEffect(() => {
@@ -54,7 +37,6 @@ export default function MenuTabs({ selected, onSelect, isHidden, onOpenFullMenu 
     if (typeof onOpenFullMenu === 'function') {
       onOpenFullMenu()
     } else {
-      // fallback: just scroll to top
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }

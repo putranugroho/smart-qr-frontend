@@ -38,10 +38,6 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
           <div className={styles.listSpacer} />
           <button
             className={styles.listAddBtn}
-            onClick={(e) => {
-              e.stopPropagation();
-              onAdd?.(item);
-            }}
           >
             Tambah
           </button>

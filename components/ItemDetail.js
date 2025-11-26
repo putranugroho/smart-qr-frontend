@@ -416,7 +416,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   // kecuali jika popup adalah warning missingAddons
   useEffect(() => {
     if (!showPopup) return
-    if (!missingAddons) return
+    if (missingAddons) return
 
     const t = setTimeout(() => {
       handleClosePopup()
@@ -627,7 +627,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
               {missingAddons ? (
                 <>
                   <div className={styles.addModalIcon}>
-                    <Image src="/images/warning.png" alt="warning" width={80} height={80} />
+                    <Image src="/images/warning.png" width={80} height={80} />
                   </div>
                   <div className={styles.addModalTitle}>
                     Pilih Add Ons Terlebih Dahulu

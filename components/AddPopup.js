@@ -8,7 +8,7 @@ export default function AddPopup({
   anchorRef = null,   // ref to the button element
   onClose = () => {},
   // autoHide intentionally unused — popup closes only on outside click
-  width = 140,
+  width = 125,
   height = 84,
   children = null
 }) {

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/router'
 import Image from 'next/image'
 import styles from '../styles/Checkout.module.css'
-import AddPopup from './AddPopUp'
+import AddPopup from './AddPopup'
 import { getCart, updateCart, removeFromCartByIndex, cartPaymentTotal } from '../lib/cart'
 
 function formatRp(n) {

@@ -17,16 +17,14 @@
 
 .cardImage {
   width: 100%;
-  height: 190px;     /* ukuran tampilan, boleh ubah sesuai kebutuhan */
-  position: relative;
+  /* height: 167px; */
   border-radius: 8px;
   overflow: hidden;
-  background: #ffffff; /* warna area kosong */
+  flex-shrink: 0; /* ensure image never shrinks */
 }
 
 .cardImageTag {
-  object-fit: contain;  /* gambar TIDAK akan terpotong */
-  background-color: #ffffff;
+  object-fit: cover;
 }
 
 

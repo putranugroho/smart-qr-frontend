@@ -49,6 +49,68 @@ export default function OrderStatus() {
     setShowAllItems(prev => !prev)
   }
 
+  /* ========== HOVERBAR LOGIC ========== */
+
+  // Replace this with merchant phone number you want to use
+  const MERCHANT_PHONE = '+628123456789' // <-- ganti nomor ini sesuai kebutuhan (format internasional)
+
+  function downloadBill() {
+    // Create a simple textual bill. You can replace with PDF generator later.
+    const orderId = displayOrderId || id || 'unknown'
+    const lines = []
+    lines.push(`Order ID: ${orderId}`)
+    lines.push(`----------------------------`)
+    if (!items || items.length === 0) {
+      lines.push('Tidak ada item.')
+    } else {
+      items.forEach((it) => {
+        const title = it.title || it.name || it.itemName || '-'
+        const qty = Number(it.qty || 1)
+        const price = Number(it.price || 0)
+        const lineTotal = price * qty
+        lines.push(`${title} x${qty} — ${formatRp(lineTotal)}`)
+      })
+    }
+    lines.push(`----------------------------`)
+    lines.push(`Subtotal: ${formatRp(subtotal)}`)
+    lines.push(`PB1 (10%): ${formatRp(tax)}`)
+    lines.push(`Total: ${formatRp(total)}`)
+    lines.push(`\nTerima kasih telah berbelanja.`)
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `bill-${orderId}.txt`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  async function contactMerchant() {
+    try {
+      // copy to clipboard (best-effort)
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(MERCHANT_PHONE)
+      }
+    } catch (e) {
+      // ignore clipboard errors
+    }
+
+    // try to open WhatsApp chat in new tab (user may change number)
+    const normalized = MERCHANT_PHONE.replace(/\D/g, '')
+    if (normalized) {
+      const waUrl = `https://wa.me/${normalized}`
+      window.open(waUrl, '_blank', 'noopener')
+      alert(`Nomor kontak disalin ke clipboard: ${MERCHANT_PHONE}\nMembuka WhatsApp...`)
+    } else {
+      // fallback: show phone in alert
+      alert(`Hubungi merchant: ${MERCHANT_PHONE}`)
+    }
+  }
+
+  /* ========== JSX ========== */
   return (
     <div className={styles.page}>
       {/* HEADER */}
@@ -153,7 +215,7 @@ export default function OrderStatus() {
 
             <span className={styles.chevronWrap} aria-hidden>
               <Image
-                src="/images/caret-down.png"       // ganti nama file sesuai file kamu
+                src="/images/caret-down.png"
                 alt=""
                 width={12}
                 height={12}
@@ -212,6 +274,29 @@ export default function OrderStatus() {
         <div className={styles.paymentTotalRow}>
           <div>Total</div>
           <div className={styles.paymentTotalValue}>{formatRp(total)}</div>
+        </div>
+      </div>
+
+      {/* ========== Hoverbar (fixed bottom) ========== */}
+      <div className={styles.hoverBarWrap} role="region" aria-label="Aksi pesanan">
+        <div className={styles.hoverBar}>
+          <button
+            className={styles.btnDownload}
+            onClick={downloadBill}
+            aria-label="Download bill"
+            type="button"
+          >
+            <span>Download Bill</span>
+          </button>
+
+          <button
+            className={styles.btnContact}
+            onClick={contactMerchant}
+            aria-label="Kontak merchant"
+            type="button"
+          >
+            <span>Kontak</span>
+          </button>
         </div>
       </div>
     </div>

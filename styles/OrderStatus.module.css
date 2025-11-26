@@ -532,3 +532,86 @@
     height: 56px;
   }
 }
+
+/* ==== HOVERBAR ==== */
+/* wrapper supaya hoverbar center dan max-width 390 */
+.hoverBarWrap {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 14px; /* sedikit atas dari bottom */
+  display: flex;
+  justify-content: center;
+  pointer-events: none; /* biarkan anaknya yang menerima pointer */
+  z-index: 520;
+}
+
+/* actual bar container */
+.hoverBar {
+  pointer-events: auto;
+  width: 390px; /* sesuai layout */
+  max-width: calc(100% - 24px);
+  height: 82px; /* sesuai layout */
+  background: transparent;
+  display: flex;
+  gap: 16px; /* jarak antar tombol */
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 10px;
+}
+
+/* tombol umum */
+.hoverBar button {
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 171px;
+  height: 42px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 16px;
+  padding-right: 16px;
+  border-radius: 9999px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+}
+
+/* Download Bill (gradient orange) */
+.btnDownload {
+  background: linear-gradient(90deg, #FF8040 0%, #FC661A 100%);
+  color: #fff;
+  border: none;
+}
+
+/* Contact (outline) */
+.btnContact {
+  background: #fff;
+  color: #111827;
+  border: 2px solid rgba(16, 24, 40, 0.08);
+}
+
+/* ensure touch area / accessibility */
+.hoverBar button:active {
+  transform: translateY(1px);
+}
+
+/* mobile adjustments */
+@media (max-width: 420px) {
+  .hoverBar {
+    width: calc(100% - 24px);
+    padding: 8px;
+    gap: 10px;
+  }
+  .hoverBar button {
+    width: 50%;
+    height: 44px;
+    padding-left: 12px;
+    padding-right: 12px;
+    font-size: 13px;
+  }
+}

@@ -562,7 +562,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
               {missingAddons ? (
                 <>
                   <div className={styles.addModalIcon}>
-                    <Image src="/images/warning.png" width={80} height={80} />
+                    <Image src="/images/warning.png" alt='Warning' width={80} height={80} />
                   </div>
                   <div className={styles.addModalTitle}>
                     Pilih Add Ons Terlebih Dahulu

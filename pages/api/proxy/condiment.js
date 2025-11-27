@@ -20,7 +20,7 @@ export default async function handler(req, res) {
     if (page) qs.set('page', page);
     if (pageSize) qs.set('pageSize', pageSize);
 
-    const target = `https://yoshi-smartqr-api-ergyata5hff3cfhz.southeastasia-01.azurewebsites.net/menu/condiment/list?${qs.toString()}`;
+    const target = `https://yoshi-smartqr-api-ergyata5hff3cfhz.southeastasia-01.azurewebsites.net/smartqr/v1/menu/condiment/list?${qs.toString()}`;
 
     const upstream = await fetch(target, {
       method: 'GET',

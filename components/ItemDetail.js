@@ -265,37 +265,93 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   }
 
   function buildOrderObject() {
+    // Map addons into shape for cart (kept similar to previous structure)
     const addonsForCart = addons.map(g => {
-      const val = selected[g.group]
+      const val = selected[g.group];
       if (val === NONE_OPTION_ID || val == null) {
-        return { group: g.group, groupName: g.name ?? g.group, selected: null }
+        return { group: g.group, groupName: g.name ?? g.group, selected: null };
       }
       if (Array.isArray(val)) {
         const items = val.map(v => {
-          const opt = findOption(g, v)
+          const opt = findOption(g, v);
           if (opt) {
-            return { id: opt.id ?? null, code: opt.id ?? String(opt.rawId ?? opt.id ?? ''), name: opt.name ?? '', price: Number(opt.price || 0), image: opt.image || '' }
+            return {
+              id: opt.id ?? null,
+              code: opt.id ?? String(opt.id ?? ''),
+              name: opt.name ?? '',
+              price: Number(opt.price || 0),
+              image: opt.image || ''
+            };
           }
-          return { id: v, code: String(v), name: String(v), price: 0, image: '' }
-        })
-        return { group: g.group, groupName: g.name ?? g.group, selected: items }
+          return { id: v, code: String(v), name: String(v), price: 0, image: '' };
+        });
+        return { group: g.group, groupName: g.name ?? g.group, selected: items };
+      } else {
+        const opt = findOption(g, val);
+        if (opt) {
+          return {
+            group: g.group,
+            groupName: g.name ?? g.group,
+            selected: { id: opt.id ?? null, code: opt.id ?? String(opt.id ?? ''), name: opt.name ?? '', price: Number(opt.price || 0), image: opt.image || '' }
+          };
+        }
+        return { group: g.group, groupName: g.name ?? g.group, selected: null };
       }
-      const opt = findOption(g, val)
-      if (opt) {
-        return { group: g.group, groupName: g.name ?? g.group, selected: { id: opt.id ?? null, code: opt.id ?? String(opt.rawId ?? opt.id ?? ''), name: opt.name ?? '', price: Number(opt.price || 0), image: opt.image || '' } }
-      }
-      return { group: g.group, groupName: g.name ?? g.group, selected: { id: val, code: String(val), name: String(val), price: 0, image: '' } }
-    })
+    });
 
+    // compute addon total for a single unit (not multiplied by qty)
+    const addonTotalSingle = (addons || []).reduce((acc, g) => {
+      const sel = selected[g.group];
+      if (!sel || sel === NONE_OPTION_ID) return acc;
+      if (Array.isArray(sel)) {
+        return acc + sel.reduce((s, v) => {
+          const opt = findOption(g, v);
+          return s + (opt ? Number(opt.price || 0) : 0);
+        }, 0);
+      } else {
+        const opt = findOption(g, sel);
+        return acc + (opt ? Number(opt.price || 0) : 0);
+      }
+    }, 0);
+
+    const basePrice = Number(item.price || 0); // base price per unit from API
+    const unitPrice = basePrice + addonTotalSingle; // price per unit including addon
+
+    // taxes array from API format (e.g. [{ id, code, name, amount: 10 }])
+    const taxesArr = Array.isArray(item.taxes) ? item.taxes : [];
+    console.log("taxesArr");
+    console.log(taxesArr);
+    
+
+    // cari percent PB1 dan PPN (jika ada). Cek nama dan/atau code agar robust.
+    const pb1Percent = taxesArr
+      .filter(t => String(t.name ?? t.code ?? '').toUpperCase().includes('PB1') || String(t.code ?? '').toUpperCase().includes('TAX001'))
+      .reduce((acc, t) => acc + Number(t.amount || 0), 0);
+
+    const ppnPercent = taxesArr
+      .filter(t => String(t.name ?? t.code ?? '').toUpperCase().includes('PPN') || String(t.code ?? '').toUpperCase().includes('TAX002'))
+      .reduce((acc, t) => acc + Number(t.amount || 0), 0);
+
+    const hasPB1 = pb1Percent > 0;
+    const hasPPN = ppnPercent > 0;
+
+    // build final order object to put into cart
     return {
-      productCode,
-      title: item.title || '',
-      price: Number(item.price || 0),
+      id: item.id ?? item.code ?? null,
+      productCode: item.code ?? item.id ?? null,
+      title: item.name ?? item.itemName ?? item.title ?? '',
+      price: Number(unitPrice),   // price per unit INCLUDING addons
       qty: Number(qty || 1),
-      image: item.image || '/images/gambar-menu.jpg',
+      image: item.image || item.imagePath || '/images/gambar-menu.jpg',
       note,
-      addons: addonsForCart
-    }
+      addons: addonsForCart,
+      // simpan tax metadata (keterangan saja)
+      taxes: taxesArr,             // raw taxes array
+      pb1Percent: Number(pb1Percent || 0),
+      ppnPercent: Number(ppnPercent || 0),
+      hasPB1,
+      hasPPN
+    };
   }
 
   function handleAddToCart() {
@@ -364,7 +420,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
     const t = setTimeout(() => {
       handleClosePopup()
-    }, 2000)
+    }, 1000)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPopup, missingAddons])
@@ -570,6 +626,18 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
                   <div className={styles.addModalSubtitle}>
                     Anda belum memilih: <b>{missingAddons}</b>
                   </div>
+
+                  <div className={styles.addModalActions}>
+                    <button
+                      className={styles.addModalCloseBtn}
+                      onClick={() => {
+                        setShowPopup(false)
+                        setMissingAddons(null)
+                      }}
+                    >
+                      Mengerti
+                    </button>
+                  </div>
                 </>
               ) : (
                 <>
@@ -578,7 +646,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
                   </div>
 
                   <div className={styles.addModalTitle}>
-                    {fromCheckout && editingIndex != null ? 'Menu Diubah!' : 'Menu Ditambahkan!'}
+                    {fromCheckout && editingIndex != null ? 'Pesanan Berhasil Diubah!' : 'Pesanan Berhasil Ditambahkan!'}
                   </div>
 
                   <div className={styles.addModalSubtitle} style={{ fontWeight: 600, fontSize: 16 }}>

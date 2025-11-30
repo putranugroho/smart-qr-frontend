@@ -21,6 +21,8 @@ export default function CheckoutPage() {
   const [subtotal, setSubtotal] = useState(0)
   const [tax, setTax] = useState(0)
   const [total, setTotal] = useState(0)
+  const [taxPB1, setTaxPB1] = useState(0);
+  const [taxPPN, setTaxPPN] = useState(0);
 
   // popup state
   const [showAddPopup, setShowAddPopup] = useState(false)
@@ -36,19 +38,46 @@ export default function CheckoutPage() {
 
   // compute totals whenever `cart` changes (client only)
   useEffect(() => {
-    // safe compute from cart array -> avoids reading storage during render
+    // subtotal = sum(price * qty)
     const s = (cart || []).reduce((acc, it) => {
-      const price = Number(it.price || 0)
-      const qty = Number(it.qty || 0) || 0
-      return acc + (price * qty)
-    }, 0)
-    const t = Math.round(s * 0.10)
-    const tot = s + t
+      const price = Number(it.price || 0);
+      const qty = Number(it.qty || 0) || 0;
+      return acc + (price * qty);
+    }, 0);
 
-    setSubtotal(s)
-    setTax(t)
-    setTotal(tot)
-  }, [cart])
+    console.log("cart");
+    console.log(cart);
+
+    // PB1 total = sum( per-unit PB1 * qty )
+    // const pb1 = (cart || []).reduce((acc, it) => {
+    //   const qty = Number(it.qty || 0) || 0;
+
+    //   // prefer explicit pb1Percent (new items), else fallback to taxPercent / taxes array, else 0
+    //   const pct = Number(it.pb1Percent ?? it.taxPercent ?? 0);
+    //   if (pct <= 0) return acc;
+
+    //   const perUnit = Math.round(Number(it.price || 0) * (pct / 100));
+    //   return acc + (perUnit * qty);
+    // }, 0);
+    const pb1 = Math.round(s * 0.10)
+
+    // PPN total = sum( per-unit PPN * qty )
+    const ppn = (cart || []).reduce((acc, it) => {
+      const qty = Number(it.qty || 0) || 0;
+
+      // prefer explicit ppnPercent then fallback
+      const pct = Number(it.ppnPercent ?? 0);
+      if (pct <= 0) return acc;
+
+      const perUnit = Math.round(Number(it.price || 0) * (pct / 100));
+      return acc + (perUnit * qty);
+    }, 0);  
+
+    setSubtotal(s);
+    setTaxPB1(pb1);
+    setTaxPPN(ppn);
+    setTotal(s + pb1 + ppn);
+  }, [cart]);
 
   // qty update
   function handleQty(index, type) {
@@ -256,19 +285,18 @@ export default function CheckoutPage() {
 
         <div className={styles.paymentRow}>
           <div>Subtotal ({cart.length} menu)</div>
-          {/* display subtotal (initially 0 on SSR/client before cart loads) */}
           <div className={styles.paymentValue}>{formatRp(subtotal)}</div>
         </div>
 
         <div className={styles.paymentRow}>
           <div>PB1 (10%)</div>
-          <div className={styles.paymentValue}>{formatRp(tax)}</div>
+          <div className={styles.paymentValue}>{formatRp(taxPB1)}</div>
         </div>
 
-        {/* <div className={styles.paymentRow}>
-          <div>Rounding</div>
-          <div className={styles.paymentValue}>Rp0</div>
-        </div> */}
+        <div className={styles.paymentRow}>
+          <div>PPN (11%)</div>
+          <div className={styles.paymentValue}>{formatRp(taxPPN)}</div>
+        </div>
 
         <div className={styles.paymentTotalRow}>
           <div>Total</div>

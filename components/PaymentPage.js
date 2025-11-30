@@ -10,23 +10,61 @@ function formatRp(n) {
 }
 
 export default function PaymentPage() {
-  const router = useRouter()
-    const [payment, setPayment] = useState([])
-  
+  const router = useRouter();
+  const [payment, setPayment] = useState([])
+  const [selectedMethod, setSelectedMethod] = useState('QRIS'); // default
+  const [customer, setCustomer] = useState({ first_name: '', email: '' });
+  const [isLoading, setIsLoading] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+    
     useEffect(() => {
       setPayment(getPayment())
+      setIsMounted(true);
     }, [])
 
+  // assume `initialData.total` is total order amount
   const subtotal = payment.paymentTotal
-  const tax = Math.round(subtotal * 0.11)
+  const tax = Math.round(subtotal * 0.10)
   const total = subtotal + tax
 
-  const [selectedMethod, setSelectedMethod] = useState('qris')
-  const [isClient, setIsClient] = useState(false)
+  async function handlePayNow() {
+    setIsLoading(true);
+    console.log("selectedMethod");
+    console.log(selectedMethod);
+    
+    try {
+      const orderId = 'DI' + `${Math.floor(Math.random() * 9000) + 1000}` // or uuidv4();
+      // call create-transaction API
+      const resp = await fetch('/api/midtrans/create-transaction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId,
+          grossAmount: total,
+          customer,
+          selectedMethod
+        })
+      });
 
-    useEffect(() => {
-    setIsClient(true)
-    }, [])
+      const data = await resp.json();
+      console.log(data);
+      
+      if (!resp.ok) throw new Error(data.error || 'Gagal membuat transaksi');
+
+      // store transaction response for paymentstatus page
+      sessionStorage.setItem('midtrans_tx', JSON.stringify(data));
+      // store order meta too if needed
+      sessionStorage.setItem('order_meta', JSON.stringify({ orderId, total }));
+
+      // navigate to paymentstatus page
+      router.push('/paymentstatus');
+    } catch (err) {
+      console.error(err);
+      alert('Gagal memproses pembayaran: ' + (err.message || err));
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   return (
     <div className={styles.page}>
@@ -166,14 +204,15 @@ export default function PaymentPage() {
       <div className={styles.sticky}>
         <div className={styles.stickyTop}>
           <div className={styles.totalLabel}>Total Pembayaran</div>
-          <div className={styles.totalValue}>{isClient ? formatRp(subtotal) : 'Rp0'}</div>
+          <div className={styles.totalValue}>{isMounted ? formatRp(subtotal) : 'Rp0'}</div>
         </div>
 
         <button
           className={styles.payBtn}
-          onClick={() => router.push('/paymentstatus')}
+          onClick={handlePayNow}
+          disabled={isLoading}
         >
-          Bayar Sekarang
+          {isLoading ? 'Memproses...' : 'Bayar Sekarang'}
         </button>
       </div>
     </div>

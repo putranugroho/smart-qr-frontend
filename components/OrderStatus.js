@@ -81,7 +81,7 @@ export default function OrderStatus() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `bill-${orderId}.txt`
+    a.download = `bill-${orderId}.pdf`
     document.body.appendChild(a)
     a.click()
     a.remove()

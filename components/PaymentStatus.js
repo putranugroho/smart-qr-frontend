@@ -383,11 +383,11 @@ export default function PaymentStatus() {
         </button>
       </div>
 
-      {statusMessage && (
+      {/* {statusMessage && (
         <pre style={{ marginTop: 12, background: '#f5f5f5', padding: 12, maxHeight: 240, overflow: 'auto' }}>
           {statusMessage}
         </pre>
-      )}
+      )} */}
     </div>
   )
 }

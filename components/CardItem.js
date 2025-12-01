@@ -12,22 +12,18 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
   const router = useRouter();
   const imgSrc = item.image ?? "/images/gambar-menu.jpg";
   const name = item.name || item.itemName || item.title || "";
-  const category = item.category || item.categoryName || null; // may be passed from Menu as cat.name
+  // item may have `categoryId` or `category` name; we prefer numeric id if available
+  const categoryId = item.categoryId ?? item.categoryIdRaw ?? item.menuCategoryId ?? null
+  const categoryName = item.category ?? null
 
-  function saveUIState() {
+  function handleClick() {
     try {
       sessionStorage.setItem('menu_scroll', String(window.scrollY || 0));
       sessionStorage.setItem('last_item', String(item.id));
       sessionStorage.setItem('menu_viewmode', String(mode));
-      // also store last category viewed so FullMenu / restore logic can use it
-      if (category) sessionStorage.setItem('last_category', String(category));
     } catch (e) {
       console.warn('sessionStorage save failed', e);
     }
-  }
-
-  function handleClick() {
-    saveUIState();
 
     const productCode = item.id;
     const q = {};
@@ -35,7 +31,9 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
     if (item.description) q.description = item.description;
     if (item.price != null) q.price = item.price;
     if (imgSrc) q.image = imgSrc;
-    if (category) q.category = category; // include category in query so detail knows which category came from
+    // include categoryId if available (so ItemDetail can restore to that category)
+    if (categoryId) q.categoryId = categoryId;
+    else if (categoryName) q.category = categoryName;
 
     const search = new URLSearchParams(q).toString();
     router.push(`/item/${encodeURIComponent(productCode)}${search ? `?${search}` : ""}`);
@@ -54,14 +52,6 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
           <div className={styles.listSpacer} />
           <button
             className={styles.listAddBtn}
-            onClick={(e) => {
-              // prevent parent click from firing twice
-              e.stopPropagation();
-              // optionally call external onAdd handler if provided
-              if (typeof onAdd === 'function') onAdd(item);
-              // still navigate to detail so user chooses condiments (if you want Add inline, modify)
-              handleClick();
-            }}
           >
             Tambah
           </button>
@@ -90,13 +80,6 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
       <div className={styles.cardFooter}>
         <button
           className={styles.cardAddBtn}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (typeof onAdd === 'function') onAdd(item);
-            // navigate to detail to enable options selection
-            saveUIState();
-            router.push(`/item/${encodeURIComponent(item.id)}?${new URLSearchParams({ title: item.name || '', price: item.price || '', image: imgSrc, category: category || '' }).toString()}`);
-          }}
         >
           Tambah
         </button>

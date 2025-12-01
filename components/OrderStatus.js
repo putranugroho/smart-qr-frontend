@@ -15,9 +15,36 @@ export default function OrderStatus() {
   const [payment, setPayment] = useState({ items: [], paymentTotal: 0 })
   const [currentStep, setCurrentStep] = useState(3)
   const [displayOrderId, setDisplayOrderId] = useState("")
+  const [dataOrder, setDataOrder] = useState("")
+  const [urlLogo, setUrlLogo] = useState("")
   const [showAllItems, setShowAllItems] = useState(false) // new state
 
   useEffect(() => {
+    const s = sessionStorage.getItem('midtrans_tx')
+    if (s) {
+      try { setDataOrder(JSON.parse(s)) } catch (e) { console.warn('Invalid midtrans_tx', e) }
+    }
+    if (dataOrder) {
+      switch (dataOrder.payment_type) {
+        case 'qris':
+          setUrlLogo("/images/pay-qris.png")
+          break;
+        case 'shopee': 
+          setUrlLogo("/images/pay-shopee.png")
+          break;
+        case 'ovo': 
+          setUrlLogo("/images/pay-ovo.png")
+          break;
+        case 'dana': 
+          setUrlLogo("/images/pay-dana.png")
+          break;
+      
+        default:
+          setUrlLogo("/images/pay-gopay.png")
+          break;
+      }
+    }
+    
     if (router.isReady) setDisplayOrderId(String(id))
     const p = getPayment() || {}
     if (p && p.items && p.items.length) {
@@ -53,40 +80,6 @@ export default function OrderStatus() {
 
   // Replace this with merchant phone number you want to use
   const MERCHANT_PHONE = '+628123456789' // <-- ganti nomor ini sesuai kebutuhan (format internasional)
-
-  function downloadBill() {
-    // Create a simple textual bill. You can replace with PDF generator later.
-    const orderId = displayOrderId || id || 'unknown'
-    const lines = []
-    lines.push(`Order ID: ${orderId}`)
-    lines.push(`----------------------------`)
-    if (!items || items.length === 0) {
-      lines.push('Tidak ada item.')
-    } else {
-      items.forEach((it) => {
-        const title = it.title || it.name || it.itemName || '-'
-        const qty = Number(it.qty || 1)
-        const price = Number(it.price || 0)
-        const lineTotal = price * qty
-        lines.push(`${title} x${qty} — ${formatRp(lineTotal)}`)
-      })
-    }
-    lines.push(`----------------------------`)
-    lines.push(`Subtotal: ${formatRp(subtotal)}`)
-    lines.push(`PB1 (10%): ${formatRp(tax)}`)
-    lines.push(`Total: ${formatRp(total)}`)
-    lines.push(`\nTerima kasih telah berbelanja.`)
-
-    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `bill-${orderId}.pdf`
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    URL.revokeObjectURL(url)
-  }
 
   async function contactMerchant() {
     try {
@@ -248,7 +241,9 @@ export default function OrderStatus() {
         </div>
 
         <div className={styles.paymentItem}>
-          <div className={styles.paymentItemLeft}>📷 QRIS</div>
+          <div className={styles.paymentItemLeft}>
+            <img src={urlLogo} alt="logo" width={55} height={14} className={styles.iconImg} />
+          </div>
         </div>
       </div>
 
@@ -282,7 +277,7 @@ export default function OrderStatus() {
         <div className={styles.hoverBar}>
           <button
             className={styles.btnDownload}
-            onClick={downloadBill}
+            onClick={() => router.push(`/bill/${displayOrderId}`)}
             aria-label="Download bill"
             type="button"
           >

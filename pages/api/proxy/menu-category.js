@@ -7,7 +7,8 @@ export default async function handler(req, res) {
     if (storeCode) qs.set('storeCode', storeCode);
     if (orderCategoryCode) qs.set('orderCategoryCode', orderCategoryCode);
 
-    const target = `https://yoshi-smartqr-api-ergyata5hff3cfhz.southeastasia-01.azurewebsites.net/smartqr/v1/menu/category?${qs.toString()}`;
+    const url = process.env.URL_UAT || process.env.URL_DEV
+    const target = `${url}/smartqr/v1/menu/category?${qs.toString()}`;
 
     const upstream = await fetch(target, {
       method: 'GET',

@@ -1,26 +1,17 @@
 // pages/api/proxy/menu-list.js
 export default async function handler(req, res) {
   try {
-    const {
-      menuCategoryId,
-      menuCategoryIds, // accept plural if caller uses different param name
-      storeCode = 'MGI',
-      orderCategoryCode = 'DI',
-      page,
-      pageSize,
-      search,
-      ...rest
-    } = req.query;
-
-    // Minimal validation: prefer menuCategoryId (single), but allow fallback to menuCategoryIds
-    if (!menuCategoryId && !menuCategoryIds) {
+    // Minimal validation: menuCategoryId disarankan karena backend menggunakannya
+    const { menuCategoryId } = req.query;
+    if (!menuCategoryId) {
       return res.status(400).json({ success: false, message: 'Missing menuCategoryId' });
     }
 
-    // Build query string from incoming request so we forward any extra params unchanged
+    // Build query string from incoming request so we forward all provided params.
+    // This preserves menuFilterIds, search, orderCategoryCode, storeCode, page, pageSize, dll.
     const qs = new URLSearchParams(req.query).toString();
 
-    // Upstream URL (adjust domain/path if necessary)
+    // Upstream endpoint (adjust domain if you need to change)
     const target = `https://yoshi-smartqr-api-ergyata5hff3cfhz.southeastasia-01.azurewebsites.net/smartqr/v1/menu/list?${qs}`;
 
     const upstream = await fetch(target, {
@@ -30,10 +21,10 @@ export default async function handler(req, res) {
       },
     });
 
+    // Forward content-type and body as-is
     const contentType = upstream.headers.get('content-type') || 'application/json';
     const text = await upstream.text();
 
-    // Relay status and body exactly as upstream (preserve content-type)
     res.status(upstream.status).setHeader('Content-Type', contentType).send(text);
   } catch (err) {
     console.error('Proxy menu-list error', err);

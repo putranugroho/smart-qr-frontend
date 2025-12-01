@@ -1,17 +1,15 @@
 // pages/api/proxy/menu-filter.js
 export default async function handler(req, res) {
   try {
-    // minimal validation
     const { menuCategoryId } = req.query;
     if (!menuCategoryId) {
       return res.status(400).json({ success: false, message: 'Missing menuCategoryId' });
     }
 
-    // Build query string from incoming request (so we forward any extra params)
+    // forward full query string (so clients can add extra params if needed)
     const qs = new URLSearchParams(req.query).toString();
-
-    // Upstream path for filter (adjust domain if needed)
-    const target = `https://yoshi-smartqr-api-ergyata5hff3cfhz.southeastasia-01.azurewebsites.net/smartqr/v1/menu/filter?${qs}`;
+    const url = process.env.URL_UAT || process.env.URL_DEV
+    const target = `${url}/smartqr/v1/menu/filter?${qs}`;
 
     const upstream = await fetch(target, {
       method: 'GET',

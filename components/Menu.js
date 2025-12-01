@@ -16,7 +16,7 @@ const fetcher = (url) => fetch(url).then(r => {
 });
 
 /**
- * Lazy-loading Menu with SWR caching + scroll restore + filter integration
+ * Lazy-loading Menu with SWR caching + scroll restore
  */
 export default function Menu() {
   const router = useRouter();
@@ -29,6 +29,7 @@ export default function Menu() {
   const [loadingLocal, setLoadingLocal] = useState(true);
   const [showBackTop, setShowBackTop] = useState(false);
   const [showFullMenu, setShowFullMenu] = useState(false);
+  // filterForCategory now stores menuCategoryId (numeric) when opening filter from a category's Filter button
   const [filterForCategory, setFilterForCategory] = useState(null);
 
   // New: order bar state (eat-in / takeaway).
@@ -57,6 +58,7 @@ export default function Menu() {
 
     const raw = Array.isArray(catData?.data) ? catData.data : [];
 
+    // Build initial categories meta; keep items if present in payload otherwise null
     const mapped = raw
       .filter((c) => Number(c.totalItems ?? (c.items?.length ?? 0)) > 0)
       .map((c) => {
@@ -69,7 +71,7 @@ export default function Menu() {
             image: it.imagePath ?? it.imageUrl ?? "/images/gambar-menu.jpg",
             category: name
           }))
-          : null;
+          : null; // do not eagerly load items if not provided
         return {
           id: c.id,
           name,
@@ -110,6 +112,7 @@ export default function Menu() {
     if (typeof window === 'undefined') return;
     if (!('IntersectionObserver' in window)) return;
 
+    // cleanup previous observer
     if (observerRef.current) {
       observerRef.current.disconnect();
       observerRef.current = null;
@@ -182,6 +185,7 @@ export default function Menu() {
       })
       .catch(err => {
         console.warn('fetchItemsForCategory failed', err);
+        // fallback try category endpoint
         const fallback = `/api/proxy/menu-category?storeCode=MGI&orderCategoryCode=DI&categoryId=${encodeURIComponent(categoryId)}`;
         return fetch(fallback)
           .then(r => {
@@ -317,29 +321,16 @@ export default function Menu() {
 
   // Restore scroll & highlight last item when returning from ItemDetail
   useEffect(() => {
+    // run after small delay so DOM sections mount / observer runs and items may be loaded by intersection observer
     const t = setTimeout(() => {
       try {
         const last = sessionStorage.getItem('last_item');
-        const lastCategory = sessionStorage.getItem('last_category');
         const scroll = sessionStorage.getItem('menu_scroll');
         const savedView = sessionStorage.getItem('menu_viewmode');
 
         if (savedView && (savedView === 'list' || savedView === 'grid')) {
           setViewMode(savedView);
           sessionStorage.removeItem('menu_viewmode');
-        }
-
-        // if lastCategory exists, try to scroll to that category first (so items load)
-        if (lastCategory) {
-          setActiveCategory(String(lastCategory));
-          // ensure category items are fetched
-          const catObj = categories.find(c => String(c.name) === String(lastCategory));
-          if (catObj && catObj.items == null && !loadingItemsRef.current[String(catObj.id)]) {
-            loadingItemsRef.current[String(catObj.id)] = true;
-            fetchItemsForCategory(catObj.id, catObj.name).finally(() => {
-              setTimeout(() => { loadingItemsRef.current[String(catObj.id)] = false; }, 300);
-            });
-          }
         }
 
         if (last) {
@@ -352,7 +343,6 @@ export default function Menu() {
             try { el.scrollIntoView({ block: 'center' }); } catch(e) {}
             sessionStorage.removeItem('last_item');
             sessionStorage.removeItem('menu_scroll');
-            sessionStorage.removeItem('last_category');
             return;
           }
         }
@@ -367,84 +357,6 @@ export default function Menu() {
 
     return () => clearTimeout(t);
   }, [categories]);
-
-  // Handler when FullMenu applies filter: fetch menu list for that category using search param
-  async function handleApplyFilter(categoryName, filters) {
-    // filters: { groupId1: ['All'|'TAG', ...], groupId2: [...] }
-    // Build search string: take all selected tags across groups except 'All'
-    const terms = [];
-    Object.values(filters || {}).forEach(arr => {
-      if (!Array.isArray(arr)) return;
-      arr.forEach(v => {
-        if (!v) return;
-        if (String(v).toUpperCase() === 'ALL') return;
-        terms.push(String(v));
-      });
-    });
-
-    const search = terms.join(' ').trim(); // e.g. "ORIGINAL REGULAR"
-
-    // find category id
-    const catObj = categories.find(c => c.name === categoryName);
-    if (!catObj) {
-      // fallback: just close menu
-      setShowFullMenu(false);
-      setFilterForCategory(null);
-      return;
-    }
-
-    const menuListUrl = `/api/proxy/menu-list?menuCategoryId=${encodeURIComponent(catObj.id)}&orderCategoryCode=DI&storeCode=MGI${search ? `&search=${encodeURIComponent(search)}` : ''}`;
-
-    try {
-      // optional: show loading skeleton for that category
-      setCategories(prev => prev.map(c => {
-        if (c.name === categoryName) return { ...c, items: [] };
-        return c;
-      }));
-
-      const res = await fetch(menuListUrl);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      const rawItems = Array.isArray(json?.data) ? json.data : [];
-      const mappedItems = rawItems.map(it => ({
-        id: it.code ?? it.id,
-        name: it.name ?? it.itemName ?? '',
-        price: it.price,
-        image: it.imagePath ?? it.imageUrl ?? "/images/gambar-menu.jpg",
-        category: categoryName
-      }));
-
-      setCategories(prev => prev.map(c => {
-        if (c.name === categoryName) {
-          return { ...c, items: mappedItems, totalItems: mappedItems.length };
-        }
-        return c;
-      }));
-
-      // store last used filters for category so FullMenu can restore next time
-      try {
-        sessionStorage.setItem(`filters_for_${String(catObj.id)}`, JSON.stringify(filters || {}));
-      } catch (e) { /* ignore */ }
-
-      // close sheet & go to category
-      setShowFullMenu(false);
-      setFilterForCategory(null);
-      setTimeout(() => {
-        scrollToCategory(categoryName);
-      }, 120);
-    } catch (e) {
-      console.error('apply filter failed', e);
-      // set category items to empty array to avoid hiding the category
-      setCategories(prev => prev.map(c => {
-        if (c.name === categoryName) {
-          return { ...c, items: [] };
-        }
-        return c;
-      }));
-      setShowFullMenu(false);
-      setFilterForCategory(null);
-    }
-  }
 
   const categoryHeaderContainerStyle = {
     display: "flex",
@@ -530,7 +442,7 @@ export default function Menu() {
 
       <Header />
 
-      {/* pass category names into MenuTabs so MenuTabs doesn't fetch separately */}
+      {/* pass category names into MenuTabs so MenuTabs doesn't need to fetch separately */}
       <MenuTabs
         selected={activeCategory}
         onSelect={scrollToCategory}
@@ -598,7 +510,8 @@ export default function Menu() {
                 <div>
                   <button
                     onClick={() => {
-                      setFilterForCategory(cat.name)
+                      // IMPORTANT: pass category id (numeric) to open filter for this category
+                      setFilterForCategory(cat.id)
                       setShowFullMenu(true)
                     }}
                     style={{
@@ -672,21 +585,66 @@ export default function Menu() {
       <div style={{ height: 60 }} />
       <FullMenu
         open={showFullMenu}
-        categories={categories} // pass full objects so FullMenu can request filters by id
+        // FullMenu shows category list using names for display
+        categories={categories.map(c => c.name)}
+        // currentCategory still name-based (used for highlight in FullMenu category list)
         currentCategory={activeCategory}
+        // but filterForCategory holds numeric id when opened from a category's Filter button
         filterForCategory={filterForCategory}
         onClose={() => {
           setShowFullMenu(false)
           setFilterForCategory(null)
         }}
         onSelect={(catName) => {
+          // catName is category name (FullMenu category button), scroll to that category
           setShowFullMenu(false)
           setFilterForCategory(null)
           setTimeout(()=>scrollToCategory(catName), 120)
         }}
-        onApplyFilter={(catName, filters) => {
-          handleApplyFilter(catName, filters)
+                onApplyFilter={async (menuCategoryId, filters) => {
+          // filters.menuFilterIds expected to be comma-separated string or empty
+          try {
+            setShowFullMenu(false)
+            setFilterForCategory(null)
+
+            if (!menuCategoryId) {
+              console.warn('applyFilter: missing menuCategoryId', menuCategoryId)
+              return
+            }
+
+            const menuFilterIds = (filters && filters.menuFilterIds) ? String(filters.menuFilterIds) : ''
+
+            const qs = new URLSearchParams()
+            qs.set('menuCategoryId', menuCategoryId)
+            if (menuFilterIds) qs.set('menuFilterIds', menuFilterIds)
+            qs.set('orderCategoryCode', 'DI')
+            qs.set('storeCode', 'MGI')
+
+            const url = `/api/proxy/menu-list?${qs.toString()}`
+            const r = await fetch(url)
+            if (!r.ok) throw new Error(`HTTP ${r.status}`)
+            const j = await r.json()
+
+            const rawItems = Array.isArray(j?.data) ? j.data : []
+            const mappedItems = rawItems.map(it => ({
+              id: it.code ?? it.id,
+              name: it.name,
+              price: it.price,
+              image: it.imagePath ?? it.imageUrl ?? "/images/gambar-menu.jpg",
+              category: categories.find(c => String(c.id) === String(menuCategoryId))?.name ?? ''
+            }))
+
+            setCategories(prev => prev.map(c => {
+              if (String(c.id) === String(menuCategoryId)) {
+                return { ...c, items: mappedItems };
+              }
+              return c;
+            }));
+          } catch (err) {
+            console.error('apply filter failed', err)
+          }
         }}
+
       />
 
       <OrderBar />

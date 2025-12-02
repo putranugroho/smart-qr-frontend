@@ -19,7 +19,7 @@ export default function BillPage() {
 
   const [payment, setPayment] = useState({ items: [], paymentTotal: 0 });
   const subtotal = payment.paymentTotal || 0;
-  const tax = Math.round(subtotal * 0.11);
+  const tax = Math.round(subtotal * 0.10);
   const total = subtotal + tax;
 
   useEffect(() => {
@@ -120,12 +120,12 @@ export default function BillPage() {
           </div>
 
           <div className={styles.detailRow}>
-            <div>PPN (11%)</div>
+            <div>PB1 (10%)</div>
             <div>{formatRp(tax)}</div>
           </div>
 
           <div className={styles.detailRow}>
-            <div>Fees</div>
+            <div>PNN (10%)</div>
             <div>Rp0</div>
           </div>
 

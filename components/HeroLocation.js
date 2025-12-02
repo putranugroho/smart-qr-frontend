@@ -1,38 +1,57 @@
-// components/HeroLocation.js
-import Image from 'next/image'
-import { useRouter } from 'next/router'
-import styles from '../styles/HeroLocation.module.css'
-import cardStyles from '../styles/OptionCard.module.css'
-import { userSignIn } from '../lib/auth'
+"use client";
 
+import Image from 'next/image';
+import { useRouter } from 'next/router';
+import { useEffect, useState } from 'react';
+import styles from '../styles/HeroLocation.module.css';
+import cardStyles from '../styles/OptionCard.module.css';
+import { userSignIn, getUser } from '../lib/auth';
 
 export default function HeroLocation() {
-  const router = useRouter()
+  const router = useRouter();
+
+  // local state filled from getUser() or fallback defaults
+  const [storeLocation, setStoreLocation] = useState('MGI');
+  const [orderType, setOrderType] = useState(''); // '' | 'DI' | 'TA'
+  const [tableNumber, setTableNumber] = useState(''); // e.g. 'Table 24' or ''
+
+  useEffect(() => {
+    // read saved user from localStorage on mount
+    try {
+      const saved = getUser();
+      if (saved && typeof saved === 'object') {
+        // use saved values if available (keeps fallback if not)
+        if (saved.storeLocation) setStoreLocation(saved.storeLocation);
+        if (saved.orderType) setOrderType(saved.orderType);
+        if (saved.tableNumber) setTableNumber(saved.tableNumber);
+      }
+    } catch (e) {
+      console.error('HeroLocation: failed to read user', e);
+    }
+  }, []);
+
   const goToMenu = (mode) => {
-    if (mode === 'dinein') {
-      const userAuth = {
-        storeLocation: 'MGI',
-        orderType: 'DI',
-        tableNumber: 'Table 24',
-      }
-      userSignIn(userAuth)
-      router.push("/menu")
-    } else {
-      const userAuth = {
-        storeLocation: 'MGI',
-        orderType: 'TA',
-        tableNumber: '',
-      }
-      userSignIn(userAuth)
-      router.push("/menu")}
-  }
+    // If mode explicitly provided, use it; else use current orderType or default to TAKEAWAY
+    const chosenMode = mode === 'dinein' ? 'DI' : mode === 'takeaway' ? 'TA' : (orderType || 'TA');
+
+    // Prepare user object using current state
+    const userAuth = {
+      storeLocation: storeLocation || 'MGI',
+      orderType: chosenMode,
+      tableNumber: chosenMode === 'DI' ? (tableNumber || 'Table 24') : '', // keep table only for dine-in
+    };
+
+    // persist and go to menu
+    userSignIn(userAuth);
+    router.push('/menu');
+  };
 
   const handleKeyActivate = (e, mode) => {
     if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      goToMenu(mode)
+      e.preventDefault();
+      goToMenu(mode);
     }
-  }
+  };
 
   return (
     <section className={styles.heroRoot}>
@@ -51,7 +70,7 @@ export default function HeroLocation() {
         <div className={styles.cardRounded}>
           <div className={styles.cardInner}>
             <h3 className={styles.headerTitle}>Yoshinoya Mall Grand Indonesia</h3>
-            <p className={styles.leadMuted}>Jl. M.H. Thamrin No.1, Kb. Melati, Kecamatan Tanah Abang, Kota Jakarta Pusat, Daerah Khusus Ibukota Jakarta 10230</p>
+            <p className={styles.leadMuted}>Jl. M.H. Thamrin No.1, Kb. Melati, Kecamatan Tanah Abang, Kota Jakarta Pusat, Daerah Khusus Ibukota Jakarta 10230</p>
 
             <div className={styles.btnWrap}>
               <button
@@ -65,7 +84,7 @@ export default function HeroLocation() {
                   width={18}
                   height={18}
                 />
-                <span style={{ fontSize: 14 }}>Table 24</span>
+                <span style={{ fontSize: 14 }}>{tableNumber ? tableNumber : 'Table 24'}</span>
               </button>
             </div>
 
@@ -109,5 +128,5 @@ export default function HeroLocation() {
         </div>
       </div>
     </section>
-  )
+  );
 }

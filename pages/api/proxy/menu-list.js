@@ -12,7 +12,8 @@ export default async function handler(req, res) {
     const qs = new URLSearchParams(req.query).toString();
 
     // Upstream endpoint (adjust domain if you need to change)
-    const target = `https://yoshi-smartqr-api-ergyata5hff3cfhz.southeastasia-01.azurewebsites.net/smartqr/v1/menu/list?${qs}`;
+    const url = process.env.NEXT_PUBLIC_URL_API || process.env.URL_DEV
+    const target = `${url}/smartqr/v1/menu/list?${qs}`;
 
     const upstream = await fetch(target, {
       method: 'GET',

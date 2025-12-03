@@ -20,7 +20,7 @@ export default async function handler(req, res) {
     if (page) qs.set('page', page);
     if (pageSize) qs.set('pageSize', pageSize);
 
-    const url = process.env.URL_UAT || process.env.URL_DEV
+    const url = process.env.NEXT_PUBLIC_URL_API || process.env.URL_DEV
     const target = `${url}/smartqr/v1/menu/condiment/list?${qs.toString()}`;
 
     const upstream = await fetch(target, {

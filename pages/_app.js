@@ -25,7 +25,7 @@ export default function MyApp({ Component, pageProps }) {
       {/* You may keep meta viewport or page-specific Head here */}
       <Head>
         <meta name="viewport" content="width=device-width,initial-scale=1" />
-        <title>Smart QR - Demo</title>
+        <title>Yoshinoya Smart QR</title>
       </Head>
 
       {/* Tailwind Play CDN via next/script.

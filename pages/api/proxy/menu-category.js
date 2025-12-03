@@ -9,7 +9,8 @@ export default async function handler(req, res) {
 
     const url = process.env.NEXT_PUBLIC_URL_API || process.env.URL_DEV
     const target = `${url}/smartqr/v1/menu/category?${qs.toString()}`;
-
+    console.log('target', target);
+    
     const upstream = await fetch(target, {
       method: 'GET',
       headers: {

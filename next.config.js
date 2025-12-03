@@ -5,7 +5,7 @@ const devCSP = `
   default-src 'self';
   script-src 'self' https://cdn.tailwindcss.com 'unsafe-eval' 'unsafe-inline';
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com;
-  img-src 'self' data: https://yoshinoya-store-api.akasia.id https://yoshinoya-ho-api.akasia.id https://yoshinoya-store-api.akasia.id;
+  img-src 'self' data: order.yoshinoya.co.id https://yoshinoya-store-api.akasia.id https://yoshinoya-ho-api.akasia.id https://yoshinoya-store-api.akasia.id;
   font-src 'self' https://fonts.gstatic.com;
   connect-src 'self' https://fonts.googleapis.com https://cdn.tailwindcss.com ws:;
 `;
@@ -14,7 +14,7 @@ const prodCSP = `
   default-src 'self';
   script-src 'self' https://cdn.tailwindcss.com;
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-  img-src 'self' data: https://yoshinoya-store-api.akasia.id https://yoshinoya-ho-api.akasia.id https://yoshinoya-store-api.akasia.id;
+  img-src 'self' data: order.yoshinoya.co.id https://yoshinoya-store-api.akasia.id https://yoshinoya-ho-api.akasia.id https://yoshinoya-store-api.akasia.id;
   font-src 'self' https://fonts.gstatic.com;
   connect-src 'self';
 `;

@@ -37,7 +37,14 @@
                 style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
                 img-src 'self' data: blob: https://yoshinoya-store-api.akasia.id https://yoshinoya-ho-api.akasia.id http://172.16.100.105:81 https://merchants-app.sbx.midtrans.com;
                 font-src 'self' https://fonts.gstatic.com;
-                connect-src 'self' https://merchants-app.sbx.midtrans.com https://yoshinoya-store-api.akasia.id https://yoshinoya-ho-api.akasia.id;
+
+                connect-src
+                  'self'
+                  https://merchants-app.sbx.midtrans.com
+                  https://yoshinoya-store-api.akasia.id
+                  https://yoshinoya-ho-api.akasia.id
+                  https://yoshi-smartqr-api-ergyata5hff3cfhz.southeastasia-01.azurewebsites.net;
+
                 frame-src 'self' https://merchants-app.sbx.midtrans.com;
               `.replace(/\s+/g, ' ')
             }

@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import styles from '../styles/FullMenu.module.css'
 
+const STORAGE_KEY_PREFIX = 'yoshi_fullmenu_filters_' // followed by menuCategoryId
+
 export default function FullMenu({
   open = false,
   categories = [],
@@ -17,7 +19,8 @@ export default function FullMenu({
   const [localOpenFilter, setLocalOpenFilter] = useState(Boolean(filterForCategory && open))
   const [selectedCategory, setSelectedCategory] = useState(currentCategory || categories[0] || null)
   const [filtersByGroup, setFiltersByGroup] = useState({}) // { groupId: [{id,name,filterGroupId}] }
-  const [selectedIds, setSelectedIds] = useState(new Set()) // selected filter ids
+  // selected map per group: { [groupId]: Set([id,...]) } but we keep only single active per group
+  const [selectedByGroup, setSelectedByGroup] = useState({})
   const sheetRef = useRef(null)
   const [expanded, setExpanded] = useState(false)
 
@@ -35,12 +38,17 @@ export default function FullMenu({
     setSelectedCategory(currentCategory || categories[0] || null)
   }, [currentCategory, categories])
 
+  // helper: storage key for menuCategoryId
+  function storageKeyFor(menuCategoryId) {
+    return STORAGE_KEY_PREFIX + String(menuCategoryId ?? 'null')
+  }
+
   // when opening filter for a specific category (filterForCategory holds menuCategoryId)
   useEffect(() => {
     async function loadFilters(menuCategoryId) {
       if (!menuCategoryId) {
         setFiltersByGroup({})
-        setSelectedIds(new Set())
+        setSelectedByGroup({})
         return
       }
 
@@ -53,7 +61,7 @@ export default function FullMenu({
 
         const grouped = {}
         raw.forEach(f => {
-          const group = f.filterGroupId || 'default'
+          const group = f.filterGroupId ?? 'default'
           if (!grouped[group]) grouped[group] = []
           grouped[group].push({
             id: f.id,
@@ -64,18 +72,36 @@ export default function FullMenu({
 
         setFiltersByGroup(grouped)
 
-        // ⭐ NEW: set ALL as default active
-        const defaultSelected = new Set()
-        Object.values(grouped).forEach(items => {
+        // restore previous selection from storage (if any)
+        try {
+          const stored = localStorage.getItem(storageKeyFor(menuCategoryId))
+          if (stored) {
+            const parsed = JSON.parse(stored) // expected { [groupId]: id | null }
+            // convert to selectedByGroup structure (each value Set for internal consistency)
+            const restored = {}
+            Object.entries(parsed || {}).forEach(([g, v]) => {
+              if (v == null || v === '') return
+              restored[g] = new Set([v])
+            })
+            setSelectedByGroup(restored)
+            return
+          }
+        } catch (e) {
+          // ignore storage read errors
+        }
+
+        // ⭐ DEFAULT: if no stored selection -> mark group's 'ALL' as selected (if exists)
+        const defaultSelected = {}
+        Object.entries(grouped).forEach(([g, items]) => {
           const allItem = items.find(i => String(i.name).toUpperCase() === 'ALL')
-          if (allItem) defaultSelected.add(allItem.id)
+          if (allItem) defaultSelected[g] = new Set([allItem.id])
         })
-        setSelectedIds(defaultSelected)
+        setSelectedByGroup(defaultSelected)
 
       } catch (err) {
         console.error('loadFilters failed', err)
         setFiltersByGroup({})
-        setSelectedIds(new Set())
+        setSelectedByGroup({})
       }
     }
 
@@ -90,7 +116,7 @@ export default function FullMenu({
     return () => { document.body.style.overflow = '' }
   }, [visible])
 
-  // touch/drag handlers (kept same as before)...
+  // touch/drag handlers (unchanged)
   useEffect(() => {
     const el = sheetRef.current
     if (!el) return
@@ -171,28 +197,71 @@ export default function FullMenu({
     }
   }, [onClose, expanded, visible])
 
-  // toggle a single filter id (multi-select)
-  function toggleFilterId(id) {
-    setSelectedIds(prev => {
-      const copy = new Set(prev)
-      if (copy.has(id)) copy.delete(id)
-      else copy.add(id)
-      return copy
+  // toggle a single filter id but enforce "one active per group"
+  function toggleFilterInGroup(groupId, id) {
+    setSelectedByGroup(prev => {
+      const next = { ...(prev || {}) }
+      const currentSet = new Set(next[groupId] ? Array.from(next[groupId]) : [])
+      // if clicked id already selected -> unselect it (result = no selection => interpret as ALL)
+      if (currentSet.has(id)) {
+        currentSet.delete(id)
+        if (currentSet.size === 0) delete next[groupId]
+        else next[groupId] = currentSet
+        return next
+      }
+      // else select this id and remove any other ids in same group (single-select)
+      next[groupId] = new Set([id])
+      return next
     })
   }
 
-  // clear selection (reset -> interpret as ALL)
-  function clearSelection() {
-    setSelectedIds(new Set())
+  // clear selection for all groups OR a particular group (if groupId provided)
+  // now: if group has an 'ALL' option -> set ALL as active; otherwise remove selection
+  function clearSelection(groupId = null) {
+    setSelectedByGroup(prev => {
+      const next = { ...(prev || {}) }
+      if (groupId == null) {
+        // Reset all: for each group, set ALL if exists; otherwise delete
+        Object.entries(filtersByGroup || {}).forEach(([g, items]) => {
+          const allItem = (items || []).find(i => String(i.name).toUpperCase() === 'ALL')
+          if (allItem) next[g] = new Set([allItem.id])
+          else delete next[g]
+        })
+      } else {
+        const items = filtersByGroup[groupId] || []
+        const allItem = (items || []).find(i => String(i.name).toUpperCase() === 'ALL')
+        if (allItem) next[groupId] = new Set([allItem.id])
+        else delete next[groupId]
+      }
+      return next
+    })
   }
 
   // apply filter: build menuFilterIds as comma separated ids (or empty => All)
   function applyFilterLocal() {
-    // filterForCategory is the menuCategoryId we opened for
     const menuCategoryId = filterForCategory || null
-    const idsArr = Array.from(selectedIds)
+
+    // flatten selected ids for sending (we send all active ids across groups)
+    const idsArr = []
+    Object.entries(selectedByGroup || {}).forEach(([g, s]) => {
+      if (s && s.size) {
+        for (const v of Array.from(s)) idsArr.push(String(v))
+      }
+    })
     const menuFilterIds = idsArr.length > 0 ? idsArr.join(',') : ''
-    // pass minimal object to parent
+
+    // persist selectedByGroup into localStorage so reopening retains state
+    try {
+      const persistObj = {}
+      Object.entries(selectedByGroup || {}).forEach(([g, s]) => {
+        const first = s && s.size ? Array.from(s)[0] : null
+        persistObj[g] = first
+      })
+      localStorage.setItem(storageKeyFor(menuCategoryId), JSON.stringify(persistObj))
+    } catch (e) {
+      // ignore storage errors
+    }
+
     onApplyFilter(menuCategoryId, { menuFilterIds, selectedIds: idsArr })
     setLocalOpenFilter(false)
     onClose()
@@ -273,24 +342,23 @@ export default function FullMenu({
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                           {items.map(opt => {
                             const isAll = String(opt.name).toUpperCase() === 'ALL'
-                            const isSelected = selectedIds.has(opt.id)
+                            const currentSet = selectedByGroup[groupId] || new Set()
+                            const isSelected = currentSet.has(opt.id)
                             return (
                               <button
                                 key={opt.id}
                                 className={`${styles.tag} ${isSelected ? styles.tagActive : ''}`}
                                 onClick={() => {
-                                  // If user taps 'ALL' in this group -> clear selections for that group only
                                   if (isAll) {
-                                    // remove all ids that belong to this group
-                                    const idsOfGroup = items.map(i => i.id)
-                                    setSelectedIds(prev => {
-                                      const copy = new Set(prev)
-                                      idsOfGroup.forEach(id => copy.delete(id))
-                                      return copy
+                                    // clicking ALL sets the group's selection to ALL (don't clear to empty)
+                                    setSelectedByGroup(prev => {
+                                      const next = { ...(prev || {}) }
+                                      next[groupId] = new Set([opt.id])
+                                      return next
                                     })
                                   } else {
-                                    // normal toggle
-                                    toggleFilterId(opt.id)
+                                    // single-select behavior within group
+                                    toggleFilterInGroup(groupId, opt.id)
                                   }
                                 }}
                               >
@@ -305,7 +373,7 @@ export default function FullMenu({
                 </div>
 
                 <div className={styles.filterActions}>
-                  <button className={styles.clearBtn} onClick={clearSelection}>Reset</button>
+                  <button className={styles.clearBtn} onClick={() => clearSelection()}>Reset</button>
                   <button className={styles.applyBtn} onClick={applyFilterLocal}>Terapkan Filter</button>
                 </div>
               </div>

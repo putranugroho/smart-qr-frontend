@@ -172,6 +172,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         setNoCondiments(groups.length === 0)
 
         setItem(prev => (({
+          code: prev.code || product.code || productCode,
           title: prev.title || product.name || '',
           price: Number(prev.price || product.price || 0),
           image: prev.image || product.imagePath || '',
@@ -277,7 +278,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
           if (opt) {
             return {
               id: opt.id ?? null,
-              code: opt.id ?? String(opt.id ?? ''),
+              code: opt.code ?? String(opt.code ?? ''),
               name: opt.name ?? '',
               price: Number(opt.price || 0),
               image: opt.image || ''
@@ -319,8 +320,6 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
     // taxes array from API format (e.g. [{ id, code, name, amount: 10 }])
     const taxesArr = Array.isArray(item.taxes) ? item.taxes : [];
-    console.log("taxesArr");
-    console.log(taxesArr);
     
 
     // cari percent PB1 dan PPN (jika ada). Cek nama dan/atau code agar robust.

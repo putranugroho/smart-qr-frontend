@@ -9,6 +9,7 @@ import SearchBar from "./SearchBar";
 import CardItem from "./CardItem";
 import OrderBar from "./OrderBar";
 import FullMenu from "./FullMenu";
+import { parseComboToMenuItem } from "../lib/combos"; // <-- NEW: parser combos (buat file utils/combos.js)
 
 const fetcher = (url) => fetch(url).then(r => {
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -23,6 +24,7 @@ export default function Menu() {
   const { mode } = router.query;
 
   const [categories, setCategories] = useState([]); // each: { id, name, items: null|[] , totalItems }
+  const [comboItems, setComboItems] = useState([]); 
   const [activeCategory, setActiveCategory] = useState(null);
   const [queryText, setQueryText] = useState("");
   const [viewMode, setViewMode] = useState("grid"); // 'grid' | 'list'
@@ -76,15 +78,63 @@ export default function Menu() {
           id: c.id,
           name,
           totalItems: Number(c.totalItems ?? (itemsFromPayload ? itemsFromPayload.length : 0)),
-          items: itemsFromPayload // null -> will lazy load later
+          items: itemsFromPayload
         };
       });
+      
+    let merged = [...mapped];
 
-    setCategories(mapped);
-    const target = mapped[0]?.name;
-    setActiveCategory(target);
-    setTimeout(() => setLoadingLocal(false), 180);
-  }, [catData, catError]);
+    // only merge when comboItems has data
+    if (Array.isArray(comboItems) && comboItems.length > 0) {
+      const lowerNames = merged.map(c => String(c.name || '').toLowerCase());
+      const kidIdx = lowerNames.findIndex(n => n.includes('kids') || n.includes('kids meal') || n.includes('anak'));
+
+      if (kidIdx >= 0) {
+        // append combos to existing kids category items (preserve existing items)
+        const existing = merged[kidIdx];
+        const existingItems = Array.isArray(existing.items) ? existing.items : [];
+        merged[kidIdx] = {
+          ...existing,
+          items: [...existingItems, ...comboItems],
+          totalItems: (existing.totalItems || existingItems.length) + comboItems.length
+        };
+      } else {
+        // append new category at end
+        merged = [
+          ...merged,
+          { id: `combo-kids`, name: 'Kids Meal', items: comboItems, totalItems: comboItems.length }
+        ];
+      }
+    }
+
+    setCategories(merged);
+  }, [catData, catError, comboItems]);
+
+  // ---- NEW: fetch combos and merge under "Kids Meal" ----
+  useEffect(() => {
+    async function loadCombos() {
+      try {
+        const url = `/api/proxy/combo-list?orderCategoryCode=DI&storeCode=MGI`;
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j = await r.json();
+        const raw = Array.isArray(j?.data) ? j.data : (Array.isArray(j?.items) ? j.items : []);
+        if (!raw || raw.length === 0) {
+          setComboItems([]);
+          return;
+        }
+
+        const combos = raw.map(parseComboToMenuItem);
+        // simpan combos terpisah — jangan langsung overwrite categories
+        setComboItems(combos);
+      } catch (e) {
+        console.warn('loadCombos failed', e);
+        setComboItems([]); // safe fallback
+      }
+    }
+
+    loadCombos();
+  }, []);
 
   // read user
   useEffect(() => {
@@ -107,9 +157,151 @@ export default function Menu() {
     }
   }, []);
 
-  // IntersectionObserver: when category section enters viewport -> fetch items for that category
+  // Handle search
+  function handleSearch(text) {
+    setQueryText(text);
+    if (text.length > 0) {
+      const headerH = document.querySelector("header")?.offsetHeight || 0;
+      window.scrollTo({ top: headerH, behavior: "smooth" });
+    }
+  }
+
+  // Back to top visibility
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    const onScroll = () => {
+      setShowBackTop(window.scrollY > 300);
+    };
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Scrollspy (only when not searching)
+  useEffect(() => {
+    if (queryText.length > 0) return;
+
+    let ticking = false;
+    function handleScroll() {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const headerH = document.querySelector("header")?.offsetHeight || 0;
+          const tabsH = 56;
+
+          const scrollPos = window.scrollY + headerH + tabsH + 40;
+
+          let closest = null;
+          let closestOffset = Infinity;
+
+          categories.forEach((c) => {
+            const el = sectionRefs.current[c.name];
+            if (!el) return;
+
+            const offset = Math.abs(el.offsetTop - scrollPos);
+            if (offset < closestOffset) {
+              closestOffset = offset;
+              closest = c.name;
+            }
+          });
+
+          if (closest && closest !== activeCategory) {
+            setActiveCategory(closest);
+          }
+
+          ticking = false;
+        });
+        ticking = true;
+      }
+    }
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [categories, activeCategory, queryText]);
+
+  // Filter items for rendering (search-friendly)
+  const filteredCategories = categories
+    .map((cat) => ({
+      ...cat,
+      items: (cat.items ?? []).filter((it) =>
+        (it.name || '').toLowerCase().includes(queryText.toLowerCase())
+      )
+    }))
+    .filter((cat) => {
+      if (queryText.length > 0) {
+        return cat.items && cat.items.length > 0;
+      }
+      return (cat.items == null) ? true : cat.items.length > 0;
+    });
+
+  // Restore scroll & highlight last item when returning from ItemDetail
+  useEffect(() => {
+    // run after small delay so DOM sections mount / observer runs and items may be loaded by intersection observer
+    const t = setTimeout(() => {
+      try {
+        const last = sessionStorage.getItem('last_item');
+        const scroll = sessionStorage.getItem('menu_scroll');
+        const savedView = sessionStorage.getItem('menu_viewmode');
+
+        if (savedView && (savedView === 'list' || savedView === 'grid')) {
+          setViewMode(savedView);
+          sessionStorage.removeItem('menu_viewmode');
+        }
+
+        if (last) {
+          const el = document.getElementById(`menu-item-${last}`);
+          if (el) {
+            const headerH = document.querySelector("header")?.offsetHeight || 0;
+            const tabsH = 56;
+            const top = window.scrollY + el.getBoundingClientRect().top - (headerH + tabsH + 8);
+            window.scrollTo({ top, behavior: "auto" });
+            try { el.scrollIntoView({ block: 'center' }); } catch(e) {}
+            sessionStorage.removeItem('last_item');
+            sessionStorage.removeItem('menu_scroll');
+            return;
+          }
+        }
+        if (scroll) {
+          window.scrollTo({ top: Number(scroll || 0), behavior: "auto" });
+          sessionStorage.removeItem('menu_scroll');
+        }
+      } catch (e) {
+        // ignore
+      }
+    }, 260);
+
+    return () => clearTimeout(t);
+  }, [categories]);
+
+  const categoryHeaderContainerStyle = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  };
+
+  function renderCategorySkeleton() {
+    return (
+      <div>
+        {[1,2].map(i => (
+          <div key={i} style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+            <div style={{
+              width: viewMode === "grid" ? 140/2 : 72,
+              height: viewMode === "grid" ? 120 : 72,
+              borderRadius: 8,
+              background: "linear-gradient(90deg,#eeeeee 25%, #f5f5f5 50%, #eeeeee 75%)",
+              backgroundSize: "200% 100%",
+              animation: "shimmer 1.2s infinite"
+            }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ height: 16, width: "60%", borderRadius: 4, marginBottom: 8, background: "linear-gradient(90deg,#e9e9e9 25%, #f7f7f7 50%, #e9e9e9 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.2s infinite" }} />
+              <div style={{ height: 12, width: "30%", borderRadius: 4, background: "linear-gradient(90deg,#eee 25%, #fafafa 50%, #eee 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.2s infinite" }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Intersection observer to lazy-load items for categories
+  useEffect(() => {
     if (!('IntersectionObserver' in window)) return;
 
     // cleanup previous observer
@@ -230,7 +422,7 @@ export default function Menu() {
 
     const top =
       window.scrollY +
-      el.getBoundingClientRect().top -
+      el.getBoundingClientRect().top - 
       (headerH + tabsH + 8);
 
     window.scrollTo({ top, behavior: "smooth" });
@@ -245,315 +437,95 @@ export default function Menu() {
     }
   }
 
-  // Handle search
-  function handleSearch(text) {
-    setQueryText(text);
-    if (text.length > 0) {
-      const headerH = document.querySelector("header")?.offsetHeight || 0;
-      window.scrollTo({ top: headerH, behavior: "smooth" });
-    }
-  }
-
-  // Back to top visibility
-  useEffect(() => {
-    const onScroll = () => {
-      setShowBackTop(window.scrollY > 300);
-    };
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  // Scrollspy (only when not searching)
-  useEffect(() => {
-    if (queryText.length > 0) return;
-
-    let ticking = false;
-    function handleScroll() {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          const headerH = document.querySelector("header")?.offsetHeight || 0;
-          const tabsH = 56;
-
-          const scrollPos = window.scrollY + headerH + tabsH + 40;
-
-          let closest = null;
-          let closestOffset = Infinity;
-
-          categories.forEach((c) => {
-            const el = sectionRefs.current[c.name];
-            if (!el) return;
-
-            const offset = Math.abs(el.offsetTop - scrollPos);
-            if (offset < closestOffset) {
-              closestOffset = offset;
-              closest = c.name;
-            }
-          });
-
-          if (closest && closest !== activeCategory) {
-            setActiveCategory(closest);
-          }
-
-          ticking = false;
-        });
-        ticking = true;
-      }
-    }
-
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [categories, activeCategory, queryText]);
-
-  // Filter items for rendering (search-friendly)
-  const filteredCategories = categories
-    .map((cat) => ({
-      ...cat,
-      items: (cat.items ?? []).filter((it) =>
-        it.name.toLowerCase().includes(queryText.toLowerCase())
-      )
-    }))
-    .filter((cat) => {
-      if (queryText.length > 0) {
-        return cat.items && cat.items.length > 0;
-      }
-      return (cat.items == null) ? true : cat.items.length > 0;
-    });
-
-  // Restore scroll & highlight last item when returning from ItemDetail
-  useEffect(() => {
-    // run after small delay so DOM sections mount / observer runs and items may be loaded by intersection observer
-    const t = setTimeout(() => {
-      try {
-        const last = sessionStorage.getItem('last_item');
-        const scroll = sessionStorage.getItem('menu_scroll');
-        const savedView = sessionStorage.getItem('menu_viewmode');
-
-        if (savedView && (savedView === 'list' || savedView === 'grid')) {
-          setViewMode(savedView);
-          sessionStorage.removeItem('menu_viewmode');
-        }
-
-        if (last) {
-          const el = document.getElementById(`menu-item-${last}`);
-          if (el) {
-            const headerH = document.querySelector("header")?.offsetHeight || 0;
-            const tabsH = 56;
-            const top = window.scrollY + el.getBoundingClientRect().top - (headerH + tabsH + 8);
-            window.scrollTo({ top, behavior: "auto" });
-            try { el.scrollIntoView({ block: 'center' }); } catch(e) {}
-            sessionStorage.removeItem('last_item');
-            sessionStorage.removeItem('menu_scroll');
-            return;
-          }
-        }
-        if (scroll) {
-          window.scrollTo({ top: Number(scroll || 0), behavior: "auto" });
-          sessionStorage.removeItem('menu_scroll');
-        }
-      } catch (e) {
-        // ignore
-      }
-    }, 260);
-
-    return () => clearTimeout(t);
-  }, [categories]);
-
-  const categoryHeaderContainerStyle = {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  };
-
-  function renderCategorySkeleton() {
-    return (
-      <div>
-        {[1,2].map(i => (
-          <div key={i} style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-            <div style={{
-              width: viewMode === "grid" ? 140/2 : 72,
-              height: viewMode === "grid" ? 120 : 72,
-              borderRadius: 8,
-              background: "linear-gradient(90deg,#eeeeee 25%, #f5f5f5 50%, #eeeeee 75%)",
-              backgroundSize: "200% 100%",
-              animation: "shimmer 1.2s infinite"
-            }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ height: 16, width: "60%", borderRadius: 4, marginBottom: 8, background: "linear-gradient(90deg,#e9e9e9 25%, #f7f7f7 50%, #e9e9e9 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.2s infinite" }} />
-              <div style={{ height: 12, width: "40%", borderRadius: 4, background: "linear-gradient(90deg,#e9e9e9 25%, #f7f7f7 50%, #e9e9e9 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.2s infinite" }} />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
   return (
-    <div className="bg-white min-h-screen">
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <div
-          role="button"
-          onClick={() => {}}
-          style={{
-            width: '100%',
-            maxWidth: 390,
-            height: 32,
-            padding: '4px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 8,
-            boxSizing: 'border-box',
-            background:
-              orderMode?.type === "Takeaway"
-                ? 'linear-gradient(90.35deg, #EB4646 17.45%, #FF8686 116.56%)'
-                : 'linear-gradient(90.35deg, #0061FF 17.45%, #5193FF 116.56%)',
-            color: '#ffffff',
-            borderBottom: '1px solid rgba(0,0,0,0.06)'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {orderMode?.type !== "Takeaway" && (
-              <img
-                src="/images/chair-icon.png"
-                alt="table"
-                width={14}
-                height={14}
-                style={{ display: 'block' }}
-              />
-            )}
-
-            <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'baseline', lineHeight: 1 }}>
-              <div style={{ fontFamily: 'Inter, system-ui', fontWeight: 600, fontSize: 12 }}>
-                {orderMode?.type || ''}
-              </div>
-
-              <div style={{ fontFamily: 'Inter, system-ui', fontWeight: 400, fontSize: 12, opacity: 0.95 }}>
-                {orderMode?.location ? `• ${orderMode.location}` : ''}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', marginLeft: 8 }}>
-            <img src="/images/caret-down-white.png" alt="" width={16} height={16} style={{ display: 'block' }} />
-          </div>
-        </div>
-      </div>
-
+    <div>
       <Header />
 
-      {/* pass category names into MenuTabs so MenuTabs doesn't need to fetch separately */}
       <MenuTabs
         selected={activeCategory}
-        onSelect={scrollToCategory}
-        isHidden={queryText.length > 0}
+        onSelect={(c) => { setActiveCategory(c); scrollToCategory(c); }}
+        isHidden={false}
+        // restore previous behavior: reset filterForCategory when opening full menu
         onOpenFullMenu={() => {
-          setFilterForCategory(null)
-          setShowFullMenu(true)
+          setFilterForCategory(null);
+          setShowFullMenu(true);
         }}
         items={categories.map(c => c.name)}
       />
 
-      <SearchBar
-        onSearch={handleSearch}
-        onSearchChange={handleSearch}
-        onToggleView={(v) => setViewMode(v)}
-        isSearching={queryText.length > 0}
-      />
+      <div style={{ padding: 12 }}>
+        <SearchBar value={queryText} onChange={handleSearch} />
+      </div>
 
-      {loadingLocal && (
-        <div style={{ padding: "0 16px", marginTop: 20 }}>
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} style={{ display: "flex", gap: 12, marginBottom: 20 }}>
-              <div style={{
-                width: 72,
-                height: 72,
-                borderRadius: 8,
-                background:
-                  "linear-gradient(90deg,#eeeeee 25%, #f5f5f5 50%, #eeeeee 75%)",
-                backgroundSize: "200% 100%",
-                animation: "shimmer 1.2s infinite",
-              }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ height: 16, width: "70%", borderRadius: 4, marginBottom: 8, background:
-                    "linear-gradient(90deg,#e9e9e9 25%, #f7f7f7 50%, #e9e9e9 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.2s infinite" }} />
-                <div style={{ height: 14, width: "40%", borderRadius: 4, background:
-                    "linear-gradient(90deg,#e9e9e9 25%, #f7f7f7 50%, #e9e9e9 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.2s infinite" }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {filteredCategories.length === 0 ? (
+        <div style={{ padding: 16 }}>Tidak ada item.</div>
+      ) : (
+        <div style={{ padding: 12 }}>
+          {filteredCategories.map((cat) => {
+            // determine if filter button should be disabled:
+            // disable when cat.id is falsy OR not numeric (we treat combo-kids string as non-numeric)
+            const catIdStr = String(cat.id ?? "");
+            const filterDisabled = !cat.id || catIdStr.startsWith('combo-') || isNaN(Number(cat.id));
 
-      {!loadingLocal && (
-        <div style={{ maxWidth: 420, margin: "0 auto", padding: "0 5px 24px" }}>
-          {filteredCategories.map((cat) => (
-            <div
-              key={cat.id}
-              data-cat={cat.name}
-              ref={(el) => (sectionRefs.current[cat.name] = el)}
-              style={{ marginTop: 18 }}
-            >
-              <div style={categoryHeaderContainerStyle}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, textTransform: "none", ...(viewMode === "grid" ? { fontSize: 16 } : {}) }}>
-                    {cat.name}
-                  </h2>
-
-                  {viewMode === "list" && (
+            return (
+              <div key={cat.name} data-cat={cat.name} ref={el => (sectionRefs.current[cat.name] = el)} style={{ marginBottom: 18 }}>
+                <div style={categoryHeaderContainerStyle}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{cat.name}</h2>
                     <div style={{ color: "#6b7280", fontSize: 12 }}>
-                      ({cat.totalItems ?? (cat.items ? cat.items.length : 0)} items)
+                      {(viewMode === "list") ? `(${cat.totalItems ?? (cat.items ? cat.items.length : 0)} items)` : null}
                     </div>
-                  )}
+                  </div>
+
+                  <div>
+                    {/* RESTORED FILTER BUTTON (disabled for kids/combo categories without numeric id) */}
+                    <button
+                      onClick={() => {
+                        if (filterDisabled) return;
+                        setFilterForCategory(cat.id);
+                        setShowFullMenu(true);
+                      }}
+                      disabled={filterDisabled}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '6px 10px',
+                        height: 32,
+                        borderRadius: 6,
+                        background: filterDisabled ? '#f3f4f6' : '#fff',
+                        border: filterDisabled ? '0.5px solid rgba(0,0,0,0.06)' : '0.5px solid rgba(252,102,26,0.5)',
+                        color: filterDisabled ? '#9ca3af' : '#FC661A',
+                        cursor: filterDisabled ? 'not-allowed' : 'pointer',
+                        fontWeight: 600,
+                        fontSize: 12,
+                        pointerEvents: filterDisabled ? 'none' : 'auto'
+                      }}
+                    >
+                      Filter
+                      <img src="/images/filter.png" width={12} height={12} alt="filter" />
+                    </button>
+                  </div>
                 </div>
 
-                <div>
-                  <button
-                    onClick={() => {
-                      // IMPORTANT: pass category id (numeric) to open filter for this category
-                      setFilterForCategory(cat.id)
-                      setShowFullMenu(true)
-                    }}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '6px 10px',
-                      height: 32,
-                      borderRadius: 6,
-                      background: '#fff',
-                      border: '0.5px solid rgba(252,102,26,0.5)',
-                      color: '#FC661A',
-                      cursor: 'pointer',
-                      fontWeight: 600,
-                      fontSize: 12
-                    }}
-                  >
-                    Filter
-                    <img src="/images/filter.png" width={12} height={12} alt="filter" />
-                  </button>
-                </div>
+                {cat.items == null ? (
+                  renderCategorySkeleton()
+                ) : viewMode === "list" ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    {cat.items.map((it) => (
+                      <CardItem key={it.id} item={it} mode="list" />
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+                    {cat.items.map((it) => (
+                      <CardItem key={it.id} item={it} mode="grid" />
+                    ))}
+                  </div>
+                )}
               </div>
-
-              {cat.items == null ? (
-                renderCategorySkeleton()
-              ) : cat.items.length === 0 ? (
-                <div style={{ padding: 12, color: '#6b7280' }}>Tidak ada item</div>
-              ) : viewMode === "list" ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                  {cat.items.map((it) => (
-                    <CardItem key={it.id} item={it} mode="list" />
-                  ))}
-                </div>
-              ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-                  {cat.items.map((it) => (
-                    <CardItem key={it.id} item={it} mode="grid" />
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -585,27 +557,27 @@ export default function Menu() {
       <div style={{ height: 60 }} />
       <FullMenu
         open={showFullMenu}
-        // FullMenu shows category list using names for display
         categories={categories.map(c => c.name)}
-        // currentCategory still name-based (used for highlight in FullMenu category list)
         currentCategory={activeCategory}
-        // but filterForCategory holds numeric id when opened from a category's Filter button
         filterForCategory={filterForCategory}
         onClose={() => {
           setShowFullMenu(false)
-          setFilterForCategory(null)
+          // jangan reset setFilterForCategory di onClose
         }}
         onSelect={(catName) => {
-          // catName is category name (FullMenu category button), scroll to that category
           setShowFullMenu(false)
-          setFilterForCategory(null)
           setTimeout(()=>scrollToCategory(catName), 120)
         }}
-                onApplyFilter={async (menuCategoryId, filters) => {
-          // filters.menuFilterIds expected to be comma-separated string or empty
+        // NEW: ketika user memilih opsi filter di FullMenu, update button aktif segera
+        onFilterChange={(menuCategoryId) => {
+          // menuCategoryId: numeric id of selected category in FullMenu
+          setFilterForCategory(menuCategoryId)
+        }}
+        onApplyFilter={async (menuCategoryId, filters) => {
           try {
             setShowFullMenu(false)
-            setFilterForCategory(null)
+            // Simpan pilihan sebagai aktif agar button tetap pada pilihan itu
+            if (menuCategoryId) setFilterForCategory(menuCategoryId)
 
             if (!menuCategoryId) {
               console.warn('applyFilter: missing menuCategoryId', menuCategoryId)
@@ -644,7 +616,6 @@ export default function Menu() {
             console.error('apply filter failed', err)
           }
         }}
-
       />
 
       <OrderBar />

@@ -25,13 +25,41 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
       console.warn('sessionStorage save failed', e);
     }
 
+    // If item is a combo (has comboGroups) -> open ComboDetail
+    const isCombo = Array.isArray(item.comboGroups) && item.comboGroups.length > 0;
+    if (isCombo) {
+      try {
+        // Save combo object to sessionStorage to avoid very long querystring
+        const key = `combo_${item.id}`;
+        sessionStorage.setItem(key, JSON.stringify(item));
+        // navigate to combo-detail and pass comboId (ComboDetail page will read sessionStorage)
+        router.push(`/combo-detail?comboId=${encodeURIComponent(String(item.id))}`);
+        return;
+      } catch (e) {
+        console.warn('failed to navigate to combo detail via sessionStorage, falling back to query', e);
+        // fallback: send full combo as query (may be long)
+        const productCode = item.id;
+        const q = {};
+        if (item.name) q.title = item.name;
+        if (item.description) q.description = item.description;
+        if (item.price != null) q.price = item.price;
+        if (imgSrc) q.image = imgSrc;
+        if (categoryId) q.categoryId = categoryId;
+        else if (categoryName) q.category = categoryName;
+        q.combo = JSON.stringify(item);
+        const search = new URLSearchParams(q).toString();
+        router.push(`/combo-detail${search ? `?${search}` : ""}`);
+        return;
+      }
+    }
+
+    // Non-combo: existing item detail route
     const productCode = item.id;
     const q = {};
     if (item.name) q.title = item.name;
     if (item.description) q.description = item.description;
     if (item.price != null) q.price = item.price;
     if (imgSrc) q.image = imgSrc;
-    // include categoryId if available (so ItemDetail can restore to that category)
     if (categoryId) q.categoryId = categoryId;
     else if (categoryName) q.category = categoryName;
 

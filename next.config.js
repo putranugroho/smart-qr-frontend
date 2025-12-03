@@ -5,7 +5,7 @@ const devCSP = `
   default-src 'self';
   script-src 'self' https://cdn.tailwindcss.com 'unsafe-eval' 'unsafe-inline';
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com;
-  img-src 'self' data: order.yoshinoya.co.id https://yoshinoya-store-api.akasia.id https://yoshinoya-ho-api.akasia.id https://yoshinoya-store-api.akasia.id;
+  img-src 'self' data: order.yoshinoya.co.id https://yoshinoya-store-api.akasia.id https://yoshinoya-ho-api.akasia.id https://yoshinoya-store-api.akasia.id http://172.16.100.105:81;
   font-src 'self' https://fonts.gstatic.com;
   connect-src 'self' https://fonts.googleapis.com https://cdn.tailwindcss.com ws:;
 `;
@@ -14,7 +14,7 @@ const prodCSP = `
   default-src 'self';
   script-src 'self' https://cdn.tailwindcss.com;
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-  img-src 'self' data: order.yoshinoya.co.id https://yoshinoya-store-api.akasia.id https://yoshinoya-ho-api.akasia.id https://yoshinoya-store-api.akasia.id;
+  img-src 'self' data: order.yoshinoya.co.id https://yoshinoya-store-api.akasia.id https://yoshinoya-ho-api.akasia.id https://yoshinoya-store-api.akasia.id http://172.16.100.105:81;
   font-src 'self' https://fonts.gstatic.com;
   connect-src 'self';
 `;
@@ -35,7 +35,8 @@ const nextConfig = {
       'yoshinoya-store-api.akasia.id',
       'yoshinoya-ho-api.akasia.id',
       'yoshi-smartqr-api-ergyata5hff3cfhz.southeastasia-01.azurewebsites.net',
-      'order.yoshinoya.co.id'
+      'order.yoshinoya.co.id',
+      '172.16.100.105'
       // tambahkan domain lain muncul di imagePath jika perlu
     ],
   },
@@ -46,12 +47,19 @@ const nextConfig = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: "img-src 'self' data: https://yoshinoya-store-api.akasia.id https://yoshinoya-ho-api.akasia.id https://purecatamphetamine.github.io;"
+            value: `
+              default-src 'self';
+              script-src 'self' https://cdn.tailwindcss.com;
+              style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+              img-src 'self' data: order.yoshinoya.co.id https://yoshinoya-store-api.akasia.id https://yoshinoya-ho-api.akasia.id http://172.16.100.105:81;
+              font-src 'self' https://fonts.gstatic.com;
+              connect-src 'self';
+            `.replace(/\s{2,}/g, ' ').trim()
           }
         ]
-      },
+      }
     ];
-  },
+  }
 };
 
 module.exports = nextConfig;

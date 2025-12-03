@@ -5,8 +5,8 @@ import { useRouter } from "next/router";
 import { userSignIn } from "../lib/auth";
 
 /**
- * Pilih true jika kamu memakai JWT HMAC
- * Pilih false jika kamu memakai CryptoJS AES-CBC
+ * Pilih true jika kamu memakai JWT HMAC (jwtClient.js: jwtVerify)
+ * Pilih false jika kamu memakai CryptoJS AES-CBC (cryptoJSHelpers: decryptWithSecretHex)
  */
 const USE_JWT = true;
 
@@ -17,11 +17,8 @@ export default function OrderPage() {
   useEffect(() => {
     (async () => {
       try {
-        // ambil token from ?token=...
-        const token = typeof window !== "undefined"
-          ? new URLSearchParams(window.location.search).get("token")
-          : null;
-
+        // ambil token named param
+        const token = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("token") : null;
         if (!token) {
           setStatus({ loading: false, message: "Token tidak ditemukan di URL" });
           return;
@@ -30,44 +27,53 @@ export default function OrderPage() {
         let paramsObj = null;
 
         if (USE_JWT) {
-          // ====== JWT decode path ======
-          const { jwtDecode } = await import("../lib/jwtClient");
-          const decoded = jwtDecode(token);
-          if (!decoded) throw new Error("Token tidak valid atau corrupt");
-          paramsObj = decoded;
+          // ====== JWT path (signed payload) ======
+          // pastikan kamu punya utils/jwtClient.js yang mengekspor jwtVerify
+          // import di atas jika kamu gunakan path lain
+          const { jwtVerify } = await import("../lib/jwtClient"); // dynamic import ok in client
+          const secret = process.env.NEXT_PUBLIC_JWT_SECRET;
+          if (!secret) throw new Error("Missing NEXT_PUBLIC_JWT_SECRET in .env.local");
 
+          const res = await jwtVerify(token, secret);
+          if (!res.valid) throw new Error("Token tidak valid: " + (res.reason || "signature mismatch"));
+          // payload = { storeCode, tableNumber, iat, ... }
+          paramsObj = res.payload;
         } else {
-          // ====== AES decrypt path ======
+          // ====== CryptoJS AES-CBC path (encrypted plaintext) ======
+          // utils: decryptWithSecretHex + deriveSecretHex
           const { deriveSecretHex, decryptWithSecretHex } = await import("../lib/crypto");
           const pass = process.env.NEXT_PUBLIC_ENCRYPTION_PASSPHRASE;
           if (!pass) throw new Error("Missing NEXT_PUBLIC_ENCRYPTION_PASSPHRASE in .env.local");
 
           const secretHex = deriveSecretHex(pass);
-          const plain = decryptWithSecretHex(token, secretHex);
-          if (!plain) throw new Error("Decryption returned empty plaintext");
+          const plain = decryptWithSecretHex(token, secretHex); // returns "storeCode=mgi&tableNumber=A02"
+          if (!plain) throw new Error("Decryption returned empty plaintext (wrong key or corrupted token)");
           paramsObj = Object.fromEntries(new URLSearchParams(plain));
         }
 
-        // normalize field
+        // --- Build userAuth consistent with HeroLocation expectations ---
+        // Normalize values as you prefer
         const storeCode = (paramsObj.storeCode || paramsObj.storeLocation || "").toString();
         const tableNumberRaw = paramsObj.tableNumber || "";
-        const tableNumber = tableNumberRaw
-          ? (tableNumberRaw.toString().startsWith("Table") ? tableNumberRaw : `Table ${tableNumberRaw}`)
-          : "";
+        const tableNumber = tableNumberRaw ? (tableNumberRaw.toString().startsWith("Table") ? tableNumberRaw : `Table ${tableNumberRaw}`) : "";
 
         const userAuth = {
-          storeLocation: storeCode.toUpperCase(),
-          orderType: "DI",
+          storeLocation: storeCode ? storeCode.toUpperCase() : "MGI",
+          orderType: "DI", // assume dine-in flow — change logic if token encodes orderType
           tableNumber,
         };
 
+        // save user and redirect home
         userSignIn(userAuth);
+        // optionally set a small delay or show message
         setStatus({ loading: false, message: "Success — redirecting..." });
-
-        router.replace("/");
+        // redirect
+        router.replace("/"); // replace so /order not in history
       } catch (err) {
         console.error("Order page error:", err);
         setStatus({ loading: false, message: "Error: " + (err.message || String(err)) });
+        // optionally redirect to home too
+        // router.replace("/");
       }
     })();
   }, [router]);

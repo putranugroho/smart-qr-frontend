@@ -1,5 +1,5 @@
 // next.config.js
-// const isDev = process.env.NODE_ENV !== 'production';
+const isDev = process.env.NODE_ENV !== 'production';
 
 const devCSP = `
   default-src 'self';

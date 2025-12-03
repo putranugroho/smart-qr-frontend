@@ -35,6 +35,7 @@ const nextConfig = {
       'yoshinoya-store-api.akasia.id',
       'yoshinoya-ho-api.akasia.id',
       'yoshi-smartqr-api-ergyata5hff3cfhz.southeastasia-01.azurewebsites.net',
+      'order.yoshinoya.co.id'
       // tambahkan domain lain muncul di imagePath jika perlu
     ],
   },

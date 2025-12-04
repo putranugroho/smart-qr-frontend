@@ -63,12 +63,6 @@ export default function PaymentStatus() {
   }
 
   async function callDoPayment(orderCode, paymentAmount, reference) {
-    const payload ={
-        orderCode,
-        payment: paymentAmount,
-        reference
-      }
-    console.log("payload",payload);
     
     const resp = await fetch('/api/order/do-payment', {
       method: 'POST',
@@ -272,12 +266,6 @@ export default function PaymentStatus() {
     const orderId = tx.order_id
     if (!orderId) return alert('Order ID tidak ditemukan')
     setChecking(true)
-        try {
-            const result = await callDoPayment(orderCode, subtotal, tx.order_id);
-            console.log('do-payment result', result);
-          } catch (e) {
-            console.error('call failed', e);
-          }
     try {
       const r = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(orderId)}`)
       const j = await r.json()
@@ -290,6 +278,12 @@ export default function PaymentStatus() {
           } catch (e) {
             console.error('call failed', e);
           }
+        try {
+          const result = await callDoPayment(orderCode, subtotal, tx.order_id);
+          console.log('do-payment result', result);
+        } catch (e) {
+          console.error('call failed', e);
+        }
         router.push(`/order/${orderId}`)
       } else {
         alert('Status: ' + (j.transaction_status || j.status || 'unknown'))

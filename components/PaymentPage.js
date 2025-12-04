@@ -68,7 +68,9 @@ export default function PaymentPage() {
 
       // Build payload (source of truth)
       const payload = buildPayload();
-      const grossAmount = payload.grandTotal || 0;
+      console.log("payload",payload);
+      
+      const grossAmount = payload.grandTotal || 1;
 
       // Use payload.grandTotal as grossAmount for Midtrans
       const orderId = 'DI' + (Math.floor(Math.random() * 9000) + 1000);

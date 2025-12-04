@@ -1,30 +1,35 @@
-// pages/api/proxy/menu-category.js
 export default async function handler(req, res) {
   try {
     const { storeCode = 'MGI', orderCategoryCode = 'DI' } = req.query;
 
-    const qs = new URLSearchParams();
-    if (storeCode) qs.set('storeCode', storeCode);
-    if (orderCategoryCode) qs.set('orderCategoryCode', orderCategoryCode);
+    const qs = new URLSearchParams({ storeCode, orderCategoryCode });
+    const url = 'http://112.78.136.108:5200/smartqr/v1/menu/category?' + qs.toString();
 
-    // const url = process.env.NEXT_PUBLIC_URL_API || process.env.NEXT_PUBLIC_URL_DEV
-    const url = 'http://112.78.136.108:5200'
-    const target = `${url}/smartqr/v1/menu/category?${qs.toString()}`;
-    console.log('target', target);
-    
-    const upstream = await fetch(target, {
-      method: 'GET',
-      headers: {
-        accept: '*/*'
-      }
+    console.log("Proxy target:", url);
+
+    const upstream = await fetch(url, {
+      method: "GET",
+      headers: { "Accept": "application/json" }
     });
 
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
+    if (!upstream.ok) {
+      const textErr = await upstream.text();
+      console.error("Upstream error:", textErr);
+      return res.status(500).json({
+        success: false,
+        message: "Upstream error",
+        error: textErr
+      });
+    }
 
-    res.status(upstream.status).setHeader('Content-Type', contentType).send(text);
+    const type = upstream.headers.get("content-type") || "application/json";
+    const data = await upstream.text();
+
+    res.setHeader("Content-Type", type);
+    res.status(200).send(data);
+
   } catch (err) {
-    console.error('Proxy menu-category error', err);
-    res.status(500).json({ success: false, message: 'Proxy error', error: String(err) });
+    console.error("Proxy menu-category error", err);
+    res.status(500).json({ success: false, error: err.message });
   }
 }

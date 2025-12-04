@@ -4,7 +4,7 @@ import styles from "../styles/SearchBar.module.css";
 
 export default function SearchBar({ onSearch, onSearchChange, onToggleView, isSearching }) {
   const [query, setQuery] = useState("");
-  const [view, setView] = useState("list");
+  const [view, setView] = useState("grid");
 
   function toggleView(next) {
     const v = next ?? (view === "grid" ? "list" : "grid");

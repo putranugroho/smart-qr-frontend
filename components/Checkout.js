@@ -165,10 +165,17 @@ export default function CheckoutPage() {
     setTaxPPN(t.taxPPN)
     setTotal(t.total)
 
-    // === Rounding ke kelipatan 100 ===
-    const rTotal = Math.round(t.total / 100) * 100
-    setRoundedTotal(rTotal)
-    setRounding(rTotal - t.total)
+    // === Rounding rule ===
+    // Jika subtotal < 20 ATAU total < 20 → tidak ada rounding
+    if (t.subtotal < 20 || t.total < 20) {
+      setRoundedTotal(t.total)
+      setRounding(0)
+    } else {
+      // normal rounding ke kelipatan 100
+      const rTotal = Math.round(t.total / 100) * 100
+      setRoundedTotal(rTotal)
+      setRounding(rTotal - t.total)
+    }
   }, [cart])
 
   // qty update

@@ -18,6 +18,7 @@ export default function PaymentPage() {
   const [customer, setCustomer] = useState({ first_name: '', email: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [tableNumber, setTableNumber] = useState('');
 
   useEffect(() => {
     const pay = getPayment() || {};
@@ -31,7 +32,7 @@ export default function PaymentPage() {
       cart: pay.cart && pay.cart.length > 0 ? pay.cart : sessionCart,
       paymentTotal: pay.paymentTotal || sessionTotal,
       storeCode: pay.storeCode || sessionStore,
-      tableNumber: '24'
+      tableNumber
     };
 
     setPayment(merged);
@@ -44,7 +45,7 @@ export default function PaymentPage() {
     const payload = mapDoOrderPayload(cart, null, selectedMethod, {
       posId: 'POS1',
       orderType: 'DI',
-      tableNumber: '24'
+      tableNumber
     });
     return payload;
   }
@@ -98,7 +99,6 @@ export default function PaymentPage() {
 
       payload.customerName = customer.first_name || "";
       payload.customerPhoneNumber = "0" + (customer.phone || "");
-
       console.log("payload :", payload);
       
 
@@ -179,6 +179,11 @@ export default function PaymentPage() {
               setCustomer({ ...customer, phone: v });
             }}
           />
+        </div>
+
+        <label className={styles.label}>Nomer Meja</label>
+        <div className={styles.inputWrap}>
+          <input className={styles.input} placeholder="Masukan Nomer Meja" onChange={(e)=>setTableNumber(e.target.value)} />
         </div>
       </div>
 

@@ -13,7 +13,7 @@ export default async function handler(req, res) {
 
     // Upstream endpoint (adjust domain if you need to change)
     // const url = process.env.NEXT_PUBLIC_URL_API || process.env.NEXT_PUBLIC_URL_DEV
-    const url = 'http://112.78.136.108:5200'
+    const url = 'http://localhost:5200'
     const target = `${url}/smartqr/v1/menu/list?${qs}`;
 
     const upstream = await fetch(target, {

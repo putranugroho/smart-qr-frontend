@@ -9,7 +9,7 @@ export default async function handler(req, res) {
     // forward full query string (so clients can add extra params if needed)
     const qs = new URLSearchParams(req.query).toString();
     // const url = process.env.NEXT_PUBLIC_URL_API || process.env.NEXT_PUBLIC_URL_DEV
-    const url = 'http://112.78.136.108:5200'
+    const url = 'http://localhost:5200'
     const target = `${url}/smartqr/v1/menu/filter?${qs}`;
 
     const upstream = await fetch(target, {

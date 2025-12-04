@@ -17,7 +17,7 @@ export default async function handler(req, res) {
       ...restQuery
     } = req.query || {};
 
-    const base = rocess.env.NEXT_PUBLIC_URL_API || process.env.NEXT_PUBLIC_URL_DEV;
+    const base = process.env.NEXT_PUBLIC_URL_API || process.env.NEXT_PUBLIC_URL_DEV;
 
     // build target URL (keep any extra params)
     const url = new URL('/smartqr/v1/menu/combo/list', base);

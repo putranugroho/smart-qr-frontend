@@ -108,7 +108,7 @@ export default function BillPage() {
         <div className={styles.paymentBox}>
           <div className={styles.paymentBoxLeft}>Pembayaran Online</div>
           <div className={styles.paymentBoxRight}>
-            <img src={urlLogo} alt="logo" width={50} height={50} />
+            <img src={urlLogo} alt="logo" width={55} height={14} />
           </div>
         </div>
 

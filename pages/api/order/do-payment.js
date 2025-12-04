@@ -24,7 +24,7 @@ export default async function handler(req, res) {
     //   (process.env.NEXT_URL_API && String(process.env.NEXT_URL_API).trim()) ||
     //   'http://112.78.136.108:5200';
     
-    const baseUrl = process.env.NEXT_PUBLIC_URL_UAT || process.env.NEXT_PUBLIC_URL_DEV;
+    const baseUrl = process.env.NEXT_PUBLIC_URL_API || process.env.NEXT_PUBLIC_URL_DEV;
     // `https://yoshi-smartqr-api-ergyata5hff3cfhz.southeastasia-01.azurewebsites.net/smartqr/v1/order/do-order?storeCode=${storeCode}`,
 
     const resp = await fetch(

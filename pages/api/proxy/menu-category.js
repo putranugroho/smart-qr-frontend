@@ -3,7 +3,8 @@ export default async function handler(req, res) {
     const { storeCode = 'MGI', orderCategoryCode = 'DI' } = req.query;
 
     const qs = new URLSearchParams({ storeCode, orderCategoryCode });
-    const url = 'http://112.78.136.108:5200/smartqr/v1/menu/category?' + qs.toString();
+    const url = 'http://localhost:5200/smartqr/v1/menu/category?' + qs.toString();
+    // const url = 'http://112.78.136.108:5200/smartqr/v1/menu/category?' + qs.toString();
 
     console.log("Proxy target:", url);
 

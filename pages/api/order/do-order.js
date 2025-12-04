@@ -3,10 +3,11 @@ export default async function handler(req, res) {
   try {
     const { storeCode, payload } = req.body;
     
+    const baseUrl = process.env.NEXT_PUBLIC_URL_UAT || process.env.NEXT_PUBLIC_URL_DEV;
+    // `https://yoshi-smartqr-api-ergyata5hff3cfhz.southeastasia-01.azurewebsites.net/smartqr/v1/order/do-order?storeCode=${storeCode}`,
 
     const upstream = await fetch(
-      `http://localhost:5200/smartqr/v1/order/do-order?storeCode=${storeCode}`,
-    //   `https://yoshi-smartqr-api-ergyata5hff3cfhz.southeastasia-01.azurewebsites.net/smartqr/v1/order/do-order?storeCode=${storeCode}`,
+      `${baseUrl}/smartqr/v1/order/do-order?storeCode=${storeCode}`,
       {
         method: "POST",
         headers: {

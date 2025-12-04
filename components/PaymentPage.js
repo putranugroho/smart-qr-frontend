@@ -50,6 +50,15 @@ export default function PaymentPage() {
   }
 
   async function handlePayNow() {
+    if (!customer.first_name || !customer.phone) {
+      alert("Nama dan Nomor WhatsApp wajib diisi.");
+      return;
+    }
+
+    if (customer.phone.length < 8) {
+      alert("Nomor WhatsApp tidak valid.");
+      return;
+    }
     setIsLoading(true);
 
     try {
@@ -86,6 +95,9 @@ export default function PaymentPage() {
       } else if (data && data.transaction_details && data.transaction_details.order_id) {
         payload.selfPaymentRefId = String(data.transaction_details.order_id);
       }
+
+      payload.customerName = customer.first_name || "";
+      payload.customerPhoneNumber = "0" + (customer.phone || "");
 
       console.log("payload :", payload);
       
@@ -153,7 +165,20 @@ export default function PaymentPage() {
         <label className={styles.label}>Nomor WhatsApp</label>
         <div className={styles.phoneRow}>
           <div className={styles.countryCode}>+62 ▼</div>
-          <input className={styles.phoneInput} placeholder="ex: 81234567890" onChange={(e)=>setCustomer({...customer, phone: e.target.value})} />
+          <input
+            className={styles.phoneInput}
+            placeholder="ex: 81234567890"
+            value={customer.phone || ""}
+            onChange={(e) => {
+              // Hanya izinkan angka
+              let v = e.target.value.replace(/\D/g, "");
+
+              // Hilangkan zero di depan (leading zero)
+              v = v.replace(/^0+/, "");
+
+              setCustomer({ ...customer, phone: v });
+            }}
+          />
         </div>
       </div>
 

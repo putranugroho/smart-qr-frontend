@@ -3,12 +3,12 @@ export default async function handler(req, res) {
     const { storeCode = 'MGI', orderCategoryCode = 'DI' } = req.query;
 
     const qs = new URLSearchParams({ storeCode, orderCategoryCode });
-    const url = 'http://localhost:5200/smartqr/v1/menu/category?' + qs.toString();
-    // const url = 'http://112.78.136.108:5200/smartqr/v1/menu/category?' + qs.toString();
+    const url = process.env.NEXT_PUBLIC_URL_DEV || process.env.NEXT_PUBLIC_URL_API
+    const target = `${url}/smartqr/v1/menu/category?` + qs.toString();
 
-    console.log("Proxy target:", url);
+    console.log("Proxy target:", target);
 
-    const upstream = await fetch(url, {
+    const upstream = await fetch(target, {
       method: "GET",
       headers: { "Accept": "application/json" }
     });

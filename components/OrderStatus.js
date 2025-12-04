@@ -46,7 +46,10 @@ export default function OrderStatus() {
     }
     
     if (router.isReady) setDisplayOrderId(String(id))
-    const p = getPayment() || {}
+    const item = getPayment() || {}
+    const p = { items: item.cart, paymentTotal: item.paymentTotal}
+    console.log("getpayment:", p);
+  
     if (p && p.items && p.items.length) {
       setPayment(p)
       setCurrentStep(2)

@@ -454,7 +454,15 @@ export default function Menu() {
       />
 
       <div style={{ padding: 12 }}>
-        <SearchBar value={queryText} onChange={handleSearch} />
+        <SearchBar
+          onSearch={handleSearch}
+          onSearchChange={setQueryText}
+          onToggleView={(v) => {
+            setViewMode(v);
+            sessionStorage.setItem('menu_viewmode', v);
+          }}
+          isSearching={queryText.length > 0}
+        />
       </div>
 
       {filteredCategories.length === 0 ? (

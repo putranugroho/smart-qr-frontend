@@ -94,8 +94,8 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
         <Image
           src={imgSrc}
           alt={name}
-          width={167}
-          height={167}
+          width={110}
+          height={73}
           className={styles.cardImageTag}
         />
       </div>

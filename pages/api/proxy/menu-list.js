@@ -12,8 +12,7 @@ export default async function handler(req, res) {
     const qs = new URLSearchParams(req.query).toString();
 
     // Upstream endpoint (adjust domain if you need to change)
-    // const url = process.env.NEXT_PUBLIC_URL_API || process.env.NEXT_PUBLIC_URL_DEV
-    const url = 'http://localhost:5200'
+    const url = process.env.NEXT_PUBLIC_URL_DEV || process.env.NEXT_PUBLIC_URL_API
     const target = `${url}/smartqr/v1/menu/list?${qs}`;
 
     const upstream = await fetch(target, {

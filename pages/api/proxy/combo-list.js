@@ -17,7 +17,7 @@ export default async function handler(req, res) {
       ...restQuery
     } = req.query || {};
 
-    const base = process.env.COMBO_API_BASE || 'https://yoshi-smartqr-api-ergyata5hff3cfhz.southeastasia-01.azurewebsites.net';
+    const base = rocess.env.NEXT_PUBLIC_URL_UAT || process.env.NEXT_PUBLIC_URL_DEV;
 
     // build target URL (keep any extra params)
     const url = new URL('/smartqr/v1/menu/combo/list', base);

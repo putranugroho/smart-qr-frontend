@@ -140,6 +140,8 @@ export default function CheckoutPage() {
   const [taxPB1, setTaxPB1] = useState(0)
   const [taxPPN, setTaxPPN] = useState(0)
   const [total, setTotal] = useState(0)
+  const [roundedTotal, setRoundedTotal] = useState(0)
+  const [rounding, setRounding] = useState(0)
 
   // popup state
   const [showAddPopup, setShowAddPopup] = useState(false)
@@ -162,6 +164,11 @@ export default function CheckoutPage() {
     setTaxPB1(t.taxPB1)
     setTaxPPN(t.taxPPN)
     setTotal(t.total)
+
+    // === Rounding ke kelipatan 100 ===
+    const rTotal = Math.round(t.total / 100) * 100
+    setRoundedTotal(rTotal)
+    setRounding(rTotal - t.total)
   }, [cart])
 
   // qty update
@@ -486,14 +493,23 @@ export default function CheckoutPage() {
           <div className={styles.paymentValue}>{formatRp(taxPB1)}</div>
         </div>
 
-        <div className={styles.paymentRow}>
-          <div>PPN (11%)</div>
-          <div className={styles.paymentValue}>{formatRp(taxPPN)}</div>
-        </div>
+        {taxPPN > 0 && (
+          <div className={styles.paymentRow}>
+            <div>PPN (11%)</div>
+            <div className={styles.paymentValue}>{formatRp(taxPPN)}</div>
+          </div>
+        )}
+
+        {rounding !== 0 && (
+          <div className={styles.paymentRow}>
+            <div>Rounding</div>
+            <div className={styles.paymentValue}>{formatRp(rounding)}</div>
+          </div>
+        )}
 
         <div className={styles.paymentTotalRow}>
           <div>Total</div>
-          <div className={styles.paymentTotalValue}>{formatRp(total)}</div>
+          <div className={styles.paymentTotalValue}>{formatRp(roundedTotal)}</div>
         </div>
       </div>
 
@@ -501,10 +517,10 @@ export default function CheckoutPage() {
       <div className={styles.stickyBar}>
         <div className={styles.rowTop}>
           <div className={styles.totalLabel}>Total Pembayaran</div>
-          <div className={styles.totalAmount}>{formatRp(total)}</div>
+          <div className={styles.totalAmount}>{formatRp(roundedTotal)}</div>
         </div>
 
-        <button className={styles.payBtn} onClick={() => confirmPayment(total)}>Proses Pembayaran</button>
+        <button className={styles.payBtn} onClick={() => confirmPayment(roundedTotal)}>Proses Pembayaran</button>
       </div>
 
       {/* AddPopup anchored to addBtnRef */}

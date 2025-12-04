@@ -20,11 +20,12 @@
   /* height: 167px; */
   border-radius: 8px;
   overflow: hidden;
+  justify-items: center;
   flex-shrink: 0; /* ensure image never shrinks */
 }
 
 .cardImageTag {
-  object-fit: contain;
+  object-fit: cover;
 }
 
 

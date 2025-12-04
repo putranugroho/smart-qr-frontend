@@ -20,6 +20,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   const productCode = propProductCode || q.productCode || propItem.code || propItem.productCode || propItem.id
 
   const initialItem = {
+    code: propItem.code || propItem.id || undefined,
     title: q.title || propItem.name || propItem.title || '',
     price: q.price ? Number(q.price) : (propItem.price ?? 0),
     image: q.image || propItem.imagePath || propItem.image || '',
@@ -81,8 +82,11 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
           if (Array.isArray(cartItem.addons)) {
             const sel = {}
+            // cartItem.addons expected as [{ code, qty, price }]
             cartItem.addons.forEach(a => {
-              sel[a.group] = a.selected ?? null
+              // restore selection by matching addon code
+              // we store selected by addon group in selected state; if unknown keep null
+              sel[a.group] = a.code || a.id || null
             })
             setSelected(prev => ({ ...prev, ...sel }))
           }
@@ -266,91 +270,92 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   }
 
   function buildOrderObject() {
-    // Map addons into shape for cart (kept similar to previous structure)
-    const addonsForCart = addons.map(g => {
+    // 1. Map addons ke bentuk array simple
+    const addonsForCart = addons.flatMap(g => {
       const val = selected[g.group];
-      if (val === NONE_OPTION_ID || val == null) {
-        return { group: g.group, groupName: g.name ?? g.group, selected: null };
-      }
+      if (val == null || val === NONE_OPTION_ID) return [];
+
       if (Array.isArray(val)) {
-        const items = val.map(v => {
+        return val.map(v => {
           const opt = findOption(g, v);
-          if (opt) {
-            return {
-              id: opt.id ?? null,
-              code: opt.code ?? String(opt.code ?? ''),
-              name: opt.name ?? '',
-              price: Number(opt.price || 0),
-              image: opt.image || ''
-            };
-          }
-          return { id: v, code: String(v), name: String(v), price: 0, image: '' };
-        });
-        return { group: g.group, groupName: g.name ?? g.group, selected: items };
-      } else {
-        const opt = findOption(g, val);
-        if (opt) {
           return {
             group: g.group,
             groupName: g.name ?? g.group,
-            selected: { id: opt.id ?? null, code: opt.id ?? String(opt.id ?? ''), name: opt.name ?? '', price: Number(opt.price || 0), image: opt.image || '' }
+            code: opt ? String(opt.id) : String(v),
+            qty: 1,
+            price: opt ? Number(opt.price || 0) : 0
           };
-        }
-        return { group: g.group, groupName: g.name ?? g.group, selected: null };
+        });
       }
+
+      const opt = findOption(g, val);
+      return [{
+        group: g.group,
+        groupName: g.name ?? g.group,
+        code: opt ? String(opt.id) : String(val),
+        qty: 1,
+        price: opt ? Number(opt.price || 0) : 0
+      }];
     });
 
-    // compute addon total for a single unit (not multiplied by qty)
-    const addonTotalSingle = (addons || []).reduce((acc, g) => {
-      const sel = selected[g.group];
-      if (!sel || sel === NONE_OPTION_ID) return acc;
-      if (Array.isArray(sel)) {
-        return acc + sel.reduce((s, v) => {
-          const opt = findOption(g, v);
-          return s + (opt ? Number(opt.price || 0) : 0);
-        }, 0);
-      } else {
-        const opt = findOption(g, sel);
-        return acc + (opt ? Number(opt.price || 0) : 0);
-      }
-    }, 0);
+    // 2. Hitung addon total / unit
+    const addonTotalSingle = addonsForCart.reduce(
+      (acc, a) => acc + (Number(a.price || 0) * Number(a.qty || 1)),
+      0
+    );
 
-    const basePrice = Number(item.price || 0); // base price per unit from API
-    const unitPrice = basePrice + addonTotalSingle; // price per unit including addon
+    const basePrice = Number(item.price || 0);
+    const unitPrice = basePrice + addonTotalSingle;
 
-    // taxes array from API format (e.g. [{ id, code, name, amount: 10 }])
-    const taxesArr = Array.isArray(item.taxes) ? item.taxes : [];
-    
+    // 3. Ambil data pajak dari menu (propItem)
+    // Jika tidak ada, fallback ke item
+    const apiItem = propItem && Object.keys(propItem).length
+      ? propItem
+      : item || {};
 
-    // cari percent PB1 dan PPN (jika ada). Cek nama dan/atau code agar robust.
-    const pb1Percent = taxesArr
-      .filter(t => String(t.name ?? t.code ?? '').toUpperCase().includes('PB1') || String(t.code ?? '').toUpperCase().includes('TAX001'))
-      .reduce((acc, t) => acc + Number(t.amount || 0), 0);
+    const rawTaxes = Array.isArray(apiItem.taxes)
+      ? apiItem.taxes
+      : [];
 
-    const ppnPercent = taxesArr
-      .filter(t => String(t.name ?? t.code ?? '').toUpperCase().includes('PPN') || String(t.code ?? '').toUpperCase().includes('TAX002'))
-      .reduce((acc, t) => acc + Number(t.amount || 0), 0);
+    // 4. Map pajak ke format yang dipakai checkout
+    const taxesArr = rawTaxes.map(t => ({
+      taxName: t.name || t.code || '',
+      taxPercentage: Number(t.amount || 0),
+      taxAmount: 0
+    }));
 
-    const hasPB1 = pb1Percent > 0;
-    const hasPPN = ppnPercent > 0;
+    // 5. Deteksi PB1 & PPN
+    const pb1Meta = rawTaxes.find(t =>
+      String(t.name ?? t.code ?? '').toUpperCase().includes('PB')
+    );
 
-    // build final order object to put into cart
-    return {
-      id: item.id ?? item.code ?? null,
-      productCode: item.code ?? item.id ?? null,
-      title: item.name ?? item.itemName ?? item.title ?? '',
-      price: Number(unitPrice),   // price per unit INCLUDING addons
+    const ppnMeta = rawTaxes.find(t => {
+      const name = String(t.name ?? t.code ?? '').toUpperCase();
+      return name.includes('PPN') || name.includes('VAT');
+    });
+
+    // 6. Buat object final ke cart
+    const final_order = {
+      id: String(apiItem.code ?? apiItem.id ?? item.code ?? ''),
+      productCode: String(apiItem.code ?? apiItem.id ?? item.code ?? ''),
+      title: String(item.title || apiItem.name || ''),
+      price: Number(unitPrice),
       qty: Number(qty || 1),
-      image: item.image || item.imagePath || '/images/gambar-menu.jpg',
-      note,
+      image: item.image || apiItem.imagePath || '/images/gambar-menu.jpg',
+      note: String(note || ''),
+
       addons: addonsForCart,
-      // simpan tax metadata (keterangan saja)
-      taxes: taxesArr,             // raw taxes array
-      pb1Percent: Number(pb1Percent || 0),
-      ppnPercent: Number(ppnPercent || 0),
-      hasPB1,
-      hasPPN
+      taxes: taxesArr,
+
+      pb1Percent: pb1Meta ? Number(pb1Meta.amount || 0) : 0,
+      ppnPercent: ppnMeta ? Number(ppnMeta.amount || 0) : 0,
+
+      hasPB1: !!pb1Meta,
+      hasPPN: !!ppnMeta
     };
+
+    console.log('final_order', final_order);
+    return final_order;
   }
 
   function handleAddToCart() {

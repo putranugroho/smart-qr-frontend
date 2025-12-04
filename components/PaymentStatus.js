@@ -27,13 +27,15 @@ export default function PaymentStatus() {
   useEffect(() => {
     const s = sessionStorage.getItem('midtrans_tx')
     const meta = sessionStorage.getItem('order_meta')
-    const r = sessionStorage.getItem('do_order_item')
+    const r = sessionStorage.getItem('do_order_result')
+    console.log("r",r);
+    
     if (r) {
       try {
         const parsed = JSON.parse(r)
         setOrderCode(parsed?.data?.orderCode || null)
       } catch (e) {
-        console.warn("invalid do_order_item session", e)
+        console.warn("invalid do_order_result session", e)
       }
     }
     if (s) {
@@ -42,7 +44,7 @@ export default function PaymentStatus() {
     if (meta) {
       try { setOrderMeta(JSON.parse(meta)) } catch (e) { console.warn('Invalid order_meta', e) }
     }
-    console.log(orderMeta);
+    // console.log("s",tx.order_id);
     
     setIsMounted(true)
   }, [])
@@ -61,12 +63,19 @@ export default function PaymentStatus() {
   }
 
   async function callDoPayment(orderCode, paymentAmount, reference) {
+    const payload ={
+        orderCode,
+        payment: paymentAmount,
+        reference
+      }
+    console.log("payload",payload);
+    
     const resp = await fetch('/api/order/do-payment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         orderCode,
-        payment: paymentAmount,
+        payment: "GOPAY",
         reference
       })
     });
@@ -98,9 +107,9 @@ export default function PaymentStatus() {
   // --- Polling: check status immediately and then every 5s
   useEffect(() => {
     async function check() {
-      if (!orderMeta?.orderId) return
+      if (!tx.order_id) return
       try {
-        const r = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(orderMeta.orderId)}`)
+        const r = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(tx.order_id)}`)
         const j = await r.json()
         setStatusMessage(JSON.stringify(j, null, 2))
         const txStatus = (j.transaction_status || j.status || '').toString().toLowerCase()
@@ -109,13 +118,13 @@ export default function PaymentStatus() {
           stopPolling()
           
           try {
-            const result = await callDoPayment(orderCode, subtotal, orderMeta.orderId);
+            const result = await callDoPayment(orderCode, subtotal, tx.order_id);
             console.log('do-payment result', result);
           } catch (e) {
             console.error('call failed', e);
           }
 
-          router.push(`/order/${orderMeta.orderId}`)
+          router.push(`/order/${tx.order_id}`)
         }
       } catch (err) {
         console.warn('status check failed', err)
@@ -260,10 +269,15 @@ export default function PaymentStatus() {
 
   // --- Manual check triggered by button
   async function checkStatus() {
-    console.log(orderMeta);
-    const orderId = orderMeta?.orderId
+    const orderId = tx.order_id
     if (!orderId) return alert('Order ID tidak ditemukan')
     setChecking(true)
+        try {
+            const result = await callDoPayment(orderCode, subtotal, tx.order_id);
+            console.log('do-payment result', result);
+          } catch (e) {
+            console.error('call failed', e);
+          }
     try {
       const r = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(orderId)}`)
       const j = await r.json()

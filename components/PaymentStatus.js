@@ -265,12 +265,9 @@ export default function PaymentStatus() {
   async function checkStatus() {
     const orderId = tx.order_id
     if (!orderId) return alert('Order ID tidak ditemukan')
-    alert("transaksi midtrans: " + tx);
     setChecking(true)
     try {
       const r = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(orderId)}`)
-      const clone = await r.clone().json();  // salinan untuk debug
-      alert("fetch: " + JSON.stringify(clone, null, 2));
       const j = await r.json()
       setStatusMessage(JSON.stringify(j, null, 2))
       const txStatus = (j.transaction_status || j.status || '').toString().toLowerCase()

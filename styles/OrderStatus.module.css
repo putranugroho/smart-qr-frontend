@@ -429,15 +429,6 @@
   background: #fff;
   padding: 6px 0;
 }
-.itemImageWrap {
-  width: 64px;
-  height: 64px;
-  flex: 0 0 64px;
-}
-.itemImage {
-  border-radius: 6px;
-  object-fit: cover;
-}
 .itemInfo {
   flex: 1;
 }

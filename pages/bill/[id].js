@@ -14,7 +14,7 @@ export default function BillPage() {
   const router = useRouter();
   const { id } = router.query;
   const [dataOrder, setDataOrder] = useState("")
-  const [urlLogo, setUrlLogo] = useState("")
+  const [urlLogo, setUrlLogo] = useState("/images/pay-gopay.png")
   const printRef = useRef();
 
   const [payment, setPayment] = useState({ items: [], paymentTotal: 0 });

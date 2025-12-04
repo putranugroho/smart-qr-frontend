@@ -102,8 +102,6 @@ export default function PaymentStatus() {
   useEffect(() => {
     async function check() {
       if (!tx.order_id) return
-      alert("transaksi midtrans: " + tx);
-      
       try {
         const r = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(tx.order_id)}`)
         const j = await r.json()
@@ -267,10 +265,11 @@ export default function PaymentStatus() {
   async function checkStatus() {
     const orderId = tx.order_id
     if (!orderId) return alert('Order ID tidak ditemukan')
+    alert("transaksi midtrans: " + tx);
     setChecking(true)
     try {
       const r = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(orderId)}`)
-      alert("fetch: "+ r.json() )
+      alert("fetch: "+ r.toString() )
       const j = await r.json()
       setStatusMessage(JSON.stringify(j, null, 2))
       const txStatus = (j.transaction_status || j.status || '').toString().toLowerCase()

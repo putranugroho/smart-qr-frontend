@@ -9,6 +9,46 @@ function formatRp(n) {
   return 'Rp' + new Intl.NumberFormat('id-ID').format(Number(n || 0))
 }
 
+// helper: calculate taxes for a single item (handles combo and normal)
+function calculateItemTaxes(it) {
+  // returns { base: Number, pb1: Number, ppn: Number }
+  let base = 0
+  let pb1 = 0
+  let ppn = 0
+
+  if (it.type === 'combo' && it.combos && it.combos[0] && it.combos[0].products) {
+    // sum each product price * qty
+    const products = it.combos[0].products
+    base = products.reduce((t, p) => t + (Number(p.price || 0) * Number(p.qty || 1)), 0) * Number(it.qty || 1)
+
+    products.forEach((p) => {
+      const lineBase = Number(p.price || 0) * Number(p.qty || 1) * Number(it.qty || 1) // include combo qty
+      if (Array.isArray(p.taxes)) {
+        p.taxes.forEach((tx) => {
+          const pct = Number(tx.taxPercentage || 0)
+          const amount = Math.round(lineBase * pct / 100)
+          if ((tx.taxName || '').toUpperCase().includes('PB1')) pb1 += amount
+          else if ((tx.taxName || '').toUpperCase().includes('PPN') || (tx.taxName || '').toUpperCase().includes('PNN')) ppn += amount
+        })
+      }
+    })
+  } else {
+    // normal item
+    const qty = Number(it.qty || 1)
+    base = Number(it.price || 0) * qty
+    if (Array.isArray(it.taxes)) {
+      it.taxes.forEach((tx) => {
+        const pct = Number(tx.taxPercentage || 0)
+        const amount = Math.round(base * pct / 100)
+        if ((tx.taxName || '').toUpperCase().includes('PB1')) pb1 += amount
+        else if ((tx.taxName || '').toUpperCase().includes('PPN') || (tx.taxName || '').toUpperCase().includes('PNN')) ppn += amount
+      })
+    }
+  }
+
+  return { base, pb1, ppn }
+}
+
 export default function OrderStatus() {
   const router = useRouter()
   const { id } = router.query
@@ -19,44 +59,46 @@ export default function OrderStatus() {
   const [urlLogo, setUrlLogo] = useState("")
   const [showAllItems, setShowAllItems] = useState(false) // new state
 
+  /* 1) read sessionStorage once on mount -> setDataOrder */
   useEffect(() => {
-    const s = sessionStorage.getItem('midtrans_tx')
+    const s = sessionStorage.getItem('midtrans_tx');
     if (s) {
-      try { setDataOrder(JSON.parse(s)) } catch (e) { console.warn('Invalid midtrans_tx', e) }
+      try { setDataOrder(JSON.parse(s)); }
+      catch (e) { console.warn('Invalid midtrans_tx', e); }
     }
-    if (dataOrder) {
-      switch (dataOrder.payment_type) {
-        case 'qris':
-          setUrlLogo("/images/pay-qris.png")
-          break;
-        case 'shopee': 
-          setUrlLogo("/images/pay-shopee.png")
-          break;
-        case 'ovo': 
-          setUrlLogo("/images/pay-ovo.png")
-          break;
-        case 'dana': 
-          setUrlLogo("/images/pay-dana.png")
-          break;
-      
-        default:
-          setUrlLogo("/images/pay-gopay.png")
-          break;
-      }
+    // only runs once on mount
+  }, []);
+
+  /* 2) when dataOrder changes, set urlLogo accordingly
+    -> DOES NOT write dataOrder, so safe to include dataOrder in deps */
+  useEffect(() => {
+    if (!dataOrder) return;
+    switch (dataOrder.payment_type) {
+      case 'qris': setUrlLogo('/images/pay-qris.png'); break;
+      case 'shopee': setUrlLogo('/images/pay-shopee.png'); break;
+      case 'ovo': setUrlLogo('/images/pay-ovo.png'); break;
+      case 'dana': setUrlLogo('/images/pay-dana.png'); break;
+      default: setUrlLogo('/images/pay-gopay.png'); break;
     }
-    
-    if (router.isReady) setDisplayOrderId(String(id))
-    const item = getPayment() || {}
-    const p = { items: item.cart, paymentTotal: item.paymentTotal}
-    console.log("getpayment:", p);
-  
+  }, [dataOrder]);
+
+  /* 3) set displayOrderId when router is ready (depends on router.isReady & id) */
+  useEffect(() => {
+    if (router.isReady) setDisplayOrderId(String(id || ''));
+  }, [router.isReady, id]);
+
+  /* 4) initialize payment (getPayment) once (or when router ready)
+    Put router.isReady in deps if you want to wait until router ready. */
+  useEffect(() => {
+    const item = getPayment() || {};
+    const p = { items: item.cart || [], paymentTotal: item.paymentTotal || 0 };
     if (p && p.items && p.items.length) {
-      setPayment(p)
-      setCurrentStep(2)
+      setPayment(p);
+      setCurrentStep(2);
     } else {
-      setPayment({ items: [], paymentTotal: 0 })
+      setPayment({ items: [], paymentTotal: 0 });
     }
-  }, [router.isReady, id])
+  }, []); // or [router.isReady] if needed
 
   const steps = [
     { key: 1, title: 'Pesanan Selesai', desc: 'Pesanan sudah selesai', img : '/images/check-icon.png'},
@@ -65,12 +107,33 @@ export default function OrderStatus() {
     { key: 4, title: 'Pesanan Dibuat', desc: 'Pesanan kamu sudah dibuat', img : '/images/mobile-icon.png' },
   ]
 
-  const subtotal = payment.paymentTotal || 0
-  const tax = Math.round(subtotal * 0.10)
-  const total = subtotal + tax
-
+  // compute derived totals from items using tax definitions on each item
   const items = payment.items || []
   const itemsCount = items.length
+
+  let computedSubtotal = 0
+  let computedPB1 = 0
+  let computedPPN = 0
+
+  items.forEach((it) => {
+    const t = calculateItemTaxes(it)
+    computedSubtotal += t.base
+    computedPB1 += t.pb1
+    computedPPN += t.ppn
+  })
+
+  // rounding already done per-line; ensure integers
+  computedSubtotal = Math.round(computedSubtotal)
+  computedPB1 = Math.round(computedPB1)
+  computedPPN = Math.round(computedPPN)
+
+  // unrounded total (before rounding-to-100)
+  const unroundedTotal = computedSubtotal + computedPB1 + computedPPN
+
+  // rounding to nearest 100 (ubah ke Math.ceil untuk selalu naik)
+  const roundedTotal = Math.round(unroundedTotal / 100) * 100
+  const roundingAmount = roundedTotal - unroundedTotal // bisa negatif, zero, atau positive
+  const total = roundedTotal
 
   // decide which items to render: if showAllItems true -> all, else just first (if >=1)
   const visibleItems = showAllItems ? items : (itemsCount > 0 ? [items[0]] : [])
@@ -256,17 +319,23 @@ export default function OrderStatus() {
 
         <div className={styles.paymentRow}>
           <div>Subtotal ({itemsCount} menu)</div>
-          <div className={styles.paymentValue}>{formatRp(subtotal)}</div>
+          <div className={styles.paymentValue}>{formatRp(computedSubtotal)}</div>
         </div>
 
         <div className={styles.paymentRow}>
           <div>PB1 (10%)</div>
-          <div className={styles.paymentValue}>{formatRp(tax)}</div>
+          <div className={styles.paymentValue}>{formatRp(computedPB1)}</div>
         </div>
 
         <div className={styles.paymentRow}>
-          <div>Fees</div>
-          <div className={styles.paymentValue}>Rp0</div>
+          <div>PNN (11%)</div>
+          <div className={styles.paymentValue}>{formatRp(computedPPN)}</div>
+        </div>
+
+        {/* NEW: Rounding row */}
+        <div className={styles.paymentRow}>
+          <div>Rounding</div>
+          <div className={styles.paymentValue}>{formatRp(roundingAmount)}</div>
         </div>
 
         <div className={styles.paymentTotalRow}>

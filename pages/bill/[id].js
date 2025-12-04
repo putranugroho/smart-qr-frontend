@@ -1,3 +1,4 @@
+// FILE: pages/bill/[id].js
 import { useRouter } from "next/router";
 import { useEffect, useState, useRef } from "react";
 import Image from "next/image";
@@ -10,6 +11,40 @@ function formatRp(n) {
   return "Rp" + new Intl.NumberFormat("id-ID").format(Number(n || 0));
 }
 
+// helper same as order page
+function calculateItemTaxes(it) {
+  let base = 0
+  let pb1 = 0
+  let ppn = 0
+  if (it.type === 'combo' && it.combos && it.combos[0] && it.combos[0].products) {
+    const products = it.combos[0].products
+    base = products.reduce((t, p) => t + (Number(p.price || 0) * Number(p.qty || 1)), 0) * Number(it.qty || 1)
+    products.forEach((p) => {
+      const lineBase = Number(p.price || 0) * Number(p.qty || 1) * Number(it.qty || 1)
+      if (Array.isArray(p.taxes)) {
+        p.taxes.forEach((tx) => {
+          const pct = Number(tx.taxPercentage || 0)
+          const amount = Math.round(lineBase * pct / 100)
+          if ((tx.taxName || '').toUpperCase().includes('PB1')) pb1 += amount
+          else if ((tx.taxName || '').toUpperCase().includes('PPN') || (tx.taxName || '').toUpperCase().includes('PNN')) ppn += amount
+        })
+      }
+    })
+  } else {
+    const qty = Number(it.qty || 1)
+    base = Number(it.price || 0) * qty
+    if (Array.isArray(it.taxes)) {
+      it.taxes.forEach((tx) => {
+        const pct = Number(tx.taxPercentage || 0)
+        const amount = Math.round(base * pct / 100)
+        if ((tx.taxName || '').toUpperCase().includes('PB1')) pb1 += amount
+        else if ((tx.taxName || '').toUpperCase().includes('PPN') || (tx.taxName || '').toUpperCase().includes('PNN')) ppn += amount
+      })
+    }
+  }
+  return { base, pb1, ppn }
+}
+
 export default function BillPage() {
   const router = useRouter();
   const { id } = router.query;
@@ -18,40 +53,54 @@ export default function BillPage() {
   const printRef = useRef();
 
   const [payment, setPayment] = useState({ items: [], paymentTotal: 0 });
-  const subtotal = payment.paymentTotal || 0;
-  const tax = Math.round(subtotal * 0.10);
-  const total = subtotal + tax;
 
   useEffect(() => {
-    const p = getPayment() || {};
-    if (p && p.items) setPayment(p);
-    const s = sessionStorage.getItem('midtrans_tx')
+    const gp = getPayment() || {};
+    setPayment({
+      items: gp.cart || [],
+      paymentTotal: gp.paymentTotal || 0,
+    });
+
+    const s = sessionStorage.getItem("midtrans_tx");
     if (s) {
-      try { setDataOrder(JSON.parse(s)) } catch (e) { console.warn('Invalid midtrans_tx', e) }
-    }
-    console.log(dataOrder);
-    
-    if (dataOrder) {
-      switch (dataOrder.payment_type) {
-        case 'qris':
-          setUrlLogo("/images/pay-qris.png")
-          break;
-        case 'shopee': 
-          setUrlLogo("/images/pay-shopee.png")
-          break;
-        case 'ovo': 
-          setUrlLogo("/images/pay-ovo.png")
-          break;
-        case 'dana': 
-          setUrlLogo("/images/pay-dana.png")
-          break;
-      
-        default:
-          setUrlLogo("/images/pay-gopay.png")
-          break;
-      }
+      try { setDataOrder(JSON.parse(s)); }
+      catch (e) { console.warn("Invalid midtrans_tx", e); }
     }
   }, []);
+
+  useEffect(() => {
+    if (!dataOrder) return;
+
+    switch (dataOrder.payment_type) {
+      case "qris": setUrlLogo("/images/pay-qris.png"); break;
+      case "shopee": setUrlLogo("/images/pay-shopee.png"); break;
+      case "ovo": setUrlLogo("/images/pay-ovo.png"); break;
+      case "dana": setUrlLogo("/images/pay-dana.png"); break;
+      default: setUrlLogo("/images/pay-gopay.png"); break;
+    }
+  }, [dataOrder]);
+
+  // compute totals
+  const items = payment.items || []
+  let subtotal = 0
+  let pb1Total = 0
+  let ppnTotal = 0
+
+  items.forEach((it) => {
+    const t = calculateItemTaxes(it)
+    subtotal += t.base
+    pb1Total += t.pb1
+    ppnTotal += t.ppn
+  })
+
+  subtotal = Math.round(subtotal)
+  pb1Total = Math.round(pb1Total)
+  ppnTotal = Math.round(ppnTotal)
+
+  const unroundedTotal = subtotal + pb1Total + ppnTotal
+  const roundedTotal = Math.round(unroundedTotal / 100) * 100
+  const roundingAmount = roundedTotal - unroundedTotal
+  const total = roundedTotal
 
   // =================================
   // =========== DOWNLOAD PDF ==========
@@ -88,21 +137,58 @@ export default function BillPage() {
         </div>
 
         {/* ITEMS */}
-        {payment.items.map((it, i) => (
+        {payment.items.map((it, i) => {
+        // ============================
+        // COMBO ITEM RENDERER
+        // ============================
+        if (it.type === "combo") {
+          const comboTotal = it.combos?.[0]?.products?.reduce((t, p) => t + (p.price * (p.qty || 1)), 0) || 0
+          return (
+            <div key={i} className={styles.itemRow}>
+              <div className={styles.itemLeft}>
+
+                {/* NAMA COMBO */}
+                <div className={styles.itemTitle}>
+                  {it.detailCombo?.name || it.title} ({it.qty}x)
+                </div>
+
+                {/* LIST PRODUK DI DALAM COMBO */}
+                <div className={styles.itemAddon}>
+                  {it.combos?.[0]?.products?.map((p, idx) => (
+                    <div key={idx}>
+                      • {p.name}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* HARGA TOTAL COMBO */}
+              <div className={styles.itemRight}>
+                {formatRp(
+                  it.combos?.[0]?.products?.reduce((t, p) => t + (p.price * (p.qty || 1)), 0)
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        // ============================
+        // NON-COMBO NORMAL ITEM
+        // ============================
+        return (
           <div key={i} className={styles.itemRow}>
             <div className={styles.itemLeft}>
               <div className={styles.itemTitle}>{it.title}</div>
 
               <div className={styles.itemAddon}>
-                {it.qty}x Air Mineral
-                <br />
-                1x No Add Ons
+                {it.qty}x No Add Ons
               </div>
             </div>
 
             <div className={styles.itemRight}>{formatRp(it.price)}</div>
           </div>
-        ))}
+        );
+      })}
 
         {/* PEMBAYARAN ONLINE BOX */}
         <div className={styles.paymentBox}>
@@ -121,12 +207,18 @@ export default function BillPage() {
 
           <div className={styles.detailRow}>
             <div>PB1 (10%)</div>
-            <div>{formatRp(tax)}</div>
+            <div>{formatRp(pb1Total)}</div>
           </div>
 
           <div className={styles.detailRow}>
-            <div>PNN (10%)</div>
-            <div>Rp0</div>
+            <div>PNN (11%)</div>
+            <div>{formatRp(ppnTotal)}</div>
+          </div>
+
+          {/* NEW: Rounding row */}
+          <div className={styles.detailRow}>
+            <div>Rounding</div>
+            <div>{formatRp(roundingAmount)}</div>
           </div>
 
           <div className={styles.totalRow}>

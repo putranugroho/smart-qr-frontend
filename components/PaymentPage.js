@@ -4,7 +4,7 @@ import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import styles from '../styles/PaymentPage.module.css'
 import Image from 'next/image'
-import { getPayment } from '../lib/cart'
+import { getPayment, clearCart } from '../lib/cart'
 import { mapDoOrderPayload } from '../lib/order'
 
 function formatRp(n) {
@@ -118,7 +118,7 @@ export default function PaymentPage() {
       if (!doOrderResp.ok) throw new Error(doOrderData.error || 'Gagal do-order');
 
       console.log("doOrderData", doOrderData);
-      
+      clearCart()
 
       sessionStorage.setItem("do_order_result", JSON.stringify(doOrderData));
 
@@ -213,16 +213,6 @@ export default function PaymentPage() {
             <div className={styles.radio}>{selectedMethod === m ? '✔' : ''}</div>
           </div>
         ))}
-      </div>
-
-      {/* PAY SUMMARY PREVIEW */}
-      <div className={styles.section}>
-        <div className={styles.sectionTitle}>Ringkasan Pembayaran</div>
-        <div style={{padding:12}}>
-          <div style={{display:'flex',justifyContent:'space-between'}}><div>Subtotal</div><div>{formatRp(subtotal)}</div></div>
-          <div style={{display:'flex',justifyContent:'space-between'}}><div>Taxes</div><div>{formatRp(taxes)}</div></div>
-          <div style={{display:'flex',justifyContent:'space-between',fontWeight:700,marginTop:8}}><div>Total</div><div>{formatRp(total)}</div></div>
-        </div>
       </div>
 
       {/* STICKY FOOTER */}

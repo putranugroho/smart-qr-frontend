@@ -395,12 +395,115 @@ export default function PaymentStatus() {
     return <div>Instruksi pembayaran tidak tersedia.</div>
   }
 
+  // -----------------------
+  // --- NAVIGATION GUARD
+  // -----------------------
+
+  // helper: show modal and return promise resolved with true/false
+  function askConfirmLeave() {
+    return new Promise(resolve => {
+      leaveResolveRef.current = resolve
+      setShowLeaveModal(true)
+    })
+  }
+
+  // call this when user clicks "Ya" / "Tidak" on modal
+  function handleModalAnswer(answer) {
+    setShowLeaveModal(false)
+    const resolve = leaveResolveRef.current
+    leaveResolveRef.current = null
+    if (typeof resolve === 'function') resolve(Boolean(answer))
+  }
+
+  // Intercept header back button (use this instead of router.push directly)
+  async function handleBackButtonClick() {
+    const ok = await askConfirmLeave()
+    if (ok) {
+      // allow leaving -> navigate back to checkout (or wherever)
+      router.push('/checkout')
+    }
+    // else do nothing (stay)
+  }
+
+  // 1) Prevent SPA route changes (Next.js) unless confirmed
+  useEffect(() => {
+    // beforePopState intercepts client-side browser back in Next
+    const prevBefore = router.beforePopState
+    router.beforePopState(async (state) => {
+      // state: { url, as, options } -> but cannot be async directly; we'll block via history API/popstate as fallback
+      // We'll show modal and decide: if confirmed -> allow (return true). If not -> disallow (return false).
+      // Note: The function must be sync, so we'll use history.pushState + show modal fallback for popstate below.
+      return true
+    })
+
+    return () => {
+      // restore default behavior on unmount to avoid affecting other pages
+      try { router.beforePopState(() => true) } catch (e) {}
+    }
+  }, [router])
+
+  // 2) Use history API + popstate to trap back / hardware back
+  useEffect(() => {
+    // push a dummy state so back button triggers popstate here
+    const pushDummy = () => {
+      try {
+        history.pushState({ paymentStatusGuard: true }, '')
+      } catch (e) { /* some browsers may throw in weird contexts */ }
+    }
+
+    // initial push
+    pushDummy()
+
+    let handling = false
+    const onPopState = (e) => {
+      // if our dummy state present, show modal; otherwise allow navigation
+      // Avoid infinite loops by checking handling flag
+      if (handling) return
+      handling = true
+
+      // show modal
+      askConfirmLeave().then(ok => {
+        if (ok) {
+          // user confirmed -> allow natural back: go back one step (which will be the page behind dummy)
+          // But since popstate already happened, we should navigate programmatically to desired route:
+          // Use router.back() to let Next.js handle it.
+          router.back()
+        } else {
+          // user canceled -> re-insert dummy state so back button still hits us
+          pushDummy()
+        }
+        handling = false
+      }).catch(() => {
+        // fallback: re-insert dummy
+        pushDummy()
+        handling = false
+      })
+    }
+
+    window.addEventListener('popstate', onPopState)
+
+    // also protect reload/close
+    const onBeforeUnload = (e) => {
+      // show browser confirmation dialog on page unload
+      // Note: modern browsers ignore custom message; returning a value triggers confirmation
+      e.preventDefault()
+      e.returnValue = '' // this triggers the dialog
+      return ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+
+    return () => {
+      window.removeEventListener('popstate', onPopState)
+      window.removeEventListener('beforeunload', onBeforeUnload)
+    }
+  }, [router])
+
   const minutes = String(Math.floor(timeLeft / 60)).padStart(2, '0')
   const seconds = String(timeLeft % 60).padStart(2, '0')
 
   // show total if available in orderMeta or via getPayment
   const payment = getPayment?.() || {}
-  const subtotal = orderMeta?.total || payment.paymentTotal || 0
+  const subtotal = payment.paymentTotal || orderMeta?.total || 0
 
   return (
     <div className={styles.page}>
@@ -431,11 +534,19 @@ export default function PaymentStatus() {
         </button>
       </div>
 
-      {/* {statusMessage && (
-        <pre style={{ marginTop: 12, background: '#f5f5f5', padding: 12, maxHeight: 240, overflow: 'auto' }}>
-          {statusMessage}
-        </pre>
-      )} */}
+      {/* Confirmation Modal */}
+      {showLeaveModal && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modal}>
+            <h3>Konfirmasi</h3>
+            <p>Apakah Anda yakin ingin meninggalkan halaman pembayaran? Pembayaran mungkin belum selesai.</p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+              <button className={styles.btnSecondary} onClick={() => handleModalAnswer(false)}>Batal</button>
+              <button className={styles.btnPrimary} onClick={() => handleModalAnswer(true)}>Ya, tinggalkan</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -23,6 +23,10 @@ export default function PaymentStatus() {
   const [qrError, setQrError] = useState(null)
   const pollRef = useRef(null)
 
+  // --- NEW: confirmation modal state
+  const [showLeaveModal, setShowLeaveModal] = useState(false)
+  const leaveResolveRef = useRef(null) // to resolve Promise when modal answered
+
   // --- Load tx & meta from sessionStorage
   useEffect(() => {
     const s = sessionStorage.getItem('midtrans_tx')

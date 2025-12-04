@@ -112,7 +112,7 @@ export default function PaymentStatus() {
           stopPolling()
           
           try {
-            const result = await callDoPayment(orderCode, subtotal, tx.order_id);
+            const result = await callDoPayment(orderCode, j.payment_type, j.order_id);
             console.log('do-payment result', result);
           } catch (e) {
             console.error('call failed', e);
@@ -276,7 +276,7 @@ export default function PaymentStatus() {
       const txStatus = (j.transaction_status || j.status || '').toString().toLowerCase()
       if (['capture','settlement','success'].includes(txStatus)) {
         try {
-          const result = await callDoPayment(orderCode, subtotal, orderId);
+          const result = await callDoPayment(orderCode, j.payment_type, j.order_id);
           console.log('do-payment result', result);
         } catch (e) {
           console.error('call failed', e);

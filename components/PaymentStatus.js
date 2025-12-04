@@ -270,7 +270,7 @@ export default function PaymentStatus() {
     setChecking(true)
     try {
       const r = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(orderId)}`)
-      alert("fetch: "+ r )
+      alert("fetch: "+ r.json() )
       const j = await r.json()
       setStatusMessage(JSON.stringify(j, null, 2))
       const txStatus = (j.transaction_status || j.status || '').toString().toLowerCase()

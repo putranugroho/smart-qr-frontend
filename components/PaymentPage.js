@@ -43,7 +43,7 @@ export default function PaymentPage() {
   function buildPayload() {
     const cart = payment.cart || [];
     const payload = mapDoOrderPayload(cart, null, selectedMethod, {
-      posId: 'POS1',
+      posId: 'QR',
       orderType: 'DI',
       tableNumber
     });

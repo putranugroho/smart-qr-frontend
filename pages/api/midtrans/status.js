@@ -7,11 +7,13 @@ export default async function handler(req, res) {
   if (!orderId) return res.status(400).json({ error: 'orderId required' });
 
   try {
-    const isProduction = process.env.MIDTRANS_IS_PRODUCTION === 'true';
+    const isProduction = process.env.MIDTRANS_IS_PRODUCTION;
     const serverKey = process.env.MIDTRANS_SERVER_KEY_PRODUCTION;
     const core = new MidtransClient.CoreApi({ isProduction, serverKey });
 
     const status = await core.transaction.status(orderId);
+    alert("status midtrans", status);
+    
     return res.status(200).json(status);
   } catch (err) {
     console.error('status error', err);

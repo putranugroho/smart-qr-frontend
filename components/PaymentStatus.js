@@ -42,6 +42,8 @@ export default function PaymentStatus() {
     if (meta) {
       try { setOrderMeta(JSON.parse(meta)) } catch (e) { console.warn('Invalid order_meta', e) }
     }
+    console.log(orderMeta);
+    
     setIsMounted(true)
   }, [])
 
@@ -258,6 +260,7 @@ export default function PaymentStatus() {
 
   // --- Manual check triggered by button
   async function checkStatus() {
+    console.log(orderMeta);
     const orderId = orderMeta?.orderId
     if (!orderId) return alert('Order ID tidak ditemukan')
     setChecking(true)

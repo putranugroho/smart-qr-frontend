@@ -31,7 +31,7 @@ export default function PaymentPage() {
       cart: pay.cart && pay.cart.length > 0 ? pay.cart : sessionCart,
       paymentTotal: pay.paymentTotal || sessionTotal,
       storeCode: pay.storeCode || sessionStore,
-      pagerNumber: pay.pagerNumber || sessionStorage.getItem('yoshi_pager_number') || null
+      tableNumber: '24'
     };
 
     setPayment(merged);
@@ -42,9 +42,9 @@ export default function PaymentPage() {
   function buildPayload() {
     const cart = payment.cart || [];
     const payload = mapDoOrderPayload(cart, null, selectedMethod, {
-      posId: payment.storeCode || 'MGI',
+      posId: 'POS1',
       orderType: 'DI',
-      pagerNumber: payment.pagerNumber || '99'
+      tableNumber: '24'
     });
     return payload;
   }
@@ -91,19 +91,19 @@ export default function PaymentPage() {
       
 
       // === 2. DO-ORDER ===
-      // const doOrderResp = await fetch('/api/do-order', {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({
-      //     storeCode: payment.storeCode,
-      //     payload
-      //   })
-      // });
+      const doOrderResp = await fetch('/api/do-order', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          storeCode: payment.storeCode,
+          payload
+        })
+      });
 
-      // const doOrderData = await doOrderResp.json();
-      // if (!doOrderResp.ok) throw new Error(doOrderData.error || 'Gagal do-order');
+      const doOrderData = await doOrderResp.json();
+      if (!doOrderResp.ok) throw new Error(doOrderData.error || 'Gagal do-order');
 
-      // sessionStorage.setItem("do_order_result", JSON.stringify(doOrderData));
+      sessionStorage.setItem("do_order_result", JSON.stringify(doOrderData));
 
       router.push('/paymentstatus');
 

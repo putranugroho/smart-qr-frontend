@@ -24,7 +24,8 @@ export default async function handler(req, res) {
     //   (process.env.NEXT_URL_API && String(process.env.NEXT_URL_API).trim()) ||
     //   'http://112.78.136.108:5200';
 
-    const url = `https://localhost:5200/smartqr/v1/order/do-payment`;
+    // const url = `https://localhost:5200/smartqr/v1/order/do-payment`;
+    const url = `https://yoshi-smartqr-api-ergyata5hff3cfhz.southeastasia-01.azurewebsites.net/smartqr/v1/order/do-payment`;      
 
     // Forward the request
     const resp = await fetch(url, {

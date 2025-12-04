@@ -297,8 +297,8 @@ export default function CheckoutPage() {
                   ) : null}
                 </div>
 
-                <div style={{ textAlign: 'right', minWidth: 120 }}>
-                  <div style={{ fontSize: 14 }}>{formatRp((Number(p.price || 0) * Number(p.qty || 1)) * Number(cb.qty || 1) * Number(item.qty || 1))}</div>
+                <div style={{ textAlign: 'right', minWidth: 90 }}>
+                  {/* <div style={{ fontSize: 14 }}>{formatRp((Number(p.price || 0) * Number(p.qty || 1)) * Number(cb.qty || 1) * Number(item.qty || 1))}</div> */}
                   <div style={{ fontSize: 12, color: '#666' }}>x{p.qty ?? 1}</div>
                 </div>
               </div>

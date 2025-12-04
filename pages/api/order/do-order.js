@@ -5,7 +5,7 @@ export default async function handler(req, res) {
     
 
     const upstream = await fetch(
-      `https://yoshi-smartqr-api-ergyata5hff3cfhz.southeastasia-01.azurewebsites.net/smartqr/v1/order/do-order?storeCode=${storeCode}`,
+      `https://localhost:5200/smartqr/v1/order/do-order?storeCode=${storeCode}`,
       {
         method: "POST",
         headers: {

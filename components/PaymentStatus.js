@@ -17,6 +17,7 @@ export default function PaymentStatus() {
   const [statusMessage, setStatusMessage] = useState('')
   const [redirecting, setRedirecting] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
+  const [orderCode, setOrderCode] = useState(null)
   const [qrDataUri, setQrDataUri] = useState(null) // holds data:image/...;base64,...
   const [qrLoading, setQrLoading] = useState(false)
   const [qrError, setQrError] = useState(null)
@@ -26,6 +27,15 @@ export default function PaymentStatus() {
   useEffect(() => {
     const s = sessionStorage.getItem('midtrans_tx')
     const meta = sessionStorage.getItem('order_meta')
+    const r = sessionStorage.getItem('do_order_item')
+    if (r) {
+      try {
+        const parsed = JSON.parse(r)
+        setOrderCode(parsed?.data?.orderCode || null)
+      } catch (e) {
+        console.warn("invalid do_order_item session", e)
+      }
+    }
     if (s) {
       try { setTx(JSON.parse(s)) } catch (e) { console.warn('Invalid midtrans_tx', e) }
     }
@@ -46,6 +56,25 @@ export default function PaymentStatus() {
     if (!txObj) return ''
     const raw = (txObj.method || txObj.payment_type || txObj.core_response?.payment_type || '').toString()
     return raw.toLowerCase()
+  }
+
+  async function callDoPayment(orderCode, paymentAmount, reference) {
+    const resp = await fetch('/api/order/do-payment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        orderCode,
+        payment: paymentAmount,
+        reference
+      })
+    });
+
+    const j = await resp.json().catch(() => null);
+    if (!resp.ok) {
+      console.error('do-payment proxy failed', resp.status, j);
+      throw new Error(j?.message || `Status ${resp.status}`);
+    }
+    return j;
   }
 
   // helper: find action by names (case-insensitive)
@@ -76,6 +105,14 @@ export default function PaymentStatus() {
         if (['capture','settlement','success'].includes(txStatus)) {
           // stop poll and redirect to order page
           stopPolling()
+          
+          try {
+            const result = await callDoPayment(orderCode, subtotal, orderMeta.orderId);
+            console.log('do-payment result', result);
+          } catch (e) {
+            console.error('call failed', e);
+          }
+
           router.push(`/order/${orderMeta.orderId}`)
         }
       } catch (err) {
@@ -230,6 +267,12 @@ export default function PaymentStatus() {
       setStatusMessage(JSON.stringify(j, null, 2))
       const txStatus = (j.transaction_status || j.status || '').toString().toLowerCase()
       if (['capture','settlement','success'].includes(txStatus)) {
+          try {
+            const result = await callDoPayment(orderCode, subtotal, orderId);
+            console.log('do-payment result', result);
+          } catch (e) {
+            console.error('call failed', e);
+          }
         router.push(`/order/${orderId}`)
       } else {
         alert('Status: ' + (j.transaction_status || j.status || 'unknown'))

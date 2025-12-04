@@ -91,17 +91,20 @@ export default function PaymentPage() {
       
 
       // === 2. DO-ORDER ===
-      const doOrderResp = await fetch('/api/do-order', {
+      const doOrderResp = await fetch('/api/order/do-order', {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          storeCode: payment.storeCode,
+          storeCode: "MGI",
           payload
         })
       });
 
       const doOrderData = await doOrderResp.json();
       if (!doOrderResp.ok) throw new Error(doOrderData.error || 'Gagal do-order');
+
+      console.log("doOrderData", doOrderData);
+      
 
       sessionStorage.setItem("do_order_result", JSON.stringify(doOrderData));
 

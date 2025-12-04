@@ -12,7 +12,7 @@ export default async function handler(req, res) {
     const core = new MidtransClient.CoreApi({ isProduction, serverKey });
 
     const status = await core.transaction.status(orderId);
-    alert("status midtrans", status);
+    alert("status midtrans: " + status);
     
     return res.status(200).json(status);
   } catch (err) {

@@ -102,7 +102,7 @@ export default function PaymentStatus() {
   useEffect(() => {
     async function check() {
       if (!tx.order_id) return
-      alert("transaksi midtrans", tx);
+      alert("transaksi midtrans: " + tx);
       
       try {
         const r = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(tx.order_id)}`)

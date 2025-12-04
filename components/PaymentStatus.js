@@ -269,19 +269,14 @@ export default function PaymentStatus() {
     setChecking(true)
     try {
       const r = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(orderId)}`)
-      alert("fetch: "+ r.toString() )
+      const clone = await r.clone().json();  // salinan untuk debug
+      alert("fetch: " + JSON.stringify(clone, null, 2));
       const j = await r.json()
       setStatusMessage(JSON.stringify(j, null, 2))
       const txStatus = (j.transaction_status || j.status || '').toString().toLowerCase()
       if (['capture','settlement','success'].includes(txStatus)) {
-          try {
-            const result = await callDoPayment(orderCode, subtotal, orderId);
-            console.log('do-payment result', result);
-          } catch (e) {
-            console.error('call failed', e);
-          }
         try {
-          const result = await callDoPayment(orderCode, subtotal, tx.order_id);
+          const result = await callDoPayment(orderCode, subtotal, orderId);
           console.log('do-payment result', result);
         } catch (e) {
           console.error('call failed', e);

@@ -26,7 +26,7 @@ function calculateItemTaxes(it) {
           const pct = Number(tx.taxPercentage || 0)
           const amount = Math.round(lineBase * pct / 100)
           if ((tx.taxName || '').toUpperCase().includes('PB1')) pb1 += amount
-          else if ((tx.taxName || '').toUpperCase().includes('PPN') || (tx.taxName || '').toUpperCase().includes('PNN')) ppn += amount
+          else if ((tx.taxName || '').toUpperCase().includes('PPN')) ppn += amount
         })
       }
     })
@@ -38,7 +38,7 @@ function calculateItemTaxes(it) {
         const pct = Number(tx.taxPercentage || 0)
         const amount = Math.round(base * pct / 100)
         if ((tx.taxName || '').toUpperCase().includes('PB1')) pb1 += amount
-        else if ((tx.taxName || '').toUpperCase().includes('PPN') || (tx.taxName || '').toUpperCase().includes('PNN')) ppn += amount
+        else if ((tx.taxName || '').toUpperCase().includes('PPN')) ppn += amount
       })
     }
   }
@@ -211,7 +211,7 @@ export default function BillPage() {
           </div>
 
           <div className={styles.detailRow}>
-            <div>PNN (11%)</div>
+            <div>PPN (11%)</div>
             <div>{formatRp(ppnTotal)}</div>
           </div>
 

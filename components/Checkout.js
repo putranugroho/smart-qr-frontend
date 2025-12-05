@@ -142,6 +142,8 @@ export default function CheckoutPage() {
   const [total, setTotal] = useState(0)
   const [roundedTotal, setRoundedTotal] = useState(0)
   const [rounding, setRounding] = useState(0)
+  const [user, setUser] = useState('')
+  const [table, setTable] = useState('')
 
   // popup state
   const [showAddPopup, setShowAddPopup] = useState(false)
@@ -152,6 +154,15 @@ export default function CheckoutPage() {
   useEffect(() => {
     const c = getCart() || []
     console.log("cart :", c);
+
+    const dataUser = getUser?.() || null;
+    setUser(dataUser)
+
+    if (dataUser.orderType == "DI") {
+      setTable(`Table ${dataUser.tableNumber} • Dine In`)
+    } else {
+      setTable(`Table ${dataUser.tableNumber} • Take Away`)
+    } 
     
     setCart(c)
     setCartLoaded(true)
@@ -198,7 +209,6 @@ export default function CheckoutPage() {
       sessionStorage.setItem("yoshi_cart_total", totalAmt);
 
       // versi baru — simpan ke localStorage (payment session)
-      const user = getUser?.() || null;
 
       savePayment(cart, totalAmt, {
         storeCode: user.storeCode || "",
@@ -351,14 +361,7 @@ export default function CheckoutPage() {
             height={19}
             style={{ paddingRight: 5 }}
           />
-          Table 24 • Dine In
-          <Image
-            src="/images/caret-down.png"
-            alt="Bell"
-            width={19}
-            height={19}
-            style={{ paddingLeft: 5 }}
-          />
+          {table}
         </div>
       </div>
 
@@ -373,13 +376,13 @@ export default function CheckoutPage() {
           aria-expanded={showAddPopup}
         >
           Tambah
-          <Image
+          {/* <Image
             src="/images/caret-down.png"
             alt=""
             width={12}
             height={12}
             style={{ paddingLeft: "3px" }}
-          />
+          /> */}
         </button>
       </div>
 

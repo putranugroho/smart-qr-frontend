@@ -1,7 +1,9 @@
 // components/HeroLocation.js
 import Image from 'next/image'
+import { getUser } from '../lib/auth'
 
 export default function HeroLocation() {
+  const user = getUser?.() || null;
   return (
     <section className="relative">
       {/* hero background */}
@@ -32,7 +34,7 @@ export default function HeroLocation() {
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                     <path d="M3 7h18M3 12h18M3 17h18" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
                   </svg>
-                  <span className="text-sm">Table 24</span>
+                  <span className="text-sm">Table {user.tableNumber}</span>
                 </button>
               </div>
             </div>

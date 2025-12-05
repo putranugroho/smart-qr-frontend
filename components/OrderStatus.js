@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import styles from '../styles/OrderStatus.module.css'
 import { getPayment } from '../lib/cart'
+import { getUser } from '../lib/auth'
 
 function formatRp(n) {
   return 'Rp' + new Intl.NumberFormat('id-ID').format(Number(n || 0))
@@ -28,7 +29,7 @@ function calculateItemTaxes(it) {
           const pct = Number(tx.taxPercentage || 0)
           const amount = Math.round(lineBase * pct / 100)
           if ((tx.taxName || '').toUpperCase().includes('PB1')) pb1 += amount
-          else if ((tx.taxName || '').toUpperCase().includes('PPN') || (tx.taxName || '').toUpperCase().includes('PNN')) ppn += amount
+          else if ((tx.taxName || '').toUpperCase().includes('PPN')) ppn += amount
         })
       }
     })
@@ -41,7 +42,7 @@ function calculateItemTaxes(it) {
         const pct = Number(tx.taxPercentage || 0)
         const amount = Math.round(base * pct / 100)
         if ((tx.taxName || '').toUpperCase().includes('PB1')) pb1 += amount
-        else if ((tx.taxName || '').toUpperCase().includes('PPN') || (tx.taxName || '').toUpperCase().includes('PNN')) ppn += amount
+        else if ((tx.taxName || '').toUpperCase().includes('PPN')) ppn += amount
       })
     }
   }
@@ -57,6 +58,8 @@ export default function OrderStatus() {
   const [displayOrderId, setDisplayOrderId] = useState("")
   const [dataOrder, setDataOrder] = useState("")
   const [urlLogo, setUrlLogo] = useState("")
+  const [user, setUser] = useState('')
+  const [table, setTable] = useState('')
   const [showAllItems, setShowAllItems] = useState(false) // new state
 
   /* 1) read sessionStorage once on mount -> setDataOrder */
@@ -67,6 +70,15 @@ export default function OrderStatus() {
       catch (e) { console.warn('Invalid midtrans_tx', e); }
     }
     // only runs once on mount
+    
+    const dataUser = getUser?.() || null;
+    setUser(dataUser)
+
+    if (dataUser.orderType == "DI") {
+      setTable(`Table ${dataUser.tableNumber} • Dine In`)
+    } else {
+      setTable(`Table ${dataUser.tableNumber} • Take Away`)
+    } 
   }, []);
 
   /* 2) when dataOrder changes, set urlLogo accordingly
@@ -189,7 +201,7 @@ export default function OrderStatus() {
               height={20}
               style={{ paddingRight: 5 }}
             />
-            Table 24 · Dine In
+            {table}
           </div>
           <div className={styles.storeName}>Yoshinoya - Mall Grand Indonesia</div>
         </div>
@@ -272,7 +284,7 @@ export default function OrderStatus() {
               {showAllItems ? 'Lebih Sedikit' : 'Lihat Semua'}
             </span>
 
-            <span className={styles.chevronWrap} aria-hidden>
+            {/* <span className={styles.chevronWrap} aria-hidden>
               <Image
                 src="/images/caret-down.png"
                 alt=""
@@ -283,7 +295,7 @@ export default function OrderStatus() {
                   transition: 'transform 180ms ease'
                 }}
               />
-            </span>
+            </span> */}
           </button>
         )}
       </div>
@@ -328,7 +340,7 @@ export default function OrderStatus() {
         </div>
 
         <div className={styles.paymentRow}>
-          <div>PNN (11%)</div>
+          <div>PPN (11%)</div>
           <div className={styles.paymentValue}>{formatRp(computedPPN)}</div>
         </div>
 

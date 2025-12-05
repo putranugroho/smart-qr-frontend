@@ -18,6 +18,8 @@ export default function PaymentPage() {
   const [customer, setCustomer] = useState({ first_name: '', email: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [user, setUser] = useState('')
+  const [table, setTable] = useState('')
   const [tableNumber, setTableNumber] = useState('');
 
   useEffect(() => {
@@ -34,6 +36,15 @@ export default function PaymentPage() {
       storeCode: pay.storeCode || sessionStore,
       tableNumber
     };
+        
+    const dataUser = getUser?.() || null;
+    setUser(dataUser)
+
+    if (dataUser.orderType == "DI") {
+      setTable(`Table ${dataUser.tableNumber} • Dine In`)
+    } else {
+      setTable(`Table ${dataUser.tableNumber} • Take Away`)
+    } 
 
     setPayment(merged);
     setIsMounted(true);
@@ -149,8 +160,8 @@ export default function PaymentPage() {
       <div className={styles.orderInfo}>
         <div className={styles.orderInfoText}>Tipe Order</div>
         <div className={styles.orderInfoRight}>
-          Table 24 • Dine In
-          <Image src="/images/caret-down.png" alt="Bell" width={19} height={10} style={{ paddingRight: 5 }} />
+          {table}
+          {/* <Image src="/images/caret-down.png" alt="Bell" width={19} height={10} style={{ paddingRight: 5 }} /> */}
         </div>
       </div>
 
@@ -182,11 +193,14 @@ export default function PaymentPage() {
             }}
           />
         </div>
-
+        {(user === '' || user === '000' )&& (
         <label className={styles.label}>Nomer Meja</label>
+        )}
+        {(user === '' || user === '000' ) && (
         <div className={styles.inputWrap}>
           <input className={styles.input} placeholder="Masukan Nomer Meja" onChange={(e)=>setTableNumber(e.target.value)} />
         </div>
+        )}
       </div>
 
       {/* METODE PEMBAYARAN */}

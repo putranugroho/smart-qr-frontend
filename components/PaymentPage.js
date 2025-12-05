@@ -6,6 +6,7 @@ import styles from '../styles/PaymentPage.module.css'
 import Image from 'next/image'
 import { getPayment, clearCart } from '../lib/cart'
 import { mapDoOrderPayload } from '../lib/order'
+import { getUser } from '../lib/auth'
 
 function formatRp(n) {
   return 'Rp' + new Intl.NumberFormat('id-ID').format(Number(n || 0))

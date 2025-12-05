@@ -6,7 +6,7 @@ import styles from '../styles/PaymentPage.module.css'
 import Image from 'next/image'
 import { getPayment, clearCart } from '../lib/cart'
 import { mapDoOrderPayload } from '../lib/order'
-import { getUser } from '../lib/auth'
+import { getUser, userSignIn } from '../lib/auth'
 
 function formatRp(n) {
   return 'Rp' + new Intl.NumberFormat('id-ID').format(Number(n || 0))
@@ -67,6 +67,14 @@ export default function PaymentPage() {
       alert("Nama dan Nomor WhatsApp wajib diisi.");
       return;
     }
+    const userAuth = {
+      storeLocation: user.storeLocation,
+      orderType: user.orderType,
+      tableNumber: tableNumber, // keep table only for dine-in
+    };
+
+    // persist and go to menu
+    userSignIn(userAuth);
 
     if (customer.phone.length < 8) {
       alert("Nomor WhatsApp tidak valid.");

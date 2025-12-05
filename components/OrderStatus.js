@@ -62,6 +62,9 @@ export default function OrderStatus() {
   const [table, setTable] = useState('')
   const [showAllItems, setShowAllItems] = useState(false) // new state
 
+  // NEW: orderCode from do_order sessionStorage
+  const [orderCode, setOrderCode] = useState('')
+
   /* 1) read sessionStorage once on mount -> setDataOrder */
   useEffect(() => {
     const s = sessionStorage.getItem('midtrans_tx');
@@ -69,14 +72,29 @@ export default function OrderStatus() {
       try { setDataOrder(JSON.parse(s)); }
       catch (e) { console.warn('Invalid midtrans_tx', e); }
     }
+
+    // read do_order session (expected structure: { data: { orderCode: "..." }, ... })
+    try {
+      const doOrderRaw = sessionStorage.getItem('do_order_result')
+      if (doOrderRaw) {
+        const parsed = JSON.parse(doOrderRaw)
+        // support nested shape or direct orderCode
+        const code = parsed?.data?.orderCode ?? parsed?.orderCode ?? parsed
+        if (typeof code === 'string' && code.trim() !== '') {
+          setOrderCode(code.trim())
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse do_order from sessionStorage', e)
+    }
+
     // only runs once on mount
-    
     const dataUser = getUser?.() || null;
     setUser(dataUser)
 
-    if (dataUser.orderType == "DI") {
+    if (dataUser && dataUser.orderType == "DI") {
       setTable(`Table ${dataUser.tableNumber} • Dine In`)
-    } else {
+    } else if (dataUser) {
       setTable(`Table ${dataUser.tableNumber} • Take Away`)
     } 
   }, []);
@@ -214,7 +232,13 @@ export default function OrderStatus() {
 
       {/* TRACK ORDER */}
       <div className={styles.section}>
-        <div className={styles.trackTitle}>Track Orderan</div>
+        {/* NEW: row with title (left) and orderCode (right) */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div className={styles.trackTitle}>Track Orderan</div>
+          <div style={{ fontSize: 14, color: '#333', fontWeight: 600 }}>
+            {orderCode ? orderCode : null}
+          </div>
+        </div>
 
         <div className={styles.trackLineWrap}>
           <div className={styles.trackLine}></div>
@@ -283,19 +307,6 @@ export default function OrderStatus() {
             <span className={styles.viewAllText}>
               {showAllItems ? 'Lebih Sedikit' : 'Lihat Semua'}
             </span>
-
-            {/* <span className={styles.chevronWrap} aria-hidden>
-              <Image
-                src="/images/caret-down.png"
-                alt=""
-                width={12}
-                height={12}
-                style={{
-                  transform: showAllItems ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'transform 180ms ease'
-                }}
-              />
-            </span> */}
           </button>
         )}
       </div>

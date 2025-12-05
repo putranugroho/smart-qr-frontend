@@ -61,36 +61,49 @@ export default function Menu() {
     const raw = Array.isArray(catData?.data) ? catData.data : [];
 
     // Build initial categories meta; keep items if present in payload otherwise null
-    const mapped = raw
-      .filter((c) => Number(c.totalItems ?? (c.items?.length ?? 0)) > 0)
-      .map((c) => {
-        const name = c.name || `Category ${String(c.id || '')}`;
-        const itemsFromPayload = Array.isArray(c.items) && c.items.length > 0
-          ? c.items.map(it => ({
+    const mapped = raw.map((c) => {
+      const name = c.name || `Category ${String(c.id || '')}`;
+      const itemsFromPayload = Array.isArray(c.items) && c.items.length > 0
+        ? c.items.map(it => ({
             id: it.code ?? it.id,
             name: it.name,
             price: it.price,
             image: it.imagePath ?? it.imageUrl ?? "/images/gambar-menu.jpg",
             category: name
           }))
-          : null; // do not eagerly load items if not provided
-        return {
-          id: c.id,
-          name,
-          totalItems: Number(c.totalItems ?? (itemsFromPayload ? itemsFromPayload.length : 0)),
-          items: itemsFromPayload
-        };
-      });
-      
-    let merged = [...mapped];
+        : null; // do not eagerly load items if not provided
+
+      return {
+        id: c.id,
+        name,
+        totalItems: Number(c.totalItems ?? (itemsFromPayload ? itemsFromPayload.length : 0)),
+        items: itemsFromPayload
+      };
+    });
+
+    // Preserve order from API but remove truly-empty categories EXCEPT Kids Meal.
+    // Keep any category whose totalItems > 0 OR whose name indicates "kids".
+    const keepKidsPredicate = (name = '') => {
+      const n = String(name).toLowerCase();
+      return n.includes('kids') || n.includes('kids meal') || n.includes('anak');
+    };
+
+    let merged = mapped.filter(c => {
+      if ((c.totalItems || 0) > 0) return true;
+      // if items are null but category is Kids Meal, keep it (so combos later can be merged)
+      if (keepKidsPredicate(c.name)) return true;
+      // otherwise drop empty category
+      return false;
+    });
 
     // only merge when comboItems has data
     if (Array.isArray(comboItems) && comboItems.length > 0) {
       const lowerNames = merged.map(c => String(c.name || '').toLowerCase());
+      // find existing kids category by name (more robust: includes 'kids' or 'anak')
       const kidIdx = lowerNames.findIndex(n => n.includes('kids') || n.includes('kids meal') || n.includes('anak'));
 
       if (kidIdx >= 0) {
-        // append combos to existing kids category items (preserve existing items)
+        // append combos to existing kids category items (preserve existing items which may be null)
         const existing = merged[kidIdx];
         const existingItems = Array.isArray(existing.items) ? existing.items : [];
         merged[kidIdx] = {
@@ -99,7 +112,7 @@ export default function Menu() {
           totalItems: (existing.totalItems || existingItems.length) + comboItems.length
         };
       } else {
-        // append new category at end
+        // if there is no kids category in the API at all, append at the end (can't preserve an order that doesn't exist)
         merged = [
           ...merged,
           { id: `combo-kids`, name: 'Kids Meal', items: comboItems, totalItems: comboItems.length }

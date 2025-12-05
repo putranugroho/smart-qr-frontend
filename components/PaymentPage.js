@@ -194,10 +194,10 @@ export default function PaymentPage() {
             }}
           />
         </div>
-        {(user === '' || user === '000' )&& (
+        {(user.tableNumber === '' || user.tableNumber === '000' )&& (
         <label className={styles.label}>Nomer Meja</label>
         )}
-        {(user === '' || user === '000' ) && (
+        {(user.tableNumber === '' || user.tableNumber === '000' ) && (
         <div className={styles.inputWrap}>
           <input className={styles.input} placeholder="Masukan Nomer Meja" onChange={(e)=>setTableNumber(e.target.value)} />
         </div>

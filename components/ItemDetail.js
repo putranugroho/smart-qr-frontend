@@ -73,7 +73,13 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         if (cartItem) {
           setEditingIndex(idx)
           if (cartItem.title) setItem(prev => ({ ...prev, title: cartItem.title }))
-          if (cartItem.price != null) setItem(prev => ({ ...prev, price: Number(cartItem.price) }))
+          const basePriceFromMenu = Number(cartItem?.menus?.[0]?.detailMenu?.price || 0)
+          if (basePriceFromMenu > 0) {
+            setItem(prev => ({ ...prev, price: basePriceFromMenu }))
+          } else if (cartItem.price != null) {
+            // fallback hanya kalau tidak ada detailMenu
+            setItem(prev => ({ ...prev, price: Number(cartItem.price) }))
+          }
           if (cartItem.image) setItem(prev => ({ ...prev, image: cartItem.image }))
           if (cartItem.description) setItem(prev => ({ ...prev, description: cartItem.description }))
           if (cartItem.qty != null) setQty(Number(cartItem.qty))

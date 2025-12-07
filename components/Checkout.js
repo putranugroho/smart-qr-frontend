@@ -331,7 +331,7 @@ export default function CheckoutPage() {
     return (
       <div>
         <div className={styles.addonGroup}>Add on :</div>
-        {lines.map((n, idx) => <div key={idx} className={styles.addonLine}>- {n.name}</div>)}
+        {lines.map((n, idx) => <div key={idx} className={styles.addonLine}>- {n}</div>)}
       </div>
     )
   }

@@ -325,15 +325,34 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         const opt = findOption(g, optId);
         const price = Number(opt?.price || 0);
 
-        // Use legacySourceForTaxes to compute taxes for condiments (preserves original tax config)
-        const taxes = Array.isArray(legacySourceForTaxes.taxes)
-          ? legacySourceForTaxes.taxes.map(t => {
-              const taxName = (t.taxName || t.name || '').toString();
-              const taxPercentage = Number(t.taxPercentage || t.amount || 0);
-              const taxAmount = Math.round((taxPercentage / 100) * price);
-              return { taxName, taxPercentage, taxAmount };
-            })
-          : [];
+        // Prefer tax info from the option itself (opt.taxes), fallback to legacySourceForTaxes.taxes
+        let taxes = [];
+        // If options were fetched from API they may not include taxes in our `options` mapping.
+        // Try to read original option object from addons source (g.products) if present:
+        let rawOpt = null;
+        if (g.rawProducts) {
+          rawOpt = g.rawProducts.find(r => String(r.code ?? r.id) === String(optId));
+        }
+
+        // prefer rawOpt.taxes, else opt.taxes, else legacySourceForTaxes.taxes
+        const optTaxSource = (rawOpt && Array.isArray(rawOpt.taxes) && rawOpt.taxes.length) ? rawOpt.taxes
+                           : (Array.isArray(opt?.taxes) && opt.taxes.length ? opt.taxes : null);
+
+        if (Array.isArray(optTaxSource) && optTaxSource.length) {
+          taxes = optTaxSource.map(t => {
+            const taxName = (t.name || t.taxName || t.name || '').toString();
+            const taxPercentage = Number(t.amount ?? t.taxPercentage ?? 0);
+            const taxAmount = Math.round((taxPercentage / 100) * price);
+            return { taxName, taxPercentage, taxAmount };
+          });
+        } else if (Array.isArray(legacySourceForTaxes.taxes) && legacySourceForTaxes.taxes.length) {
+          taxes = legacySourceForTaxes.taxes.map(t => {
+            const taxName = (t.taxName || t.name || '').toString();
+            const taxPercentage = Number(t.taxPercentage || t.amount || 0);
+            const taxAmount = Math.round((taxPercentage / 100) * price);
+            return { taxName, taxPercentage, taxAmount };
+          });
+        }
 
         return {
           code: opt?.id || String(optId),
@@ -344,20 +363,28 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         };
       };
 
-      return Array.isArray(val)
-        ? val.map(mapOne)
-        : [mapOne(val)];
+      return Array.isArray(val) ? val.map(mapOne) : [mapOne(val)];
     });
 
-    // ======== Taxes for Menu only (use legacySourceForTaxes) =========
-    const menuTaxes = Array.isArray(legacySourceForTaxes.taxes)
-      ? legacySourceForTaxes.taxes.map(t => {
-          const taxName = (t.taxName || t.name || '').toString();
-          const taxPercentage = Number(t.taxPercentage || t.amount || 0);
-          const taxAmount = Math.round((taxPercentage / 100) * basePrice);
-          return { taxName, taxPercentage, taxAmount };
-        })
-      : [];
+    // ======== Taxes for Menu only (use legacySourceForTaxes or apiItem) =========
+    // Prefer explicit taxes from legacySourceForTaxes (e.g. editing existing cart) otherwise
+    // fall back to apiItem.taxes if present. We compute taxAmount against the menu base price.
+    const menuBasePrice = Number(basePrice || 0);
+    let menuTaxes = [];
+    const sourceTaxes = Array.isArray(legacySourceForTaxes.taxes) && legacySourceForTaxes.taxes.length
+      ? legacySourceForTaxes.taxes
+      : (Array.isArray(apiItem.taxes) ? apiItem.taxes : []);
+
+    if (Array.isArray(sourceTaxes) && sourceTaxes.length) {
+      menuTaxes = sourceTaxes.map(t => {
+        const taxName = (t.taxName || t.name || '').toString();
+        const taxPercentage = Number(t.taxPercentage ?? t.amount ?? 0);
+        const taxAmount = Math.round((taxPercentage / 100) * menuBasePrice);
+        return { taxName, taxPercentage, taxAmount };
+      });
+    } else {
+      menuTaxes = [];
+    }
 
     // ======== menus[] payload =========
     const menusPayload = [{
@@ -365,7 +392,8 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
       detailMenu: {
         code: apiItem.code || item.code || productCode || '',
         name: item.title || apiItem.name || '',
-        price: basePrice
+        price: basePrice,
+        image: item.ImagePath || apiItem.ImagePath || '',
       },
       isFromMacro: true,
       orderType: "DI",
@@ -384,6 +412,15 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
     const unitPrice = basePrice + condiments.reduce((s, c) => s + c.price, 0);
 
+    // Aggregate top-level taxes: menuTaxes + all condiments taxes (flatten)
+    const aggregatedTaxes = [
+      ...menuTaxes,
+      ...condiments.flatMap(c => Array.isArray(c.taxes) ? c.taxes : [])
+    ];
+
+    // Optionally, you might want to combine same taxName into single entries.
+    // For simplicity we keep individual entries (server-side can also sum if needed).
+
     // ======== Final order object (cart compatible) =========
     const final_order = {
       id: menusPayload[0].detailMenu.code,
@@ -401,8 +438,11 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
       menus: menusPayload,
 
       // Preserve legacy tax fields from legacySourceForTaxes when available,
-      // otherwise default to empty/0 as before.
-      taxes: Array.isArray(legacySourceForTaxes.taxes) ? legacySourceForTaxes.taxes : [],
+      // otherwise fill with computed aggregated taxes so downstream UI can read it.
+      taxes: (Array.isArray(legacySourceForTaxes.taxes) && legacySourceForTaxes.taxes.length)
+        ? legacySourceForTaxes.taxes
+        : aggregatedTaxes,
+
       pb1Percent: Number(legacySourceForTaxes.pb1Percent || legacySourceForTaxes.pb1 || 0),
       ppnPercent: Number(legacySourceForTaxes.ppnPercent || legacySourceForTaxes.ppn || 0),
       hasPB1: !!legacySourceForTaxes.hasPB1 || !!legacySourceForTaxes.hasPB1 === true,

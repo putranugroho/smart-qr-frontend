@@ -11,32 +11,36 @@ function formatRp(n) {
 }
 
 // helper: calculate taxes for a single item (handles combo and normal)
-// NOTE: this supports both local cart shape and remote API shape (we normalize remote to similar)
+// Uses taxAmount from payload when available to avoid rounding mismatch.
 function calculateItemTaxes(it) {
-  // returns { base: Number, pb1: Number, ppn: Number }
   let base = 0
   let pb1 = 0
   let ppn = 0
 
-  // remote combo shape: type === 'combo' && combos[] with products[]
   if (it && it.type === 'combo' && Array.isArray(it.combos)) {
     const products = it.combos.flatMap(cb => (Array.isArray(cb.products) ? cb.products : []))
-    // base price: sum product.price * qty * comboQty * itemQty
     products.forEach((p) => {
       const pQty = Number(p.qty || 1)
       const basePrice = Number(p.price || 0)
-      const cbQty = Number(p._comboQty || 1) // we may store combo-level qty as _comboQty on product mapping
+      const cbQty = Number(p._comboQty || 1)
       const itemQty = Number(it.qty || 1)
       const lineBase = basePrice * pQty * cbQty * itemQty
       base += lineBase
 
-      // product taxes
+      // Prefer explicit taxAmount if present on product taxes
       if (Array.isArray(p.taxes)) {
         p.taxes.forEach(tx => {
-          const pct = Number(tx.taxPercentage ?? tx.TaxPercentage ?? tx.amount ?? 0)
-          const taxAmt = Math.round(lineBase * (pct / 100))
-          if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmt
-          else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmt
+          const taxAmtProvided = Number(tx.taxAmount ?? tx.TaxAmount ?? 0)
+          if (taxAmtProvided) {
+            if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmtProvided * cbQty * itemQty
+            else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmtProvided * cbQty * itemQty
+          } else {
+            // fallback to percentage calculation
+            const pct = Number(tx.taxPercentage ?? tx.TaxPercentage ?? tx.amount ?? 0)
+            const taxAmt = Math.round(lineBase * (pct / 100))
+            if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmt
+            else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmt
+          }
         })
       }
 
@@ -49,28 +53,39 @@ function calculateItemTaxes(it) {
           base += cBase
           if (Array.isArray(c.taxes)) {
             c.taxes.forEach(tx => {
-              const pct = Number(tx.taxPercentage ?? tx.TaxPercentage ?? tx.amount ?? 0)
-              const taxAmt = Math.round(cBase * (pct / 100))
-              if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmt
-              else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmt
+              const taxAmtProvided = Number(tx.taxAmount ?? tx.TaxAmount ?? 0)
+              if (taxAmtProvided) {
+                if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmtProvided * cbQty * itemQty
+                else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmtProvided * cbQty * itemQty
+              } else {
+                const pct = Number(tx.taxPercentage ?? tx.TaxPercentage ?? tx.amount ?? 0)
+                const taxAmt = Math.round(cBase * (pct / 100))
+                if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmt
+                else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmt
+              }
             })
           }
         })
       }
     })
   } else {
-    // normal item shape (local menu or remote Menu)
     const qty = Number(it.qty || 1)
-    const price = Number(it.price || it.detailMenu?.Price || it.detailMenu?.price || 0)
+    const price = Number(it.price ?? it.detailMenu?.Price ?? it.detailMenu?.price ?? 0)
     base = price * qty
 
-    // taxes on item
+    // Prefer explicit taxAmount if present on item taxes
     if (Array.isArray(it.taxes)) {
       it.taxes.forEach(tx => {
-        const pct = Number(tx.taxPercentage ?? tx.TaxPercentage ?? tx.amount ?? 0)
-        const taxAmt = Math.round(base * (pct / 100))
-        if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmt
-        else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmt
+        const taxAmtProvided = Number(tx.taxAmount ?? tx.TaxAmount ?? 0)
+        if (taxAmtProvided) {
+          if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmtProvided
+          else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmtProvided
+        } else {
+          const pct = Number(tx.taxPercentage ?? tx.TaxPercentage ?? tx.amount ?? 0)
+          const taxAmt = Math.round(base * (pct / 100))
+          if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmt
+          else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmt
+        }
       })
     }
 
@@ -83,10 +98,16 @@ function calculateItemTaxes(it) {
         base += cBase
         if (Array.isArray(c.taxes)) {
           c.taxes.forEach(tx => {
-            const pct = Number(tx.taxPercentage ?? tx.TaxPercentage ?? tx.amount ?? 0)
-            const taxAmt = Math.round(cBase * (pct / 100))
-            if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmt
-            else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmt
+            const taxAmtProvided = Number(tx.taxAmount ?? tx.TaxAmount ?? 0)
+            if (taxAmtProvided) {
+              if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmtProvided
+              else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmtProvided
+            } else {
+              const pct = Number(tx.taxPercentage ?? tx.TaxPercentage ?? tx.amount ?? 0)
+              const taxAmt = Math.round(cBase * (pct / 100))
+              if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmt
+              else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmt
+            }
           })
         }
       })
@@ -100,10 +121,9 @@ export default function OrderStatus() {
   const router = useRouter()
   const { id } = router.query
 
-  // local/derived states
   const [displayOrderId, setDisplayOrderId] = useState('')
-  const [dataOrder, setDataOrder] = useState(null) // raw remote `data` object from API
-  const [remoteOrderRaw, setRemoteOrderRaw] = useState(null) // full API response
+  const [dataOrder, setDataOrder] = useState(null)
+  const [remoteOrderRaw, setRemoteOrderRaw] = useState(null)
   const [user, setUser] = useState(null)
   const [table, setTable] = useState('')
   const [currentStep, setCurrentStep] = useState(3)
@@ -112,52 +132,43 @@ export default function OrderStatus() {
   const [paymentRedirectUrl, setPaymentRedirectUrl] = useState('')
   const popupShownRef = useRef(false)
   const pollOrderRef = useRef(null)
-  const [paymentAccepted, setPaymentAccepted] = useState(false) // when backend says payment received
-
-  // items derived either from getPayment() (client cart) or remote dataOrder
+  const [paymentAccepted, setPaymentAccepted] = useState(false)
   const [clientPayment, setClientPayment] = useState({ items: [], paymentTotal: 0 })
 
-  // load session midtrans/do_order_result + user
+  // load session midtrans/do_order_result + user (prefer do_order_result stored in session)
   useEffect(() => {
-    const s = sessionStorage.getItem('midtrans_tx')
-    if (s) {
-      try { setRemoteOrderRaw(prev => prev || JSON.parse(s)) } catch (e) { /* ignore */ }
-    }
-
-    // load stored do_order_result (maybe saved earlier)
     try {
       const doOrderRaw = sessionStorage.getItem('do_order_result')
       if (doOrderRaw) {
         const parsed = JSON.parse(doOrderRaw)
-        // if it's full api response like { data: {...} } then parsed.data; else parsed
+        // Accept either shape: { data: {...} } or direct payload
         const d = parsed?.data ?? parsed
-        if (d) setDataOrder(d)
-        setRemoteOrderRaw(parsed)
-        // store orderCode if available into local state
-        const oc = parsed?.data?.orderCode ?? parsed?.orderCode ?? null
-        if (oc) {
-          // show orderCode in header
-          setDisplayOrderId(String(oc))
+        if (d) {
+          setDataOrder(d)
+          setRemoteOrderRaw(parsed)
+          // set display id (support displayOrderId or orderCode)
+          const oc = d.displayOrderId ?? d.orderCode ?? parsed?.data?.orderCode ?? parsed?.orderCode ?? null
+          if (oc) setDisplayOrderId(String(oc))
         }
       }
     } catch (e) { /* ignore */ }
 
-    const dataUser = getUser?.() || null;
-    setUser(dataUser)
-    if (dataUser && dataUser.orderType === "DI") {
-      setTable(`Table ${dataUser.tableNumber} • Dine In`)
-    } else if (dataUser) {
-      setTable(`Table ${dataUser.tableNumber} • Take Away`)
-    }
+    try {
+      const s = sessionStorage.getItem('midtrans_tx')
+      if (s) setRemoteOrderRaw(prev => prev || JSON.parse(s))
+    } catch (e) {}
 
-    // load local cart payment snapshot (if any)
+    const dataUser = getUser?.() || null
+    setUser(dataUser)
+    if (dataUser && dataUser.orderType === 'DI') setTable(`Table ${dataUser.tableNumber} • Dine In`)
+    else if (dataUser) setTable(`Table ${dataUser.tableNumber} • Take Away`)
+
     try {
       const p = getPayment?.() || {}
       setClientPayment({ items: p.cart || [], paymentTotal: p.paymentTotal || 0 })
     } catch (e) { /* ignore */ }
   }, [])
 
-  // derive displayOrderId from session if any
   useEffect(() => {
     try {
       const d = sessionStorage.getItem('display_order_id') || sessionStorage.getItem('displayOrderId')
@@ -165,68 +176,98 @@ export default function OrderStatus() {
     } catch (e) {}
   }, [])
 
-  // derive items to render: prefer remote API dataOrder if present, else client snapshot
+  // Normalize dataOrder into items array (combo + menu) — supports do_order_result shape
   const itemsFromRemote = (function () {
     if (!dataOrder) return []
     const arr = []
-    // remote Combos (PascalCase)
-    const combos = dataOrder.Combos ?? dataOrder.combos ?? []
-    if (Array.isArray(combos)) {
+
+    // Combos (do_order_result uses lowercase 'combos')
+    const combos = dataOrder.combos ?? dataOrder.Combos ?? []
+    if (Array.isArray(combos) && combos.length > 0) {
       combos.forEach(cb => {
-        // normalize to shape expected by renderComboDetails (it.combos[...] structure)
-        const products = Array.isArray(cb.Products ?? cb.products) ? (cb.Products ?? cb.products) : []
+        const products = Array.isArray(cb.products ?? cb.Products) ? (cb.products ?? cb.Products) : []
         const mappedProducts = products.map(p => ({
-          code: p.Code ?? p.code,
-          name: p.Name ?? p.name,
-          price: p.Price ?? p.price ?? 0,
-          qty: p.Qty ?? p.qty ?? 1,
-          taxes: Array.isArray(p.Taxes ?? p.taxes) ? (p.Taxes ?? p.taxes).map(t => ({
-            taxName: t.TaxName ?? t.taxName ?? t.name ?? '',
-            taxPercentage: t.TaxPercentage ?? t.taxPercentage ?? t.TaxPercentage ?? t.taxPercentage ?? (t.amount ?? 0),
-            taxAmount: t.TaxAmount ?? t.taxAmount ?? 0
-          })) : [],
-          condiments: Array.isArray(p.Condiments ?? p.condiments) ? (p.Condiments ?? p.condiments) : [],
+          code: p.code ?? p.Code,
+          name: p.name ?? p.Name,
+          price: Number(p.price ?? p.Price ?? 0),
+          qty: Number(p.qty ?? p.Qty ?? 1),
+          taxes: Array.isArray(p.taxes ?? p.Taxes) ? (p.taxes ?? p.Taxes) : [],
+          condiments: Array.isArray(p.condiments ?? p.Condiments) ? (p.condiments ?? p.Condiments) : []
         }))
+
+        // compute combo unit price (sum product prices * qty + condiments)
+        const comboUnitPrice = mappedProducts.reduce((s, p) => {
+          const prodBase = Number(p.price || 0) * Number(p.qty || 1)
+          // condiments under product (unlikely) — include
+          const condTotal = (Array.isArray(p.condiments) ? p.condiments.reduce((ss, c) => ss + (Number(c.price || 0) * Number(c.qty || 1)), 0) : 0)
+          return s + prodBase + condTotal
+        }, 0)
+
+        // aggregate taxes for combo (sum taxAmount fields if present)
+        const comboTaxes = []
+        const taxCollector = {}
+        mappedProducts.forEach(p => {
+          (p.taxes || []).forEach(tx => {
+            const name = (tx.taxName ?? tx.TaxName ?? '').toString() || 'UNKNOWN'
+            const pct = Number(tx.taxPercentage ?? tx.TaxPercentage ?? tx.amount ?? 0)
+            const amt = Number(tx.taxAmount ?? tx.TaxAmount ?? 0)
+            if (!taxCollector[name]) taxCollector[name] = { taxName: name, taxPercentage: pct, taxAmount: 0 }
+            taxCollector[name].taxAmount += amt || Math.round((pct/100) * (Number(p.price||0) * Number(p.qty||1)))
+          })
+        })
+        Object.values(taxCollector).forEach(v => comboTaxes.push(v))
 
         arr.push({
           type: 'combo',
           combos: [{
             detailCombo: {
-              code: cb.DetailCombo?.Code ?? cb.detailCombo?.code ?? '',
-              name: cb.DetailCombo?.Name ?? cb.detailCombo?.name ?? ''
+              code: cb.detailCombo?.code ?? cb.DetailCombo?.Code ?? '',
+              name: cb.detailCombo?.name ?? cb.DetailCombo?.Name ?? '',
+              image: cb.detailCombo?.image ?? cb.DetailCombo?.Image ?? null
             },
-            isFromMacro: !!cb.IsFromMacro,
-            orderType: cb.OrderType ?? cb.orderType ?? '',
+            isFromMacro: !!cb.isFromMacro ?? !!cb.IsFromMacro,
+            orderType: cb.orderType ?? cb.OrderType ?? '',
             products: mappedProducts,
-            qty: cb.Qty ?? cb.Qty ?? 1,
-            voucherCode: cb.VoucherCode ?? cb.voucherCode ?? null
+            qty: cb.qty ?? cb.Qty ?? 1,
+            voucherCode: cb.voucherCode ?? cb.VoucherCode ?? null
           }],
-          qty: cb.Qty ?? 1,
+          qty: cb.qty ?? cb.Qty ?? 1,
+          // set item-level price = unit price of combo (without rounding/qty)
+          price: Number(comboUnitPrice),
           detailCombo: {
-            code: cb.DetailCombo?.Code ?? cb.detailCombo?.code ?? '',
-            name: cb.DetailCombo?.Name ?? cb.detailCombo?.name ?? '',
-            image: cb.DetailCombo?.Image ?? cb.detailCombo?.image ?? null
+            code: cb.detailCombo?.code ?? cb.DetailCombo?.Code ?? '',
+            name: cb.detailCombo?.name ?? cb.DetailCombo?.Name ?? '',
+            image: cb.detailCombo?.image ?? cb.DetailCombo?.Image ?? null
           },
-          note: cb.Note ?? cb.note ?? '',
-          image: cb.Image ?? cb.image ?? null,
-          taxes: Array.isArray(cb.Taxes ?? cb.taxes) ? (cb.Taxes ?? cb.taxes) : []
+          note: cb.note ?? cb.Note ?? '',
+          image: cb.image ?? cb.Image ?? null,
+          taxes: comboTaxes
         })
       })
     }
 
-    // remote Menus
-    const menus = dataOrder.Menus ?? dataOrder.menus ?? []
-    if (Array.isArray(menus)) {
+    // Menus
+    const menus = dataOrder.menus ?? dataOrder.Menus ?? []
+    if (Array.isArray(menus) && menus.length > 0) {
       menus.forEach(m => {
+        const conds = Array.isArray(m.condiments ?? m.Condiments) ? (m.condiments ?? m.Condiments) : []
+        const detailPrice = Number(m.detailMenu?.price ?? m.DetailMenu?.Price ?? m.price ?? 0)
+        const condTotal = conds.reduce((s, c) => s + (Number(c.price || 0) * Number(c.qty || 1)), 0)
+        const unitPrice = detailPrice + condTotal
+
+        // normalize taxes for menu item (use provided taxes on condiments or item)
+        const taxes = Array.isArray(m.taxes ?? m.Taxes) ? (m.taxes ?? m.Taxes) : []
+
         arr.push({
           type: 'menu',
-          price: m.DetailMenu?.Price ?? m.DetailMenu?.price ?? m.price ?? 0,
-          qty: m.Qty ?? m.qty ?? 1,
-          title: m.DetailMenu?.Name ?? m.DetailMenu?.name ?? m.name ?? '',
-          name: m.DetailMenu?.Name ?? m.DetailMenu?.name ?? m.name ?? '',
-          image: m.DetailMenu?.Image ?? m.DetailMenu?.image ?? null,
-          condiments: Array.isArray(m.Condiments ?? m.condiments) ? (m.Condiments ?? m.condiments) : [],
-          taxes: Array.isArray(m.Taxes ?? m.taxes) ? (m.Taxes ?? m.taxes) : []
+          price: Number(unitPrice),
+          qty: m.qty ?? m.Qty ?? 1,
+          title: m.detailMenu?.name ?? m.DetailMenu?.Name ?? m.name ?? m.title ?? '',
+          name: m.detailMenu?.name ?? m.DetailMenu?.Name ?? m.name ?? m.title ?? '',
+          image: m.detailMenu?.image ?? m.DetailMenu?.Image ?? m.image ?? null,
+          condiments: conds,
+          taxes: taxes,
+          note: m.note ?? m.Note ?? ''
         })
       })
     }
@@ -234,11 +275,10 @@ export default function OrderStatus() {
     return arr
   })()
 
-  // If remote items exist, use them; otherwise fallback to clientPayment items
   const items = itemsFromRemote.length > 0 ? itemsFromRemote : (clientPayment.items || [])
   const itemsCount = items.length
 
-  // compute totals using calculateItemTaxes
+  // compute totals using calculateItemTaxes but prefer dataOrder.taxes (payload totals) when available
   let computedSubtotal = 0
   let computedPB1 = 0
   let computedPPN = 0
@@ -254,189 +294,46 @@ export default function OrderStatus() {
   computedPB1 = Math.round(computedPB1)
   computedPPN = Math.round(computedPPN)
 
+  // If dataOrder contains top-level taxes (do_order_result), prefer those exact amounts
+  if (dataOrder && Array.isArray(dataOrder.taxes) && dataOrder.taxes.length > 0) {
+    const topTaxes = dataOrder.taxes.reduce((acc, tx) => {
+      const name = (tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase()
+      const amt = Number(tx.taxAmount ?? tx.TaxAmount ?? 0)
+      if (name.includes('PB')) acc.pb1 += amt
+      else if (name.includes('PPN')) acc.ppn += amt
+      return acc
+    }, { pb1: 0, ppn: 0 })
+
+    // Only override when amounts are > 0 to avoid hiding computed values unintentionally
+    if (topTaxes.pb1 || topTaxes.ppn) {
+      computedPB1 = Math.round(topTaxes.pb1)
+      computedPPN = Math.round(topTaxes.ppn)
+    }
+  }
+
   const unroundedTotal = computedSubtotal + computedPB1 + computedPPN
-  const roundedTotal = Math.round(unroundedTotal / 100) * 100
-  const roundingAmount = roundedTotal - unroundedTotal
-  const total = roundedTotal
+
+  // Rounding rules: if subtotal < 50 -> rounding 0 (per request)
+  let roundingAmount = 0
+  if (computedSubtotal < 50) {
+    roundingAmount = 0
+  } else {
+    const roundedTotal = Math.round(unroundedTotal / 100) * 100
+    roundingAmount = roundedTotal - unroundedTotal
+  }
+
+  const total = unroundedTotal + roundingAmount
 
   function handleToggleShowAll() {
     setShowAllItems(prev => !prev)
   }
 
-  // helper: parse order_id from paymentLink (try decode percent-encoding)
-  function parseOrderIdFromPaymentLink(link) {
-    if (!link) return null
-    try {
-      // decode and search for order_id= or orderId=
-      const decoded = decodeURIComponent(link)
-      const m = decoded.match(/[?&]order_id=([^&]+)/i) || decoded.match(/[?&]orderId=([^&]+)/i) || decoded.match(/order_id%3D([^&]+)/i)
-      if (m && m[1]) return decodeURIComponent(m[1])
-    } catch (e) { /* ignore */ }
-    return null
-  }
-
-  // fetchRemoteOrder (uses proxy route)
-  async function fetchRemoteOrder(orderCodeToFetch) {
-    if (!orderCodeToFetch) return null
-    try {
-      // use proxy in nextjs to avoid CORS / reveal keys
-      const url = `/api/order/check-status?orderCode=${encodeURIComponent(orderCodeToFetch)}`
-      const r = await fetch(url)
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
-      const j = await r.json()
-      return j
-    } catch (e) {
-      console.warn('fetchRemoteOrder failed', e)
-      return null
-    }
-  }
-
-  // Polling remote order API (start when id available or when do_order_result exists)
-  useEffect(() => {
-    if (!router.isReady) return
-
-    // select orderCode: prefer route id else do_order_result value
-    let orderCodeToPoll = String(id || '').trim()
-    if (!orderCodeToPoll) {
-      try {
-        const stored = sessionStorage.getItem('do_order_result')
-        if (stored) {
-          const parsed = JSON.parse(stored)
-          orderCodeToPoll = parsed?.data?.orderCode ?? parsed?.orderCode ?? ''
-        }
-      } catch (e) { /* ignore */ }
-    }
-
-    if (!orderCodeToPoll) {
-      // nothing to poll
-      return
-    }
-
-    // ensure we store the orderCode display somewhere
-    try { sessionStorage.setItem('current_order_code', orderCodeToPoll) } catch (e) {}
-
-    let mounted = true
-
-    async function checkOrder() {
-      try {
-        const apiResp = await fetchRemoteOrder(orderCodeToPoll)
-        if (!apiResp || !apiResp.data) return
-        if (!mounted) return
-
-        // save raw and data
-        setRemoteOrderRaw(apiResp)
-        setDataOrder(apiResp.data)
-        try { sessionStorage.setItem('do_order_result', JSON.stringify(apiResp)) } catch (e) {}
-
-        // set orderCode display if present
-        const oc = apiResp?.data?.orderCode ?? apiResp?.orderCode ?? null
-        if (oc) setDisplayOrderId(String(oc))
-
-        const statusNum = Number(apiResp.data.Status ?? apiResp.data.status ?? 0)
-
-        if (statusNum === -1) {
-          // step 4 (Pesanan Dibuat) — waiting payment
-          setCurrentStep(4)
-
-          // try to find displayOrderId for midtrans check
-          const paymentLinkFromApi = (apiResp.data.PaymentLink ?? apiResp.data.paymentLink ?? apiResp.data.PaymentUrl ?? '') || ''
-          const displayOrderIdFromApi = apiResp.data.DisplayOrderId ?? apiResp.data.displayOrderId ?? null
-          const foundDisplayOrderId = displayOrderIdFromApi || parseOrderIdFromPaymentLink(paymentLinkFromApi) || sessionStorage.getItem('display_order_id')
-
-          // check midtrans status if displayOrderId available
-          if (foundDisplayOrderId) {
-            try {
-              const stResp = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(foundDisplayOrderId)}`)
-              if (stResp.ok) {
-                const stj = await stResp.json()
-                const txStatus = (stj.transaction_status || stj.status || '').toString().toLowerCase()
-                if (!['capture','settlement','success'].includes(txStatus)) {
-                  // not paid -> show redirect popup once
-                  const popupKey = `payment_redirect_shown:${orderCodeToPoll}`
-                  const already = sessionStorage.getItem(popupKey)
-                  if (!already && !popupShownRef.current) {
-                    popupShownRef.current = true
-                    try { sessionStorage.setItem(popupKey, '1') } catch (e) {}
-                    setPaymentRedirectUrl(paymentLinkFromApi || sessionStorage.getItem('payment_link_for_order') || '')
-                    setShowPaymentRedirectModal(true)
-                  }
-                } else {
-                  // midtrans already success -> mark payment accepted
-                  setCurrentStep(2)
-                  setPaymentAccepted(true)
-                }
-              }
-            } catch (e) {
-              console.warn('midtrans status check failed inside order polling', e)
-            }
-          } else {
-            // fallback: show popup if paymentLink exists (no displayOrderId)
-            const paymentLinkExists = paymentLinkFromApi || sessionStorage.getItem('payment_link_for_order') || ''
-            if (paymentLinkExists) {
-              const popupKey = `payment_redirect_shown:${orderCodeToPoll}`
-              const already = sessionStorage.getItem(popupKey)
-              if (!already && !popupShownRef.current) {
-                popupShownRef.current = true
-                try { sessionStorage.setItem(popupKey, '1') } catch (e) {}
-                setPaymentRedirectUrl(paymentLinkExists)
-                setShowPaymentRedirectModal(true)
-              }
-            }
-          }
-        } else if (statusNum === 0) {
-          // backend says payment done -> move to step 2
-          setCurrentStep(2)
-          setPaymentAccepted(true)
-        } else if (statusNum === 2 || statusNum === 1) {
-          // finished
-          setCurrentStep(1)
-        } else {
-          // other statuses: don't change automatically
-        }
-      } catch (err) {
-        console.warn('checkOrder error', err)
-      }
-    }
-
-    // initial check & interval
-    checkOrder()
-    pollOrderRef.current = setInterval(checkOrder, 5000)
-
-    return () => {
-      mounted = false
-      if (pollOrderRef.current) {
-        clearInterval(pollOrderRef.current)
-        pollOrderRef.current = null
-      }
-    }
-  }, [router.isReady, id])
-
-  // Steps definitions — adapt title/desc for paymentAccepted flag
-  const baseSteps = [
-    { key: 1, title: 'Pesanan Selesai', desc: 'Pesanan sudah selesai', img : '/images/check-icon.png'},
-    { key: 2, title: 'Makanan Sedang Disiapkan', desc: 'Pesanan kamu sedang disiapkan', img : '/images/bowl-icon.png' },
-    { key: 3, title: 'Pembayaran Pending', desc: 'Silahkan selesesaikan pembayaran kamu', img : '/images/wallet-icon.png' },
-    { key: 4, title: 'Pesanan Dibuat', desc: 'Pesanan kamu sudah masuk', img : '/images/mobile-icon.png' },
-  ]
-
-  const steps = baseSteps.map(s => {
-    if (s.key === 3 && paymentAccepted) {
-      return { ...s, title: 'Pembayaran Berhasil', desc: 'Pembayaran kamu sudah diterima' }
-    }
-    return s
-  })
-
-  // decide visibleItems for rendering: if showAllItems true -> all, else first item-only
+  // visibleItems: if showAllItems -> all, else first
   const visibleItems = showAllItems ? items : (itemsCount > 0 ? [items[0]] : [])
 
-  // merchant contact helper (ke WhatsApp)
   const MERCHANT_PHONE = '+628123456789'
   async function contactMerchant() {
-    try {
-      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-        await navigator.clipboard.writeText(MERCHANT_PHONE)
-      }
-    } catch (e) {}
+    try { if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') await navigator.clipboard.writeText(MERCHANT_PHONE) } catch (e) {}
     const normalized = MERCHANT_PHONE.replace(/\D/g, '')
     if (normalized) {
       const waUrl = `https://wa.me/${normalized}`
@@ -447,10 +344,7 @@ export default function OrderStatus() {
     }
   }
 
-  // Modal actions for payment redirect
-  function onModalCancel() {
-    setShowPaymentRedirectModal(false)
-  }
+  function onModalCancel() { setShowPaymentRedirectModal(false) }
   function onModalProceed() {
     setShowPaymentRedirectModal(false)
     if (paymentRedirectUrl) {
@@ -465,7 +359,7 @@ export default function OrderStatus() {
     <div className={styles.page}>
       {/* HEADER */}
       <header className={styles.header}>
-        <button className={styles.backBtn} onClick={() => router.push('/')}>←</button>
+        <button className={styles.backBtn} onClick={() => router.push('/')}>&larr;</button>
         <div className={styles.headerTitle}>Detail Pesanan</div>
       </header>
 
@@ -495,8 +389,7 @@ export default function OrderStatus() {
           <div className={styles.trackLine}></div>
 
           <div className={styles.stepsWrap}>
-            {steps.map((s) => {
-              // mapping: s.key < currentStep => done, s.key === currentStep => ongoing, else upcoming
+            {[{key:1,title:'Pesanan Selesai',desc:'Pesanan sudah selesai',img:'/images/check-icon.png'},{key:2,title:'Makanan Sedang Disiapkan',desc:'Pesanan kamu sedang disiapkan',img:'/images/bowl-icon.png'},{key:3,title:'Pembayaran Pending',desc:'Silahkan selesesaikan pembayaran kamu',img:'/images/wallet-icon.png'},{key:4,title:'Pesanan Dibuat',desc:'Pesanan kamu sudah masuk',img:'/images/mobile-icon.png'}].map((s) => {
               const status = s.key > currentStep ? 'done' : (s.key === currentStep ? 'ongoing' : 'upcoming')
               return (
                 <div key={s.key} className={`${styles.stepItem} ${styles[status]}`}>
@@ -529,8 +422,8 @@ export default function OrderStatus() {
             <div key={i} className={styles.itemRow}>
               <div className={styles.itemImageWrap}>
                 <Image
-                  src={it.image || '/images/gambar-menu.jpg'}
-                  alt={it.title || it.name || 'item'}
+                  src={it.detailCombo?.image ?? it.image ?? '/images/gambar-menu.jpg'}
+                  alt={it.detailCombo?.name ?? it.title ?? it.name ?? 'item'}
                   width={64}
                   height={64}
                   className={styles.itemImage}
@@ -538,13 +431,22 @@ export default function OrderStatus() {
               </div>
 
               <div className={styles.itemInfo}>
-                <div className={styles.itemTitle}>{it.title || it.name || it.itemName}</div>
+                <div className={styles.itemTitle}>{it.detailCombo?.name ?? it.title ?? it.name}</div>
+
                 <div className={styles.itemAddon}>
-                  {(it.qty || 1)}x {it.note || (it.addons && it.addons.length ? it.addons.map(a => a.group || a.name).join(', ') : 'No Note')}
+                  {it.type === 'combo' ? (
+                    // show combo products summary
+                    <>
+                      {it.qty || 1}x • {it.combos?.[0]?.products?.map(p => p.name).filter(Boolean).join(' + ') || 'Combo'}
+                    </>
+                  ) : (
+                    // menu item: show condiments or note
+                    <>{(it.qty || 1)}x {it.condiments && it.condiments.length ? it.condiments.map(c => c.name || c.group || c.code).join(', ') : (it.note || 'No Note')}</>
+                  )}
                 </div>
               </div>
 
-              <div className={styles.itemPrice}>{formatRp(Number(it.price || it.detailMenu?.Price || 0) * (Number(it.qty || 1)))}</div>
+              <div className={styles.itemPrice}>{formatRp(Number(it.price || 0) * (Number(it.qty || 1)))}</div>
             </div>
           ))}
         </div>
@@ -556,7 +458,7 @@ export default function OrderStatus() {
         )}
       </div>
 
-      {/* PAYMENT METHOD & DETAILS */}
+      {/* PAYMENT METHOD & DETAILS (unchanged) */}
       <div className={styles.section}>
         <div className={styles.sectionTitle}>Pilih Metode Pembayaran</div>
 
@@ -628,14 +530,14 @@ export default function OrderStatus() {
               <button
                 className={styles.btnSecondary}
                 onClick={onModalCancel}
-                style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', color: '#b91c1c' }} // cancel red visual
+                style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', color: '#b91c1c' }}
               >
                 Batal
               </button>
               <button
                 className={styles.btnPrimary}
                 onClick={onModalProceed}
-                style={{ background: '#16a34a', color: '#fff' }} // green agree
+                style={{ background: '#16a34a', color: '#fff' }}
               >
                 Lanjutkan Pembayaran
               </button>

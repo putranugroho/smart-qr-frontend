@@ -53,9 +53,9 @@
 }
 
 .orderNumberBox {
-  width: 75px;
+  width: 130px;
   height: 45x;
-  margin-bottom : -40px;
+  margin-bottom : -35px;
   background: rgba(255,255,255,0.95);
   color: #000;
   border-radius: 8px 8px 8px 8px;
@@ -66,8 +66,8 @@
   align-items: center;
 }
 .smallText {
-  font-size: 8px;
-  font-weight: 400;
+  font-size: 10px;
+  font-weight: 600;
   opacity: 0.8;
 }
 .orderNumber {

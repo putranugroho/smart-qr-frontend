@@ -1,10 +1,9 @@
-// components/ItemDetail.js
 import Image from 'next/image'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import StickyCartBar from './StickyCartBar'
 import { useRouter } from 'next/router'
 import styles from '../styles/ItemDetail.module.css'
-import { addToCart, getCart, updateCart } from '../lib/cart'
+import { addToCart, getCart, updateCart, replaceCartAtIndex } from '../lib/cart'
 
 function formatRp(n) {
   if (n == null) return '-'
@@ -365,7 +364,45 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
     try {
       if (fromCheckout && editingIndex != null) {
-        updateCart(editingIndex, order)
+        // === EDIT FLOW: replace item deterministically ===
+        try {
+          const currentCart = getCart() || [];
+          const original = (typeof editingIndex === 'number' && currentCart[editingIndex]) ? currentCart[editingIndex] : null;
+
+          // Merge order onto original to preserve shape (esp. combo structure)
+          let newOrder = order;
+          if (original) {
+            // If original is combo, preserve its combo structure unless overwritten
+            if (original.type === 'combo') {
+              newOrder = { ...original, ...order };
+              newOrder.type = 'combo';
+              // ensure combos/detailCombo exist (preserve if original had)
+              if (!newOrder.combos && original.combos) newOrder.combos = original.combos;
+              if (!newOrder.detailCombo && original.detailCombo) newOrder.detailCombo = original.detailCombo;
+            } else {
+              // for non-combo, simple merge keeps any legacy fields
+              newOrder = { ...original, ...order };
+            }
+          } else {
+            // no original (edge-case): still attempt updateCart (fallback) or push as new
+            newOrder = order;
+          }
+
+          // ensure qty and price types are numbers
+          newOrder.qty = Number(newOrder.qty || 1);
+          newOrder.price = Number(newOrder.price || 0);
+
+          // perform deterministic replace
+          const updated = replaceCartAtIndex(editingIndex, newOrder)
+          // try updateCart for compatibility (non-critical)
+          try { updateCart(editingIndex, newOrder) } catch (e) { /* ignore */ }
+
+          // nothing else required here; Checkout will reload cart when navigated back
+        } catch (e) {
+          console.error('persist cart error (edit replace)', e)
+          // fallback: attempt to call updateCart (patch) - may still work
+          try { updateCart(editingIndex, order) } catch (ee) { console.error('fallback updateCart failed', ee) }
+        }
       } else {
         addToCart(order)
       }
@@ -586,11 +623,6 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
             </div>
           </section>
         ))}
-      </div>
-
-      <div className={styles.notesWrap}>
-        <div className={styles.notesTitle}>Catatan</div>
-        <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Tambahkan catatan pesanan (opsional)" className={styles.textarea} />
       </div>
 
       <div className={styles.spacer} />

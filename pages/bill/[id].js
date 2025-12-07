@@ -6,6 +6,7 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import styles from "../../styles/BillPage.module.css";
 import { getPayment } from "../../lib/cart";
+import { getUser } from "../../lib/auth";
 
 function formatRp(n) {
   return "Rp" + new Intl.NumberFormat("id-ID").format(Number(n || 0));
@@ -49,6 +50,7 @@ export default function BillPage() {
   const router = useRouter();
   const { id } = router.query;
   const [dataOrder, setDataOrder] = useState("")
+  const [user, setUser] = useState('')
   const [urlLogo, setUrlLogo] = useState("/images/pay-gopay.png")
   const printRef = useRef();
 
@@ -60,6 +62,9 @@ export default function BillPage() {
       items: gp.cart || [],
       paymentTotal: gp.paymentTotal || 0,
     });
+    
+    const dataUser = getUser?.() || null;
+    setUser(dataUser)
 
     const s = sessionStorage.getItem("midtrans_tx");
     if (s) {
@@ -136,6 +141,16 @@ export default function BillPage() {
           <div className={styles.billValue}>{id}</div>
         </div>
 
+        {/* NPWP */}
+        <div className={styles.billNumberRow}>
+        {ppnTotal > 0 ? (
+          <div className={styles.npwpLabel}>NPWP : 02.906.343.5-006.000</div>
+        ) : (
+          <div className={styles.npwpLabel}></div>
+        )}
+          <div className={styles.npwpLabel}>{user.tableNumber}</div>
+        </div>
+
         {/* ITEMS */}
         {payment.items.map((it, i) => {
         // ============================
@@ -210,10 +225,12 @@ export default function BillPage() {
             <div>{formatRp(pb1Total)}</div>
           </div>
 
+        {ppnTotal > 0 && (
           <div className={styles.detailRow}>
             <div>PPN (11%)</div>
             <div>{formatRp(ppnTotal)}</div>
           </div>
+        )}
 
           {/* NEW: Rounding row */}
           <div className={styles.detailRow}>

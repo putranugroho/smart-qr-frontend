@@ -1,6 +1,6 @@
-// FILE: pages/order/[id].js
+// pages/order/[id].js
 import { useRouter } from 'next/router'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import styles from '../styles/OrderStatus.module.css'
 import { getPayment } from '../lib/cart'
@@ -11,136 +11,234 @@ function formatRp(n) {
 }
 
 // helper: calculate taxes for a single item (handles combo and normal)
+// NOTE: this supports both local cart shape and remote API shape (we normalize remote to similar)
 function calculateItemTaxes(it) {
   // returns { base: Number, pb1: Number, ppn: Number }
   let base = 0
   let pb1 = 0
   let ppn = 0
 
-  if (it.type === 'combo' && it.combos && it.combos[0] && it.combos[0].products) {
-    // sum each product price * qty
-    const products = it.combos[0].products
-    base = products.reduce((t, p) => t + (Number(p.price || 0) * Number(p.qty || 1)), 0) * Number(it.qty || 1)
-
+  // remote combo shape: type === 'combo' && combos[] with products[]
+  if (it && it.type === 'combo' && Array.isArray(it.combos)) {
+    const products = it.combos.flatMap(cb => (Array.isArray(cb.products) ? cb.products : []))
+    // base price: sum product.price * qty * comboQty * itemQty
     products.forEach((p) => {
-      const lineBase = Number(p.price || 0) * Number(p.qty || 1) * Number(it.qty || 1) // include combo qty
+      const pQty = Number(p.qty || 1)
+      const basePrice = Number(p.price || 0)
+      const cbQty = Number(p._comboQty || 1) // we may store combo-level qty as _comboQty on product mapping
+      const itemQty = Number(it.qty || 1)
+      const lineBase = basePrice * pQty * cbQty * itemQty
+      base += lineBase
+
+      // product taxes
       if (Array.isArray(p.taxes)) {
-        p.taxes.forEach((tx) => {
-          const pct = Number(tx.taxPercentage || 0)
-          const amount = Math.round(lineBase * pct / 100)
-          if ((tx.taxName || '').toUpperCase().includes('PB1')) pb1 += amount
-          else if ((tx.taxName || '').toUpperCase().includes('PPN')) ppn += amount
+        p.taxes.forEach(tx => {
+          const pct = Number(tx.taxPercentage ?? tx.TaxPercentage ?? tx.amount ?? 0)
+          const taxAmt = Math.round(lineBase * (pct / 100))
+          if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmt
+          else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmt
+        })
+      }
+
+      // condiments under product
+      if (Array.isArray(p.condiments)) {
+        p.condiments.forEach(c => {
+          const cQty = Number(c.qty || 1)
+          const cPrice = Number(c.price || 0)
+          const cBase = cPrice * cQty * pQty * cbQty * itemQty
+          base += cBase
+          if (Array.isArray(c.taxes)) {
+            c.taxes.forEach(tx => {
+              const pct = Number(tx.taxPercentage ?? tx.TaxPercentage ?? tx.amount ?? 0)
+              const taxAmt = Math.round(cBase * (pct / 100))
+              if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmt
+              else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmt
+            })
+          }
         })
       }
     })
   } else {
-    // normal item
+    // normal item shape (local menu or remote Menu)
     const qty = Number(it.qty || 1)
-    base = Number(it.price || 0) * qty
+    const price = Number(it.price || it.detailMenu?.Price || it.detailMenu?.price || 0)
+    base = price * qty
+
+    // taxes on item
     if (Array.isArray(it.taxes)) {
-      it.taxes.forEach((tx) => {
-        const pct = Number(tx.taxPercentage || 0)
-        const amount = Math.round(base * pct / 100)
-        if ((tx.taxName || '').toUpperCase().includes('PB1')) pb1 += amount
-        else if ((tx.taxName || '').toUpperCase().includes('PPN')) ppn += amount
+      it.taxes.forEach(tx => {
+        const pct = Number(tx.taxPercentage ?? tx.TaxPercentage ?? tx.amount ?? 0)
+        const taxAmt = Math.round(base * (pct / 100))
+        if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmt
+        else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmt
+      })
+    }
+
+    // condiments
+    if (Array.isArray(it.condiments)) {
+      it.condiments.forEach(c => {
+        const cQty = Number(c.qty || 1)
+        const cPrice = Number(c.price || 0)
+        const cBase = cPrice * cQty * qty
+        base += cBase
+        if (Array.isArray(c.taxes)) {
+          c.taxes.forEach(tx => {
+            const pct = Number(tx.taxPercentage ?? tx.TaxPercentage ?? tx.amount ?? 0)
+            const taxAmt = Math.round(cBase * (pct / 100))
+            if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmt
+            else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmt
+          })
+        }
       })
     }
   }
 
-  return { base, pb1, ppn }
+  return { base: Math.round(base), pb1: Math.round(pb1), ppn: Math.round(ppn) }
 }
 
 export default function OrderStatus() {
   const router = useRouter()
   const { id } = router.query
-  const [payment, setPayment] = useState({ items: [], paymentTotal: 0 })
-  const [currentStep, setCurrentStep] = useState(3)
-  const [displayOrderId, setDisplayOrderId] = useState("")
-  const [dataOrder, setDataOrder] = useState("")
-  const [urlLogo, setUrlLogo] = useState("")
-  const [user, setUser] = useState('')
+
+  // local/derived states
+  const [displayOrderId, setDisplayOrderId] = useState('')
+  const [dataOrder, setDataOrder] = useState(null) // raw remote `data` object from API
+  const [remoteOrderRaw, setRemoteOrderRaw] = useState(null) // full API response
+  const [user, setUser] = useState(null)
   const [table, setTable] = useState('')
-  const [showAllItems, setShowAllItems] = useState(false) // new state
+  const [currentStep, setCurrentStep] = useState(3)
+  const [showAllItems, setShowAllItems] = useState(false)
+  const [showPaymentRedirectModal, setShowPaymentRedirectModal] = useState(false)
+  const [paymentRedirectUrl, setPaymentRedirectUrl] = useState('')
+  const popupShownRef = useRef(false)
+  const pollOrderRef = useRef(null)
+  const [paymentAccepted, setPaymentAccepted] = useState(false) // when backend says payment received
 
-  // NEW: orderCode from do_order sessionStorage
-  const [orderCode, setOrderCode] = useState('')
+  // items derived either from getPayment() (client cart) or remote dataOrder
+  const [clientPayment, setClientPayment] = useState({ items: [], paymentTotal: 0 })
 
-  /* 1) read sessionStorage once on mount -> setDataOrder */
+  // load session midtrans/do_order_result + user
   useEffect(() => {
-    const s = sessionStorage.getItem('midtrans_tx');
+    const s = sessionStorage.getItem('midtrans_tx')
     if (s) {
-      try { setDataOrder(JSON.parse(s)); }
-      catch (e) { console.warn('Invalid midtrans_tx', e); }
+      try { setRemoteOrderRaw(prev => prev || JSON.parse(s)) } catch (e) { /* ignore */ }
     }
 
-    // read do_order session (expected structure: { data: { orderCode: "..." }, ... })
+    // load stored do_order_result (maybe saved earlier)
     try {
       const doOrderRaw = sessionStorage.getItem('do_order_result')
       if (doOrderRaw) {
         const parsed = JSON.parse(doOrderRaw)
-        // support nested shape or direct orderCode
-        const code = parsed?.data?.orderCode ?? parsed?.orderCode ?? parsed
-        if (typeof code === 'string' && code.trim() !== '') {
-          setOrderCode(code.trim())
+        // if it's full api response like { data: {...} } then parsed.data; else parsed
+        const d = parsed?.data ?? parsed
+        if (d) setDataOrder(d)
+        setRemoteOrderRaw(parsed)
+        // store orderCode if available into local state
+        const oc = parsed?.data?.orderCode ?? parsed?.orderCode ?? null
+        if (oc) {
+          // show orderCode in header
+          setDisplayOrderId(String(oc))
         }
       }
-    } catch (e) {
-      console.warn('Failed to parse do_order from sessionStorage', e)
-    }
+    } catch (e) { /* ignore */ }
 
-    // only runs once on mount
     const dataUser = getUser?.() || null;
     setUser(dataUser)
-
-    if (dataUser && dataUser.orderType == "DI") {
+    if (dataUser && dataUser.orderType === "DI") {
       setTable(`Table ${dataUser.tableNumber} • Dine In`)
     } else if (dataUser) {
       setTable(`Table ${dataUser.tableNumber} • Take Away`)
-    } 
-  }, []);
-
-  /* 2) when dataOrder changes, set urlLogo accordingly
-    -> DOES NOT write dataOrder, so safe to include dataOrder in deps */
-  useEffect(() => {
-    if (!dataOrder) return;
-    switch (dataOrder.payment_type) {
-      case 'qris': setUrlLogo('/images/pay-qris.png'); break;
-      case 'shopee': setUrlLogo('/images/pay-shopee.png'); break;
-      case 'ovo': setUrlLogo('/images/pay-ovo.png'); break;
-      case 'dana': setUrlLogo('/images/pay-dana.png'); break;
-      default: setUrlLogo('/images/pay-gopay.png'); break;
     }
-  }, [dataOrder]);
 
-  /* 3) set displayOrderId when router is ready (depends on router.isReady & id) */
-  useEffect(() => {
-    if (router.isReady) setDisplayOrderId(String(id || ''));
-  }, [router.isReady, id]);
+    // load local cart payment snapshot (if any)
+    try {
+      const p = getPayment?.() || {}
+      setClientPayment({ items: p.cart || [], paymentTotal: p.paymentTotal || 0 })
+    } catch (e) { /* ignore */ }
+  }, [])
 
-  /* 4) initialize payment (getPayment) once (or when router ready)
-    Put router.isReady in deps if you want to wait until router ready. */
+  // derive displayOrderId from session if any
   useEffect(() => {
-    const item = getPayment() || {};
-    const p = { items: item.cart || [], paymentTotal: item.paymentTotal || 0 };
-    if (p && p.items && p.items.length) {
-      setPayment(p);
-      setCurrentStep(2);
-    } else {
-      setPayment({ items: [], paymentTotal: 0 });
+    try {
+      const d = sessionStorage.getItem('display_order_id') || sessionStorage.getItem('displayOrderId')
+      if (d) setDisplayOrderId(String(d))
+    } catch (e) {}
+  }, [])
+
+  // derive items to render: prefer remote API dataOrder if present, else client snapshot
+  const itemsFromRemote = (function () {
+    if (!dataOrder) return []
+    const arr = []
+    // remote Combos (PascalCase)
+    const combos = dataOrder.Combos ?? dataOrder.combos ?? []
+    if (Array.isArray(combos)) {
+      combos.forEach(cb => {
+        // normalize to shape expected by renderComboDetails (it.combos[...] structure)
+        const products = Array.isArray(cb.Products ?? cb.products) ? (cb.Products ?? cb.products) : []
+        const mappedProducts = products.map(p => ({
+          code: p.Code ?? p.code,
+          name: p.Name ?? p.name,
+          price: p.Price ?? p.price ?? 0,
+          qty: p.Qty ?? p.qty ?? 1,
+          taxes: Array.isArray(p.Taxes ?? p.taxes) ? (p.Taxes ?? p.taxes).map(t => ({
+            taxName: t.TaxName ?? t.taxName ?? t.name ?? '',
+            taxPercentage: t.TaxPercentage ?? t.taxPercentage ?? t.TaxPercentage ?? t.taxPercentage ?? (t.amount ?? 0),
+            taxAmount: t.TaxAmount ?? t.taxAmount ?? 0
+          })) : [],
+          condiments: Array.isArray(p.Condiments ?? p.condiments) ? (p.Condiments ?? p.condiments) : [],
+        }))
+
+        arr.push({
+          type: 'combo',
+          combos: [{
+            detailCombo: {
+              code: cb.DetailCombo?.Code ?? cb.detailCombo?.code ?? '',
+              name: cb.DetailCombo?.Name ?? cb.detailCombo?.name ?? ''
+            },
+            isFromMacro: !!cb.IsFromMacro,
+            orderType: cb.OrderType ?? cb.orderType ?? '',
+            products: mappedProducts,
+            qty: cb.Qty ?? cb.Qty ?? 1,
+            voucherCode: cb.VoucherCode ?? cb.voucherCode ?? null
+          }],
+          qty: cb.Qty ?? 1,
+          detailCombo: {
+            code: cb.DetailCombo?.Code ?? cb.detailCombo?.code ?? '',
+            name: cb.DetailCombo?.Name ?? cb.detailCombo?.name ?? '',
+            image: cb.DetailCombo?.Image ?? cb.detailCombo?.image ?? null
+          },
+          note: cb.Note ?? cb.note ?? '',
+          image: cb.Image ?? cb.image ?? null,
+          taxes: Array.isArray(cb.Taxes ?? cb.taxes) ? (cb.Taxes ?? cb.taxes) : []
+        })
+      })
     }
-  }, []); // or [router.isReady] if needed
 
-  const steps = [
-    { key: 1, title: 'Pesanan Selesai', desc: 'Pesanan sudah selesai', img : '/images/check-icon.png'},
-    { key: 2, title: 'Makanan Sedang Disiapkan', desc: 'Pesanan kamu sedang disiapkan', img : '/images/bowl-icon.png' },
-    { key: 3, title: 'Pembayaran Berhasil', desc: 'Pembayaran kamu sudah diterima', img : '/images/wallet-icon.png' },
-    { key: 4, title: 'Pesanan Dibuat', desc: 'Pesanan kamu sudah dibuat', img : '/images/mobile-icon.png' },
-  ]
+    // remote Menus
+    const menus = dataOrder.Menus ?? dataOrder.menus ?? []
+    if (Array.isArray(menus)) {
+      menus.forEach(m => {
+        arr.push({
+          type: 'menu',
+          price: m.DetailMenu?.Price ?? m.DetailMenu?.price ?? m.price ?? 0,
+          qty: m.Qty ?? m.qty ?? 1,
+          title: m.DetailMenu?.Name ?? m.DetailMenu?.name ?? m.name ?? '',
+          name: m.DetailMenu?.Name ?? m.DetailMenu?.name ?? m.name ?? '',
+          image: m.DetailMenu?.Image ?? m.DetailMenu?.image ?? null,
+          condiments: Array.isArray(m.Condiments ?? m.condiments) ? (m.Condiments ?? m.condiments) : [],
+          taxes: Array.isArray(m.Taxes ?? m.taxes) ? (m.Taxes ?? m.taxes) : []
+        })
+      })
+    }
 
-  // compute derived totals from items using tax definitions on each item
-  const items = payment.items || []
+    return arr
+  })()
+
+  // If remote items exist, use them; otherwise fallback to clientPayment items
+  const items = itemsFromRemote.length > 0 ? itemsFromRemote : (clientPayment.items || [])
   const itemsCount = items.length
 
+  // compute totals using calculateItemTaxes
   let computedSubtotal = 0
   let computedPB1 = 0
   let computedPPN = 0
@@ -152,54 +250,217 @@ export default function OrderStatus() {
     computedPPN += t.ppn
   })
 
-  // rounding already done per-line; ensure integers
   computedSubtotal = Math.round(computedSubtotal)
   computedPB1 = Math.round(computedPB1)
   computedPPN = Math.round(computedPPN)
 
-  // unrounded total (before rounding-to-100)
   const unroundedTotal = computedSubtotal + computedPB1 + computedPPN
-
-  // rounding to nearest 100 (ubah ke Math.ceil untuk selalu naik)
   const roundedTotal = Math.round(unroundedTotal / 100) * 100
-  const roundingAmount = roundedTotal - unroundedTotal // bisa negatif, zero, atau positive
+  const roundingAmount = roundedTotal - unroundedTotal
   const total = roundedTotal
-
-  // decide which items to render: if showAllItems true -> all, else just first (if >=1)
-  const visibleItems = showAllItems ? items : (itemsCount > 0 ? [items[0]] : [])
 
   function handleToggleShowAll() {
     setShowAllItems(prev => !prev)
   }
 
-  /* ========== HOVERBAR LOGIC ========== */
+  // helper: parse order_id from paymentLink (try decode percent-encoding)
+  function parseOrderIdFromPaymentLink(link) {
+    if (!link) return null
+    try {
+      // decode and search for order_id= or orderId=
+      const decoded = decodeURIComponent(link)
+      const m = decoded.match(/[?&]order_id=([^&]+)/i) || decoded.match(/[?&]orderId=([^&]+)/i) || decoded.match(/order_id%3D([^&]+)/i)
+      if (m && m[1]) return decodeURIComponent(m[1])
+    } catch (e) { /* ignore */ }
+    return null
+  }
 
-  // Replace this with merchant phone number you want to use
-  const MERCHANT_PHONE = '+628123456789' // <-- ganti nomor ini sesuai kebutuhan (format internasional)
+  // fetchRemoteOrder (uses proxy route)
+  async function fetchRemoteOrder(orderCodeToFetch) {
+    if (!orderCodeToFetch) return null
+    try {
+      // use proxy in nextjs to avoid CORS / reveal keys
+      const url = `/api/proxy/order/${encodeURIComponent(orderCodeToFetch)}`
+      const r = await fetch(url)
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      const j = await r.json()
+      return j
+    } catch (e) {
+      console.warn('fetchRemoteOrder failed', e)
+      return null
+    }
+  }
 
+  // Polling remote order API (start when id available or when do_order_result exists)
+  useEffect(() => {
+    if (!router.isReady) return
+
+    // select orderCode: prefer route id else do_order_result value
+    let orderCodeToPoll = String(id || '').trim()
+    if (!orderCodeToPoll) {
+      try {
+        const stored = sessionStorage.getItem('do_order_result')
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          orderCodeToPoll = parsed?.data?.orderCode ?? parsed?.orderCode ?? ''
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    if (!orderCodeToPoll) {
+      // nothing to poll
+      return
+    }
+
+    // ensure we store the orderCode display somewhere
+    try { sessionStorage.setItem('current_order_code', orderCodeToPoll) } catch (e) {}
+
+    let mounted = true
+
+    async function checkOrder() {
+      try {
+        const apiResp = await fetchRemoteOrder(orderCodeToPoll)
+        if (!apiResp || !apiResp.data) return
+        if (!mounted) return
+
+        // save raw and data
+        setRemoteOrderRaw(apiResp)
+        setDataOrder(apiResp.data)
+        try { sessionStorage.setItem('do_order_result', JSON.stringify(apiResp)) } catch (e) {}
+
+        // set orderCode display if present
+        const oc = apiResp?.data?.orderCode ?? apiResp?.orderCode ?? null
+        if (oc) setDisplayOrderId(String(oc))
+
+        const statusNum = Number(apiResp.data.Status ?? apiResp.data.status ?? 0)
+
+        if (statusNum === -1) {
+          // step 4 (Pesanan Dibuat) — waiting payment
+          setCurrentStep(4)
+
+          // try to find displayOrderId for midtrans check
+          const paymentLinkFromApi = (apiResp.data.PaymentLink ?? apiResp.data.paymentLink ?? apiResp.data.PaymentUrl ?? '') || ''
+          const displayOrderIdFromApi = apiResp.data.DisplayOrderId ?? apiResp.data.displayOrderId ?? null
+          const foundDisplayOrderId = displayOrderIdFromApi || parseOrderIdFromPaymentLink(paymentLinkFromApi) || sessionStorage.getItem('display_order_id')
+
+          // check midtrans status if displayOrderId available
+          if (foundDisplayOrderId) {
+            try {
+              const stResp = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(foundDisplayOrderId)}`)
+              if (stResp.ok) {
+                const stj = await stResp.json()
+                const txStatus = (stj.transaction_status || stj.status || '').toString().toLowerCase()
+                if (!['capture','settlement','success'].includes(txStatus)) {
+                  // not paid -> show redirect popup once
+                  const popupKey = `payment_redirect_shown:${orderCodeToPoll}`
+                  const already = sessionStorage.getItem(popupKey)
+                  if (!already && !popupShownRef.current) {
+                    popupShownRef.current = true
+                    try { sessionStorage.setItem(popupKey, '1') } catch (e) {}
+                    setPaymentRedirectUrl(paymentLinkFromApi || sessionStorage.getItem('payment_link_for_order') || '')
+                    setShowPaymentRedirectModal(true)
+                  }
+                } else {
+                  // midtrans already success -> mark payment accepted
+                  setCurrentStep(2)
+                  setPaymentAccepted(true)
+                }
+              }
+            } catch (e) {
+              console.warn('midtrans status check failed inside order polling', e)
+            }
+          } else {
+            // fallback: show popup if paymentLink exists (no displayOrderId)
+            const paymentLinkExists = paymentLinkFromApi || sessionStorage.getItem('payment_link_for_order') || ''
+            if (paymentLinkExists) {
+              const popupKey = `payment_redirect_shown:${orderCodeToPoll}`
+              const already = sessionStorage.getItem(popupKey)
+              if (!already && !popupShownRef.current) {
+                popupShownRef.current = true
+                try { sessionStorage.setItem(popupKey, '1') } catch (e) {}
+                setPaymentRedirectUrl(paymentLinkExists)
+                setShowPaymentRedirectModal(true)
+              }
+            }
+          }
+        } else if (statusNum === 0) {
+          // backend says payment done -> move to step 2
+          setCurrentStep(2)
+          setPaymentAccepted(true)
+        } else if (statusNum === 2 || statusNum === 1) {
+          // finished
+          setCurrentStep(1)
+        } else {
+          // other statuses: don't change automatically
+        }
+      } catch (err) {
+        console.warn('checkOrder error', err)
+      }
+    }
+
+    // initial check & interval
+    checkOrder()
+    pollOrderRef.current = setInterval(checkOrder, 5000)
+
+    return () => {
+      mounted = false
+      if (pollOrderRef.current) {
+        clearInterval(pollOrderRef.current)
+        pollOrderRef.current = null
+      }
+    }
+  }, [router.isReady, id])
+
+  // Steps definitions — adapt title/desc for paymentAccepted flag
+  const baseSteps = [
+    { key: 1, title: 'Pesanan Selesai', desc: 'Pesanan sudah selesai', img : '/images/check-icon.png'},
+    { key: 2, title: 'Makanan Sedang Disiapkan', desc: 'Pesanan kamu sedang disiapkan', img : '/images/bowl-icon.png' },
+    { key: 3, title: 'Pembayaran Pending', desc: 'Silahkan selesesaikan pembayaran kamu', img : '/images/wallet-icon.png' },
+    { key: 4, title: 'Pesanan Dibuat', desc: 'Pesanan kamu sudah masuk', img : '/images/mobile-icon.png' },
+  ]
+
+  const steps = baseSteps.map(s => {
+    if (s.key === 3 && paymentAccepted) {
+      return { ...s, title: 'Pembayaran Berhasil', desc: 'Pembayaran kamu sudah diterima' }
+    }
+    return s
+  })
+
+  // decide visibleItems for rendering: if showAllItems true -> all, else first item-only
+  const visibleItems = showAllItems ? items : (itemsCount > 0 ? [items[0]] : [])
+
+  // merchant contact helper (ke WhatsApp)
+  const MERCHANT_PHONE = '+628123456789'
   async function contactMerchant() {
     try {
-      // copy to clipboard (best-effort)
       if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
         await navigator.clipboard.writeText(MERCHANT_PHONE)
       }
-    } catch (e) {
-      // ignore clipboard errors
-    }
-
-    // try to open WhatsApp chat in new tab (user may change number)
+    } catch (e) {}
     const normalized = MERCHANT_PHONE.replace(/\D/g, '')
     if (normalized) {
       const waUrl = `https://wa.me/${normalized}`
       window.open(waUrl, '_blank', 'noopener')
       alert(`Nomor kontak disalin ke clipboard: ${MERCHANT_PHONE}\nMembuka WhatsApp...`)
     } else {
-      // fallback: show phone in alert
       alert(`Hubungi merchant: ${MERCHANT_PHONE}`)
     }
   }
 
-  /* ========== JSX ========== */
+  // Modal actions for payment redirect
+  function onModalCancel() {
+    setShowPaymentRedirectModal(false)
+  }
+  function onModalProceed() {
+    setShowPaymentRedirectModal(false)
+    if (paymentRedirectUrl) {
+      try { sessionStorage.setItem(`payment_redirect_attempted:${displayOrderId || id}`, '1') } catch (e) {}
+      window.location.href = paymentRedirectUrl
+    } else {
+      alert('Tautan pembayaran tidak tersedia.')
+    }
+  }
+
   return (
     <div className={styles.page}>
       {/* HEADER */}
@@ -212,13 +473,7 @@ export default function OrderStatus() {
       <div className={styles.blueBox}>
         <div className={styles.blueLeft}>
           <div className={styles.orderType}>
-            <Image
-              src="/images/bell-icon.png"
-              alt="Bell"
-              width={20}
-              height={20}
-              style={{ paddingRight: 5 }}
-            />
+            <Image src="/images/bell-icon.png" alt="Bell" width={20} height={20} style={{ paddingRight: 5 }} />
             {table}
           </div>
           <div className={styles.storeName}>Yoshinoya - Mall Grand Indonesia</div>
@@ -226,18 +481,14 @@ export default function OrderStatus() {
 
         <div className={styles.orderNumberBox}>
           <div className={styles.smallText}>Nomor Orderan</div>
-          <div className={styles.orderNumber}>{String(displayOrderId || '-')}</div>
+          <div className={styles.orderNumber}>{String(displayOrderId || '-' )}</div>
         </div>
       </div>
 
       {/* TRACK ORDER */}
       <div className={styles.section}>
-        {/* NEW: row with title (left) and orderCode (right) */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <div className={styles.trackTitle}>Track Orderan</div>
-          <div style={{ fontSize: 14, color: '#333', fontWeight: 600 }}>
-            {orderCode ? orderCode : null}
-          </div>
         </div>
 
         <div className={styles.trackLineWrap}>
@@ -245,7 +496,7 @@ export default function OrderStatus() {
 
           <div className={styles.stepsWrap}>
             {steps.map((s) => {
-              // mapping sesuai keinginan: s.key < currentStep => done, s.key === currentStep => ongoing, else upcoming
+              // mapping: s.key < currentStep => done, s.key === currentStep => ongoing, else upcoming
               const status = s.key > currentStep ? 'done' : (s.key === currentStep ? 'ongoing' : 'upcoming')
               return (
                 <div key={s.key} className={`${styles.stepItem} ${styles[status]}`}>
@@ -288,25 +539,19 @@ export default function OrderStatus() {
 
               <div className={styles.itemInfo}>
                 <div className={styles.itemTitle}>{it.title || it.name || it.itemName}</div>
-                <div className={styles.itemAddon}>{(it.qty || 1)}x {it.note || (it.addons && it.addons.length ? it.addons.map(a => a.group).join(', ') : 'No Note')}</div>
+                <div className={styles.itemAddon}>
+                  {(it.qty || 1)}x {it.note || (it.addons && it.addons.length ? it.addons.map(a => a.group || a.name).join(', ') : 'No Note')}
+                </div>
               </div>
 
-              <div className={styles.itemPrice}>{formatRp(Number(it.price || 0) * (Number(it.qty || 1)))}</div>
+              <div className={styles.itemPrice}>{formatRp(Number(it.price || it.detailMenu?.Price || 0) * (Number(it.qty || 1)))}</div>
             </div>
           ))}
         </div>
 
-        {/* Show toggle button only if more than 1 item */}
         {itemsCount > 1 && (
-          <button
-            className={styles.viewAllBtn}
-            onClick={handleToggleShowAll}
-            type="button"
-            aria-expanded={showAllItems}
-          >
-            <span className={styles.viewAllText}>
-              {showAllItems ? 'Lebih Sedikit' : 'Lihat Semua'}
-            </span>
+          <button className={styles.viewAllBtn} onClick={handleToggleShowAll} type="button" aria-expanded={showAllItems}>
+            <span className={styles.viewAllText}>{showAllItems ? 'Lebih Sedikit' : 'Lihat Semua'}</span>
           </button>
         )}
       </div>
@@ -319,19 +564,13 @@ export default function OrderStatus() {
           <div className={styles.paymentBoxHeader}>
             <div className={styles.paymentBoxTitle}>Pembayaran Online</div>
 
-            <Image
-              src="/images/pembayaran-online.png"
-              alt="pembayaran online"
-              width={50}
-              height={50}
-              className={styles.paymentBoxIcon}
-            />
+            <Image src="/images/pembayaran-online.png" alt="pembayaran online" width={50} height={50} className={styles.paymentBoxIcon} />
           </div>
         </div>
 
         <div className={styles.paymentItem}>
           <div className={styles.paymentItemLeft}>
-            <img src={urlLogo} alt="logo" width={55} height={14} className={styles.iconImg} />
+            <img src="/images/pay-gopay.png" alt="logo" width={55} height={14} className={styles.iconImg} />
           </div>
         </div>
       </div>
@@ -355,7 +594,6 @@ export default function OrderStatus() {
           <div className={styles.paymentValue}>{formatRp(computedPPN)}</div>
         </div>
 
-        {/* NEW: Rounding row */}
         <div className={styles.paymentRow}>
           <div>Rounding</div>
           <div className={styles.paymentValue}>{formatRp(roundingAmount)}</div>
@@ -367,28 +605,46 @@ export default function OrderStatus() {
         </div>
       </div>
 
-      {/* ========== Hoverbar (fixed bottom) ========== */}
+      {/* Hoverbar */}
       <div className={styles.hoverBarWrap} role="region" aria-label="Aksi pesanan">
         <div className={styles.hoverBar}>
-          <button
-            className={styles.btnDownload}
-            onClick={() => router.push(`/bill/${displayOrderId}`)}
-            aria-label="Download bill"
-            type="button"
-          >
+          <button className={styles.btnDownload} onClick={() => router.push(`/bill/${displayOrderId || id}`)} aria-label="Download bill" type="button">
             <span>Download Bill</span>
           </button>
 
-          <button
-            className={styles.btnContact}
-            onClick={contactMerchant}
-            aria-label="Kontak merchant"
-            type="button"
-          >
+          <button className={styles.btnContact} onClick={contactMerchant} aria-label="Kontak merchant" type="button">
             <span>Kontak</span>
           </button>
         </div>
       </div>
+
+      {/* Payment redirect modal (appears 1x) */}
+      {showPaymentRedirectModal && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modal}>
+            <h3>Pembayaran belum selesai</h3>
+            <p>Sepertinya pembayaran belum selesai. Lanjutkan pembayaran sekarang?</p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+              <button
+                className={styles.btnSecondary}
+                onClick={onModalCancel}
+                style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', color: '#b91c1c' }} // cancel red visual
+              >
+                Batal
+              </button>
+              <button
+                className={styles.btnPrimary}
+                onClick={onModalProceed}
+                style={{ background: '#16a34a', color: '#fff' }} // green agree
+              >
+                Lanjutkan Pembayaran
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ height: 72 }} />
     </div>
   )
 }

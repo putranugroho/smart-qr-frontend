@@ -1,5 +1,3 @@
-
-// components/PaymentPage.jsx
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import styles from '../styles/PaymentPage.module.css'
@@ -19,9 +17,16 @@ export default function PaymentPage() {
   const [customer, setCustomer] = useState({ first_name: '', email: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
-  const [user, setUser] = useState('')
+  const [user, setUser] = useState({})
   const [table, setTable] = useState('')
   const [tableNumber, setTableNumber] = useState('');
+
+  // validation state
+  const [errors, setErrors] = useState({
+    first_name: '',
+    phone: '',
+    tableNumber: ''
+  });
 
   useEffect(() => {
     const pay = getPayment() || {};
@@ -38,7 +43,7 @@ export default function PaymentPage() {
       tableNumber
     };
         
-    const dataUser = getUser?.() || null;
+    const dataUser = getUser?.() || {};
     setUser(dataUser)
 
     if (dataUser.orderType == "DI") {
@@ -51,35 +56,90 @@ export default function PaymentPage() {
     setIsMounted(true);
   }, []);
 
+  // helper untuk cek apakah order type adalah take away
+  const isTakeAway = (() => {
+    if (!user || !user.orderType) return false;
+    const t = String(user.orderType).toUpperCase();
+    return t === 'TA' || t.includes('TAKE');
+  })();
+
   // compute payload from cart and use it as source of truth for totals
-  function buildPayload() {
+  function buildPayload(grossAmountForRounding = null) {
     const cart = payment.cart || [];
-    const payload = mapDoOrderPayload(cart, null, selectedMethod, {
+    // pass grossAmount so mapDoOrderPayload can compute rounding if needed
+    const payload = mapDoOrderPayload(cart, grossAmountForRounding, selectedMethod, {
       posId: 'QR',
-      orderType: 'DI',
-      tableNumber
+      orderType: user.orderType || 'DI',
+      tableNumber: isTakeAway ? '' : tableNumber
     });
     return payload;
   }
 
+  // Validate fields, set errors state, return boolean
+  function validateAll(showErrors = true) {
+    const next = { first_name: '', phone: '', tableNumber: '' };
+    let ok = true;
+
+    if (!customer.first_name || String(customer.first_name).trim() === '') {
+      next.first_name = 'Nama wajib diisi.';
+      ok = false;
+    }
+
+    if (!customer.phone || String(customer.phone).trim() === '') {
+      next.phone = 'Nomor WhatsApp wajib diisi.';
+      ok = false;
+    } else if ((customer.phone || '').length < 8) {
+      next.phone = 'Nomor WhatsApp minimal 8 digit.';
+      ok = false;
+    }
+
+    // hanya validasi tableNumber kalau bukan take away
+    if (!isTakeAway) {
+      if (!tableNumber || String(tableNumber).trim() === '') {
+        next.tableNumber = 'Nomer meja wajib diisi.';
+        ok = false;
+      } else {
+        // aturan: pertama 1 huruf di depan lalu 2-3 angka (kami izinkan 2 atau 3 digit)
+        const v = String(tableNumber).trim();
+        const regex = /^[A-Za-z]\d{2,3}$/;
+        if (!regex.test(v)) {
+          next.tableNumber = 'Format nomer meja: 1 huruf di depan diikuti 2–3 angka (contoh: A01 atau A001).';
+          ok = false;
+        }
+      }
+    }
+
+    if (showErrors) setErrors(next);
+    return ok;
+  }
+
+  // Auto-format table number on blur:
+  function formatTableOnBlur(v) {
+    if (!v) return v;
+    let s = String(v).trim().toUpperCase();
+    // jika mulai dengan letter + digits => pad angka minimal 2 digits (contoh A1 -> A01)
+    const m = s.match(/^([A-Z])(\d+)$/i);
+    if (m) {
+      const letter = m[1];
+      let digits = m[2];
+      // pad to at least 2 digits
+      if (digits.length === 1) digits = digits.padStart(2, '0'); // A1 -> A01
+      s = letter + digits;
+    }
+    return s;
+  }
+
   async function handlePayNow() {
-    if (!customer.first_name || !customer.phone) {
-      alert("Nama dan Nomor WhatsApp wajib diisi.");
+    // clear previous errors
+    setErrors({ first_name: '', phone: '', tableNumber: '' });
+
+    // validate inline, no popup
+    const ok = validateAll(true);
+    if (!ok) {
+      // don't proceed
       return;
     }
-    const userAuth = {
-      storeLocation: user.storeLocation,
-      orderType: user.orderType,
-      tableNumber: tableNumber, // keep table only for dine-in
-    };
 
-    // persist and go to menu
-    userSignIn(userAuth);
-
-    if (customer.phone.length < 8) {
-      alert("Nomor WhatsApp tidak valid.");
-      return;
-    }
     setIsLoading(true);
 
     try {
@@ -88,12 +148,12 @@ export default function PaymentPage() {
 
       // Build payload (source of truth)
       const payload = buildPayload();
-      console.log("payload",payload);
-      
+      console.log("payload", payload);
+
       const grossAmount = payload.grandTotal || 1;
 
-      // Use payload.grandTotal as grossAmount for Midtrans
-      const orderId = 'DI' + (Math.floor(Math.random() * 9000) + 1000);
+      // generate orderId that will be used as Midtrans order_id (displayOrderId)
+      const orderId = (user.orderType === 'DI' ? 'DI' : (isTakeAway ? 'TA' : 'DI')) + (Math.floor(Math.random() * 9000) + 1000);
 
       // === 1. Create Midtrans Transaction ===
       const resp = await fetch('/api/midtrans/create-transaction', {
@@ -110,7 +170,20 @@ export default function PaymentPage() {
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Gagal membuat transaksi');
 
+      // persist raw midtrans response for PaymentStatus usage
       sessionStorage.setItem("midtrans_tx", JSON.stringify(data));
+
+      // try to extract paymentLink (deeplink/url) from midtrans response (actions, core_response, deeplink_url)
+      let paymentLink = null;
+      try {
+        const actions = data.actions || data.core_response?.actions || [];
+        const deeplinkAction = Array.isArray(actions) && actions.find(a => a.name && a.name.toString().toLowerCase().includes('deeplink'));
+        const urlAction = Array.isArray(actions) && actions.find(a => ['mobile_web_checkout_url','mobile_deeplink_web','url','deeplink-redirect'].includes((a.name || '').toString().toLowerCase()));
+        paymentLink = (deeplinkAction && deeplinkAction.url) || (urlAction && urlAction.url) || data.redirect_url || data.core_response?.redirect_url || data.deeplink_url || data.core_response?.deeplink_url || null;
+      } catch (e) {
+        console.warn('extract paymentLink failed', e);
+        paymentLink = null;
+      }
 
       // Optionally attach payment reference from Midtrans to payload.selfPaymentRefId
       if (data && data.transaction_id) {
@@ -119,10 +192,18 @@ export default function PaymentPage() {
         payload.selfPaymentRefId = String(data.transaction_details.order_id);
       }
 
+      // CHANGED: attach displayOrderId (Midtrans order_id we generated)
+      payload.displayOrderId = orderId;
+
+      // CHANGED: attach paymentLink to payload if available
+      if (paymentLink) {
+        payload.paymentLink = paymentLink;
+      }
+
       payload.customerName = customer.first_name || "";
       payload.customerPhoneNumber = "0" + (customer.phone || "");
-      console.log("payload :", payload);
-      
+
+      console.log("payload (do-order) :", payload);
 
       // === 2. DO-ORDER ===
       const doOrderResp = await fetch('/api/order/do-order', {
@@ -138,18 +219,50 @@ export default function PaymentPage() {
       if (!doOrderResp.ok) throw new Error(doOrderData.error || 'Gagal do-order');
 
       console.log("doOrderData", doOrderData);
-      clearCart()
 
+      // persist do-order result (orderCode and backend data)
       sessionStorage.setItem("do_order_result", JSON.stringify(doOrderData));
+
+      // clear client cart (calls clearCart -> localStorage)
+      clearCart();
 
       router.push('/paymentstatus');
 
     } catch (err) {
       console.error(err);
+      setIsLoading(false);
       alert('Error pembayaran: ' + (err.message || err));
+      return;
     } finally {
       setIsLoading(false);
     }
+  }
+
+  // when phone/name change, we clear related errors
+  function handleNameChange(v) {
+    setCustomer(prev => ({ ...prev, first_name: v }));
+    if (errors.first_name) setErrors(prev => ({ ...prev, first_name: '' }));
+  }
+  function handlePhoneChange(v) {
+    // only numbers, remove leading zeros
+    let val = v.replace(/\D/g, "");
+    val = val.replace(/^0+/, "");
+    setCustomer(prev => ({ ...prev, phone: val }));
+    if (errors.phone) setErrors(prev => ({ ...prev, phone: '' }));
+  }
+
+  // table input change
+  function handleTableChange(v) {
+    setTableNumber(v);
+    if (errors.tableNumber) setErrors(prev => ({ ...prev, tableNumber: '' }));
+  }
+
+  // onBlur for table input -> autoformat
+  function handleTableBlur() {
+    const formatted = formatTableOnBlur(tableNumber);
+    if (formatted !== tableNumber) setTableNumber(formatted);
+    // revalidate
+    if (!isTakeAway) validateAll(true);
   }
 
   const payloadPreview = buildPayload();
@@ -170,7 +283,6 @@ export default function PaymentPage() {
         <div className={styles.orderInfoText}>Tipe Order</div>
         <div className={styles.orderInfoRight}>
           {table}
-          {/* <Image src="/images/caret-down.png" alt="Bell" width={19} height={10} style={{ paddingRight: 5 }} /> */}
         </div>
       </div>
 
@@ -179,36 +291,51 @@ export default function PaymentPage() {
         <div className={styles.sectionTitle}>Informasi Pemesan</div>
         <div className={styles.sectionDesc}>Masukkan informasi untuk menerima info pemesanan</div>
 
-        <label className={styles.label}>Nama</label>
+        <label className={styles.label}>Nama <span style={{color:'red'}}>*</span></label>
         <div className={styles.inputWrap}>
-          <input className={styles.input} placeholder="Masukan Nama" onChange={(e)=>setCustomer({...customer, first_name: e.target.value})} />
+          <input
+            className={styles.input}
+            placeholder="Masukan Nama"
+            value={customer.first_name || ''}
+            onChange={(e)=>handleNameChange(e.target.value)}
+            style={errors.first_name ? { borderColor: 'red' } : {}}
+          />
         </div>
+        {errors.first_name && <div style={{ color: 'red', fontSize: 12, marginTop: 6 }}>{errors.first_name}</div>}
 
-        <label className={styles.label}>Nomor WhatsApp</label>
+        <label className={styles.label}>Nomor WhatsApp <span style={{color:'red'}}>*</span></label>
         <div className={styles.phoneRow}>
           <div className={styles.countryCode}>+62 ▼</div>
           <input
             className={styles.phoneInput}
             placeholder="ex: 81234567890"
             value={customer.phone || ""}
-            onChange={(e) => {
-              // Hanya izinkan angka
-              let v = e.target.value.replace(/\D/g, "");
-
-              // Hilangkan zero di depan (leading zero)
-              v = v.replace(/^0+/, "");
-
-              setCustomer({ ...customer, phone: v });
-            }}
+            onChange={(e) => handlePhoneChange(e.target.value)}
+            style={errors.phone ? { borderColor: 'red' } : {}}
           />
         </div>
-        {(user.tableNumber === '' || user.tableNumber === '000' )&& (
-        <label className={styles.label}>Nomer Meja</label>
-        )}
-        {(user.tableNumber === '' || user.tableNumber === '000' ) && (
-        <div className={styles.inputWrap}>
-          <input className={styles.input} placeholder="Masukan Nomer Meja" onChange={(e)=>setTableNumber(e.target.value)} />
-        </div>
+        {errors.phone && <div style={{ color: 'red', fontSize: 12, marginTop: 6 }}>{errors.phone}</div>}
+
+        {/* show table input only when not take away */}
+        {!isTakeAway && (
+          <>
+            <label className={styles.label}>Nomer Meja <span style={{color:'red'}}>*</span></label>
+            <div className={styles.inputWrap}>
+              <input
+                className={styles.input}
+                placeholder="Masukan Nomer Meja (contoh: A01 atau A001)"
+                value={tableNumber || ''}
+                onChange={(e) => handleTableChange(e.target.value)}
+                onBlur={handleTableBlur}
+                style={errors.tableNumber ? { borderColor: 'red' } : {}}
+              />
+            </div>
+            {errors.tableNumber && <div style={{ color: 'red', fontSize: 12, marginTop: 6 }}>{errors.tableNumber}</div>}
+            {/* hint kecil */}
+            <div style={{ fontSize: 12, color: '#666', marginTop: 6 }}>
+              Aturan: 1 huruf diawal lalu 2–3 angka. Contoh: <strong>A01</strong> atau <strong>A001</strong>. Jika Anda mengetik <strong>A1</strong> sistem akan otomatis mengubah menjadi <strong>A01</strong>.
+            </div>
+          </>
         )}
       </div>
 

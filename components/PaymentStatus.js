@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import { useEffect, useState, useRef } from 'react'
 import styles from '../styles/PaymentStatus.module.css'
 import { getPayment } from '../lib/cart'
+import Image from 'next/image'
 
 function formatRp(n) {
   return 'Rp' + new Intl.NumberFormat('id-ID').format(Number(n || 0))
@@ -23,6 +24,10 @@ export default function PaymentStatus() {
   const [qrError, setQrError] = useState(null)
   const pollRef = useRef(null)
 
+  // success state
+  const [paymentSuccess, setPaymentSuccess] = useState(false)
+  const [successOrderId, setSuccessOrderId] = useState(null)
+
   // --- NEW: confirmation modal state
   const [showLeaveModal, setShowLeaveModal] = useState(false)
   const leaveResolveRef = useRef(null) // to resolve Promise when modal answered
@@ -32,8 +37,7 @@ export default function PaymentStatus() {
     const s = sessionStorage.getItem('midtrans_tx')
     const meta = sessionStorage.getItem('order_meta')
     const r = sessionStorage.getItem('do_order_result')
-    console.log("r",r);
-    
+
     if (r) {
       try {
         const parsed = JSON.parse(r)
@@ -48,8 +52,7 @@ export default function PaymentStatus() {
     if (meta) {
       try { setOrderMeta(JSON.parse(meta)) } catch (e) { console.warn('Invalid order_meta', e) }
     }
-    // console.log("s",tx.order_id);
-    
+
     setIsMounted(true)
   }, [])
 
@@ -66,14 +69,13 @@ export default function PaymentStatus() {
     return raw.toLowerCase()
   }
 
-  async function callDoPayment(orderCode, paymentAmount, reference) {
-    
+  async function callDoPayment(orderCodeParam, paymentType, reference) {
     const resp = await fetch('/api/order/do-payment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        orderCode,
-        payment: "GOPAY",
+        orderCode: orderCodeParam,
+        payment: (paymentType || 'GOPAY').toString().toUpperCase(),
         reference
       })
     });
@@ -93,7 +95,7 @@ export default function PaymentStatus() {
       const found = actions.find(a => a.name && a.name.toString().toLowerCase() === n.toLowerCase())
       if (found) return found
     }
-    // fallback: try includes for generate-qr-code-v2 like names
+    // fallback: try includes
     for (const a of actions) {
       if (!a.name) continue
       const ln = a.name.toLowerCase()
@@ -105,24 +107,42 @@ export default function PaymentStatus() {
   // --- Polling: check status immediately and then every 5s
   useEffect(() => {
     async function check() {
-      if (!tx.order_id) return
+      const orderId = tx?.order_id || tx?.orderId || tx?.raw?.order_id;
+      if (!orderId) return;
       try {
-        const r = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(tx.order_id)}`)
+        const r = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(orderId)}`)
         const j = await r.json()
         setStatusMessage(JSON.stringify(j, null, 2))
         const txStatus = (j.transaction_status || j.status || '').toString().toLowerCase()
         if (['capture','settlement','success'].includes(txStatus)) {
           // stop poll and redirect to order page
           stopPolling()
-          
+
           try {
+            // call do-payment proxy (existing function)
             const result = await callDoPayment(orderCode, j.payment_type, j.order_id);
             console.log('do-payment result', result);
           } catch (e) {
             console.error('call failed', e);
           }
 
-          router.push(`/order/${tx.order_id}`)
+          // Decide redirect target: prefer orderCode from do_order_result -> fallback to midtrans order_id
+          let targetOrderCode = null;
+          try {
+            const doOrderRaw = sessionStorage.getItem('do_order_result');
+            if (doOrderRaw) {
+              const parsed = JSON.parse(doOrderRaw);
+              targetOrderCode = parsed?.data?.orderCode ?? parsed?.orderCode ?? null;
+            }
+          } catch (e) { /* ignore */ }
+
+          // if we have orderCode, go to /order/{orderCode}; else fallback to using midtrans order_id
+          const resolvedTarget = targetOrderCode || j.order_id || orderId;
+          // short delay to show success UI
+          setTimeout(() => {
+            router.push(`/order/${resolvedTarget}`);
+          }, 600);
+
         }
       } catch (err) {
         console.warn('status check failed', err)
@@ -131,6 +151,7 @@ export default function PaymentStatus() {
 
     function startPolling() {
       if (pollRef.current) return
+      // immediate check
       check()
       pollRef.current = setInterval(check, 5000)
     }
@@ -142,7 +163,7 @@ export default function PaymentStatus() {
       }
     }
 
-    // start if we have orderMeta
+    // Start polling if we have a tx.order_id OR orderMeta.orderId
     if (orderMeta?.orderId) startPolling()
 
     return () => {
@@ -151,7 +172,7 @@ export default function PaymentStatus() {
         pollRef.current = null
       }
     }
-  }, [orderMeta, router])
+  }, [tx, orderMeta, orderCode, router])
 
   // --- Auto deeplink: only attempt ONCE per order (first visit)
   useEffect(() => {
@@ -160,47 +181,33 @@ export default function PaymentStatus() {
     // Only for e-wallets (not qris)
     if (!(method === 'gopay' || method === 'ovo' || method === 'shopeepay')) return
 
-    // build actions array
     const actions = tx.actions || tx.core_response?.actions || []
 
-    // find deeplink url (try several possible action names)
     const deeplinkAction = findAction(actions, ['deeplink-redirect', 'deeplink'])
     const urlAction = findAction(actions, ['mobile_deeplink_web', 'mobile_web_checkout_url', 'url'])
     const deeplinkUrl = deeplinkAction?.url || urlAction?.url || tx.deeplink_url || tx.core_response?.deeplink_url || null
 
     if (!deeplinkUrl) return
 
-    // flag key per order to ensure only attempt once
     const orderId = orderMeta?.orderId || tx.order_id || tx.orderId || tx.raw?.order_id
     if (!orderId) return
 
     const flagKey = `midtrans_deeplink_attempted:${orderId}`
-
-    // if already attempted before, do not auto-redirect
     const alreadyAttempted = sessionStorage.getItem(flagKey)
-    if (alreadyAttempted) {
-      // do nothing (user can press manual button)
-      return
-    }
+    if (alreadyAttempted) return
 
-    // Only attempt auto-redirect on mobile devices
     const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent || '')
     if (!isMobile) return
 
-    // Mark attempted now so subsequent returns won't auto-redirect
     try { sessionStorage.setItem(flagKey, 'true') } catch (e) { /* ignore */ }
 
-    // set redirecting state (UI can show spinner if needed)
     setRedirecting(true)
-    // small delay to let UI render
     setTimeout(() => {
       try {
-        // perform navigation to deeplink (opens app on device or simulator URL in sandbox)
         window.location.href = deeplinkUrl
       } catch (err) {
         console.warn('deeplink redirect failed', err)
       } finally {
-        // leave redirecting true briefly; user will return or app will open
         setTimeout(() => setRedirecting(false), 1000)
       }
     }, 600)
@@ -214,12 +221,10 @@ export default function PaymentStatus() {
       try {
         setQrError(null)
         setQrLoading(true)
-        // call local proxy that converts remote image -> base64/datauri
         const api = `/api/convert-image-to-base64?imageUrl=${encodeURIComponent(imgUrl)}&mode=datauri`
         const r = await fetch(api)
         if (!mounted) return
         if (!r.ok) {
-          // try json response body for debugging
           const txt = await r.text().catch(() => null)
           setQrError('failed to convert (status ' + r.status + ')')
           console.warn('convert-api error', r.status, txt)
@@ -227,11 +232,9 @@ export default function PaymentStatus() {
         }
         const j = await r.json()
         if (!mounted) return
-        // prefer dataUri field
         const dataUri = j?.dataUri || (j?.data?.Base64Image ? `data:image/png;base64,${j.data.Base64Image}` : null)
-        if (dataUri) {
-          setQrDataUri(dataUri)
-        } else {
+        if (dataUri) setQrDataUri(dataUri)
+        else {
           setQrError('convert API returned no dataUri')
           console.warn('convert-api returned', j)
         }
@@ -252,13 +255,13 @@ export default function PaymentStatus() {
     const qrV1 = findAction(actions, ['generate-qr-code'])
     const qrUrlFromResp = tx.qr_url || tx.qrUrl || tx.qr_image || null
     const redirectUrl = tx.redirect_url || tx.raw?.redirect_url || null
-    const imgUrl = qrV1?.url || qrV2?.url || qrUrlFromResp || redirectUrl
+    const imgUrl = qrV2?.url || qrV1?.url || qrUrlFromResp || redirectUrl
 
-    // reset previous state if different url
     setQrDataUri(null)
     setQrError(null)
 
     if (imgUrl) {
+      // optionally fetch converted dataUri (commented out if convert-api not available)
       // fetchQrDataUri(imgUrl)
     }
 
@@ -267,7 +270,7 @@ export default function PaymentStatus() {
 
   // --- Manual check triggered by button
   async function checkStatus() {
-    const orderId = tx.order_id
+    const orderId = tx?.order_id
     if (!orderId) return alert('Order ID tidak ditemukan')
     setChecking(true)
     try {
@@ -276,13 +279,23 @@ export default function PaymentStatus() {
       setStatusMessage(JSON.stringify(j, null, 2))
       const txStatus = (j.transaction_status || j.status || '').toString().toLowerCase()
       if (['capture','settlement','success'].includes(txStatus)) {
+        const resolvedMidtransOrderId = j.order_id || j.orderId || tx.order_id;
         try {
-          const result = await callDoPayment(orderCode, j.payment_type, j.order_id);
-          console.log('do-payment result', result);
+          await callDoPayment(orderCode || (orderMeta?.orderId ?? null), j.payment_type || j.paymentType || 'UNKNOWN', resolvedMidtransOrderId);
         } catch (e) {
-          console.error('call failed', e);
+          console.error('call failed', e)
         }
-        router.push(`/order/${orderId}`)
+        // show success view and navigate
+        setPaymentSuccess(true)
+        setSuccessOrderId(resolvedMidtransOrderId);
+        
+        // REDIRECT: prefer orderCode (from do-order result) — fallback to midtrans id
+        const targetOrderCode = orderCode || (do_order_result_from_session?.data?.orderCode) || null;
+        setTimeout(() => {
+          try {
+            router.push(`/order/${targetOrderCode}`);
+          } catch (e) { /* ignore */ }
+        }, 1200);
       } else {
         alert('Status: ' + (j.transaction_status || j.status || 'unknown'))
       }
@@ -303,100 +316,12 @@ export default function PaymentStatus() {
     const deeplinkUrl = deeplinkAction?.url || urlAction?.url || tx.deeplink_url || tx.core_response?.deeplink_url || null
     if (!deeplinkUrl) return alert('Tautan deeplink tidak tersedia.')
 
-    // set attempted flag too (to prevent future auto redirect)
     const orderId = orderMeta?.orderId || tx.order_id || tx.orderId || tx.raw?.order_id
     if (orderId) {
       try { sessionStorage.setItem(`midtrans_deeplink_attempted:${orderId}`, 'true') } catch (e) {}
     }
 
-    // open deeplink (user-initiated)
     window.location.href = deeplinkUrl
-  }
-
-  // --- Render area
-  function renderPaymentArea() {
-    if (!tx) return <div className={styles.qrLoading}></div>
-
-    const method = getNormalizedMethod(tx)
-    const actions = tx.actions || tx.core_response?.actions || []
-
-    // QRIS: show QR and make it fit inside the box (no scrolling, full visible)
-    if (method === 'qris') {
-      const qrV2 = findAction(actions, ['generate-qr-code-v2'])
-      const qrV1 = findAction(actions, ['generate-qr-code'])
-      const qrUrlFromResp = tx.qr_url || tx.qrUrl || tx.qr_image || null
-      const redirectUrl = tx.redirect_url || tx.raw?.redirect_url || null
-
-      // prefer v2 then v1 then other fallbacks
-      const imgUrl = qrV2?.url || qrV1?.url || qrUrlFromResp || redirectUrl
-      const isLikelyImage = imgUrl && imgUrl.match(/\.(png|jpg|jpeg|svg|webp)(\?|$)/i)
-
-      if (imgUrl) {
-        // if we have dataUri from converter, show it (preferred)
-        if (qrDataUri && !qrError) {
-          return (
-            <div className={styles.qrWrap}>
-              <img src={qrDataUri} alt="QRIS" className={styles.qrImage} />
-            </div>
-          )
-        }
-
-        // show direct image if converter pending or failed but URL seems image
-        if (isLikelyImage) {
-          return (
-            <div className={styles.qrWrap}>
-              {qrLoading && <div className={styles.qrLoading}></div>}
-              <img src={imgUrl} alt="QRIS" className={styles.qrImage} />
-            </div>
-          )
-        }
-
-        // fallback: embed simulator HTML in iframe
-        return (
-          <div className={styles.qrWrap}>
-            {qrLoading && <div className={styles.qrLoading}></div>}
-            <iframe src={imgUrl} title="QRIS Payment" className={styles.qrIframe} />
-            {qrError && <div className={styles.qrError}>Gagal memuat QR: {qrError}</div>}
-          </div>
-        )
-      }
-
-      return <div>QRIS: kode QR tidak tersedia (silakan coba kembali).</div>
-    }
-
-    // E-wallets: show deeplink button (desktop) or we already attempted auto-redirect on mobile
-    if (method === 'gopay' || method === 'ovo' || method === 'shopeepay') {
-      const deeplinkAction = findAction(actions, ['deeplink-redirect', 'deeplink'])
-      const urlAction = findAction(actions, ['mobile_deeplink_web', 'mobile_web_checkout_url', 'url'])
-      const deeplinkUrl = deeplinkAction?.url || urlAction?.url || tx.deeplink_url || tx.core_response?.deeplink_url
-
-      // Determine if auto attempt already happened (so UI can reflect)
-      const orderId = orderMeta?.orderId || tx.order_id || tx.orderId || tx.raw?.order_id
-      const flagKey = orderId ? `midtrans_deeplink_attempted:${orderId}` : null
-      const alreadyAttempted = flagKey ? sessionStorage.getItem(flagKey) : null
-
-      return (
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ marginBottom: 8 }}>Metode: {tx.method}</div>
-          {deeplinkUrl ? (
-            <>
-              <div style={{ marginBottom: 12 }}>
-                {alreadyAttempted ? 'Auto-redirect sudah dicoba. Tekan tombol di bawah untuk membuka kembali aplikasinya:' : 'Tekan tombol untuk membuka aplikasi pembayaran:'}
-              </div>
-              <button className={styles.checkBtn} onClick={openDeeplinkManually} disabled={redirecting}>
-                {redirecting ? 'Mengarahkan...' : `Redirect Pembayaran`}
-              </button>
-              <div style={{ marginTop: 12, wordBreak: 'break-all' }}>{deeplinkUrl}</div>
-            </>
-          ) : (
-            <div>Tautan pembayaran tidak tersedia. Silakan gunakan tombol Check Status.</div>
-          )}
-        </div>
-      )
-    }
-
-    // fallback: show raw info
-    return <div>Instruksi pembayaran tidak tersedia.</div>
   }
 
   // -----------------------
@@ -423,7 +348,6 @@ export default function PaymentStatus() {
   async function handleBackButtonClick() {
     const ok = await askConfirmLeave()
     if (ok) {
-      // allow leaving -> navigate back to checkout (or wherever)
       router.push('/checkout')
     }
     // else do nothing (stay)
@@ -431,54 +355,34 @@ export default function PaymentStatus() {
 
   // 1) Prevent SPA route changes (Next.js) unless confirmed
   useEffect(() => {
-    // beforePopState intercepts client-side browser back in Next
-    const prevBefore = router.beforePopState
-    router.beforePopState(async (state) => {
-      // state: { url, as, options } -> but cannot be async directly; we'll block via history API/popstate as fallback
-      // We'll show modal and decide: if confirmed -> allow (return true). If not -> disallow (return false).
-      // Note: The function must be sync, so we'll use history.pushState + show modal fallback for popstate below.
-      return true
-    })
-
+    try {
+      router.beforePopState(() => true)
+    } catch (e) {}
     return () => {
-      // restore default behavior on unmount to avoid affecting other pages
       try { router.beforePopState(() => true) } catch (e) {}
     }
   }, [router])
 
   // 2) Use history API + popstate to trap back / hardware back
   useEffect(() => {
-    // push a dummy state so back button triggers popstate here
     const pushDummy = () => {
-      try {
-        history.pushState({ paymentStatusGuard: true }, '')
-      } catch (e) { /* some browsers may throw in weird contexts */ }
+      try { history.pushState({ paymentStatusGuard: true }, '') } catch (e) {}
     }
-
-    // initial push
     pushDummy()
 
     let handling = false
     const onPopState = (e) => {
-      // if our dummy state present, show modal; otherwise allow navigation
-      // Avoid infinite loops by checking handling flag
       if (handling) return
       handling = true
 
-      // show modal
       askConfirmLeave().then(ok => {
         if (ok) {
-          // user confirmed -> allow natural back: go back one step (which will be the page behind dummy)
-          // But since popstate already happened, we should navigate programmatically to desired route:
-          // Use router.back() to let Next.js handle it.
           router.back()
         } else {
-          // user canceled -> re-insert dummy state so back button still hits us
           pushDummy()
         }
         handling = false
       }).catch(() => {
-        // fallback: re-insert dummy
         pushDummy()
         handling = false
       })
@@ -486,12 +390,9 @@ export default function PaymentStatus() {
 
     window.addEventListener('popstate', onPopState)
 
-    // also protect reload/close
     const onBeforeUnload = (e) => {
-      // show browser confirmation dialog on page unload
-      // Note: modern browsers ignore custom message; returning a value triggers confirmation
       e.preventDefault()
-      e.returnValue = '' // this triggers the dialog
+      e.returnValue = ''
       return ''
     }
     window.addEventListener('beforeunload', onBeforeUnload)
@@ -509,10 +410,114 @@ export default function PaymentStatus() {
   const payment = getPayment?.() || {}
   const subtotal = payment.paymentTotal || orderMeta?.total || 0
 
+  // If payment succeeded, show success page (your provided UI)
+  if (paymentSuccess) {
+    return (
+      <div className={styles.page}>
+        <header className={styles.header}>
+          <button className={styles.backBtn} onClick={() => router.push('/checkout')}>←</button>
+          <div className={styles.headerTitle}>Pembayaran</div>
+        </header>
+
+        <div className={styles.successWrap}>
+          <Image src="/images/order-success.png" width={128} height={128} alt="success" className={styles.successImage} />
+        </div>
+
+        <div className={styles.successTitle}>Pembayaran berhasil!</div>
+        <div className={styles.successDesc}>Sedang mengarahkan ke status pesanan</div>
+
+        <div className={styles.sticky}>
+          <button className={styles.checkBtn} onClick={() => {
+            const code = orderCode || (JSON.parse(sessionStorage.getItem('do_order_result')||'{}')?.data?.orderCode);
+            router.push(`/order/${code}`)
+          }}>Lihat Status Pesanan</button>
+        </div>
+      </div>
+    )
+  }
+
+  // renderPaymentArea re-used from your version (kept behaviour)
+  function renderPaymentArea() {
+    if (!tx) return <div className={styles.qrLoading}></div>
+
+    const method = getNormalizedMethod(tx)
+    const actions = tx.actions || tx.core_response?.actions || []
+
+    if (method === 'qris') {
+      const qrV2 = findAction(actions, ['generate-qr-code-v2'])
+      const qrV1 = findAction(actions, ['generate-qr-code'])
+      const qrUrlFromResp = tx.qr_url || tx.qrUrl || tx.qr_image || null
+      const redirectUrl = tx.redirect_url || tx.raw?.redirect_url || null
+
+      const imgUrl = qrV2?.url || qrV1?.url || qrUrlFromResp || redirectUrl
+      const isLikelyImage = imgUrl && imgUrl.match(/\.(png|jpg|jpeg|svg|webp)(\?|$)/i)
+
+      if (imgUrl) {
+        if (qrDataUri && !qrError) {
+          return (
+            <div className={styles.qrWrap}>
+              <img src={qrDataUri} alt="QRIS" className={styles.qrImage} />
+            </div>
+          )
+        }
+
+        if (isLikelyImage) {
+          return (
+            <div className={styles.qrWrap}>
+              {qrLoading && <div className={styles.qrLoading}></div>}
+              <img src={imgUrl} alt="QRIS" className={styles.qrImage} />
+            </div>
+          )
+        }
+
+        return (
+          <div className={styles.qrWrap}>
+            {qrLoading && <div className={styles.qrLoading}></div>}
+            <iframe src={imgUrl} title="QRIS Payment" className={styles.qrIframe} />
+            {qrError && <div className={styles.qrError}>Gagal memuat QR: {qrError}</div>}
+          </div>
+        )
+      }
+
+      return <div>QRIS: kode QR tidak tersedia (silakan coba kembali).</div>
+    }
+
+    if (method === 'gopay' || method === 'ovo' || method === 'shopeepay') {
+      const deeplinkAction = findAction(actions, ['deeplink-redirect', 'deeplink'])
+      const urlAction = findAction(actions, ['mobile_deeplink_web', 'mobile_web_checkout_url', 'url'])
+      const deeplinkUrl = deeplinkAction?.url || urlAction?.url || tx.deeplink_url || tx.core_response?.deeplink_url
+
+      const orderId = orderMeta?.orderId || tx.order_id || tx.orderId || tx.raw?.order_id
+      const flagKey = orderId ? `midtrans_deeplink_attempted:${orderId}` : null
+      const alreadyAttempted = flagKey ? sessionStorage.getItem(flagKey) : null
+
+      return (
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ marginBottom: 8 }}>Metode: {tx.method}</div>
+          {deeplinkUrl ? (
+            <>
+              <div style={{ marginBottom: 12 }}>
+                {alreadyAttempted ? 'Auto-redirect sudah dicoba. Tekan tombol di bawah untuk membuka kembali aplikasinya:' : 'Tekan tombol untuk membuka aplikasi pembayaran:'}
+              </div>
+              <button className={styles.checkBtn} onClick={openDeeplinkManually} disabled={redirecting}>
+                {redirecting ? 'Mengarahkan...' : `Redirect Pembayaran`}
+              </button>
+              <div style={{ marginTop: 12, wordBreak: 'break-all' }}>{deeplinkUrl}</div>
+            </>
+          ) : (
+            <div>Tautan pembayaran tidak tersedia. Silakan gunakan tombol Check Status.</div>
+          )}
+        </div>
+      )
+    }
+
+    return <div>Instruksi pembayaran tidak tersedia.</div>
+  }
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <button className={styles.backBtn} onClick={() => router.push('/checkout')}>←</button>
+        <button className={styles.backBtn} onClick={handleBackButtonClick}>←</button>
         <div className={styles.headerTitle}>Pembayaran</div>
       </header>
 

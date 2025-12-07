@@ -1,28 +1,63 @@
-// api/order/do-order.js
+// pages/api/order/do-order.js
 export default async function handler(req, res) {
   try {
-    const { storeCode, payload } = req.body;
-    
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+    const { storeCode, payload } = req.body ?? {};
+
+    if (!storeCode) return res.status(400).json({ error: 'storeCode required' });
+    if (!payload) return res.status(400).json({ error: 'payload required' });
+
+    // ensure base url set
     const baseUrl = process.env.NEXT_PUBLIC_URL_API || process.env.NEXT_PUBLIC_URL_DEV;
-    // `https://yoshi-smartqr-api-ergyata5hff3cfhz.southeastasia-01.azurewebsites.net/smartqr/v1/order/do-order?storeCode=${storeCode}`,
+    if (!baseUrl) {
+      console.error('Missing NEXT_PUBLIC_URL_API / NEXT_PUBLIC_URL_DEV env var');
+      return res.status(500).json({ error: 'Server misconfiguration: missing base url' });
+    }
 
-    const upstream = await fetch(
-      `${baseUrl}/smartqr/v1/order/do-order?storeCode=${storeCode}`,
-      {
-        method: "POST",
-        headers: {
-          "Accept": "*/*",
-          "Content-Type": "application/json-patch+json"
-        },
-        body: JSON.stringify(payload)
-      }
-    );
+    const targetUrl = `${baseUrl}/smartqr/v1/order/do-order?storeCode=${encodeURIComponent(storeCode)}`;
 
-    const data = await upstream.json();
-    res.status(upstream.status).json(data);
+    // send as application/json (most upstreams expect this). Change back if upstream explicitly requires different content-type.
+    const upstream = await fetch(targetUrl, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json, text/plain, */*',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
 
+    // read body as text first (defensive)
+    const bodyText = await upstream.text().catch(() => '');
+
+    // log for debugging (remove or lower logging in production)
+    console.log('[do-order] upstream status:', upstream.status);
+    console.log('[do-order] upstream headers:', Object.fromEntries(upstream.headers.entries ? upstream.headers.entries() : []));
+    console.log('[do-order] upstream body length:', bodyText ? bodyText.length : 0);
+
+    // handle no-content
+    if (!bodyText || bodyText.trim() === '') {
+      // forward status and empty body
+      return res.status(upstream.status).json({
+        message: 'Upstream returned empty response',
+        status: upstream.status
+      });
+    }
+
+    // try parse JSON, otherwise return raw text
+    try {
+      const json = JSON.parse(bodyText);
+      return res.status(upstream.status).json(json);
+    } catch (parseErr) {
+      // upstream returned non-JSON (maybe HTML or plain text). Forward as text in a JSON object.
+      console.warn('[do-order] upstream returned non-JSON response');
+      return res.status(upstream.status).json({
+        message: 'Upstream returned non-JSON response',
+        raw: bodyText
+      });
+    }
   } catch (err) {
-    console.error("DO ORDER FAILED:", err);
-    res.status(500).json({ error: err.message });
+    console.error('DO ORDER FAILED:', err);
+    return res.status(500).json({ error: err?.message ?? String(err) });
   }
 }

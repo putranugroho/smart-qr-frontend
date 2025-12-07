@@ -1,4 +1,3 @@
-// pages/checkout.js
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/router'
 import Image from 'next/image'
@@ -150,6 +149,10 @@ export default function CheckoutPage() {
   const addBtnRef = useRef(null)
   const popupTimerRef = useRef(null)
 
+  // delete confirmation modal state
+  const [confirmDeleteIndex, setConfirmDeleteIndex] = useState(null)
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false)
+
   // load cart from storage on client only
   useEffect(() => {
     const c = getCart() || []
@@ -223,9 +226,28 @@ export default function CheckoutPage() {
     router.push("/payment");
   }
 
-  function handleDelete(index) {
-    const updated = removeFromCartByIndex(index)
+  // open delete confirmation modal (instead of immediate delete)
+  function handleDeleteRequest(index) {
+    setConfirmDeleteIndex(index)
+    setShowConfirmDelete(true)
+  }
+
+  // actual delete after user confirms
+  function handleConfirmDelete() {
+    if (confirmDeleteIndex == null) {
+      setShowConfirmDelete(false)
+      setConfirmDeleteIndex(null)
+      return
+    }
+    const updated = removeFromCartByIndex(confirmDeleteIndex)
     setCart([...updated])
+    setShowConfirmDelete(false)
+    setConfirmDeleteIndex(null)
+  }
+
+  function handleCancelDelete() {
+    setShowConfirmDelete(false)
+    setConfirmDeleteIndex(null)
   }
 
   // build signature helper (for menu items; combos can use product codes joined)
@@ -270,25 +292,41 @@ export default function CheckoutPage() {
     router.push(`/item/${productCode}?${qs}`)
   }
 
-  // Render addons: show only selected addon names; if none -> null
+  // Render addons: always show the addon area for menu items.
+  // Accept various shapes: array of { name } or array of strings or array of { code, name }.
   function renderAddons(addons) {
-    if (!addons || addons.length === 0) return null
+    // If addons not an array or empty -> show explicit "Tidak ada add-on"
+    if (!Array.isArray(addons) || addons.length === 0) {
+      return (
+        <div>
+          <div className={styles.addonGroup}>Add on :</div>
+          <div className={styles.addonLine} style={{ color: '#666', fontStyle: 'italic' }}>Tidak ada add-on</div>
+        </div>
+      )
+    }
 
+    // Try to render lines intelligently
     const lines = []
     addons.forEach(a => {
-      const sel = a.selected
-      if (!sel) return
-      if (Array.isArray(sel)) {
-        sel.forEach(it => {
-          if (it && it.name) lines.push(it.name)
-        })
-      } else if (typeof sel === 'object' && sel.name) {
-        lines.push(sel.name)
-      } else if (typeof sel === 'string') {
-        lines.push(sel)
+      if (!a) return
+      // If addon has name property (object)
+      if (typeof a === 'object') {
+        if (a.name) lines.push(a.name)
+        else if (a.label) lines.push(a.label)
+        else if (a.code) lines.push(String(a.code))
+      } else if (typeof a === 'string' || typeof a === 'number') {
+        lines.push(String(a))
       }
     })
-    if (lines.length === 0) return null
+
+    if (lines.length === 0) {
+      return (
+        <div>
+          <div className={styles.addonGroup}>Add on :</div>
+          <div className={styles.addonLine} style={{ color: '#666', fontStyle: 'italic' }}>Tidak ada add-on</div>
+        </div>
+      )
+    }
 
     return (
       <div>
@@ -300,14 +338,20 @@ export default function CheckoutPage() {
 
   // render combo products inside one cart item
   function renderComboDetails(item) {
-    if (!item || item.type !== 'combo' || !Array.isArray(item.combos)) return null
+    if (!item || item.type !== 'combo' || !Array.isArray(item.combos)) {
+      return (
+        <div style={{ marginTop: 8 }}>
+          <div className={styles.addonLine} style={{ color: '#666', fontStyle: 'italic' }}>Tidak ada condiments</div>
+        </div>
+      )
+    }
 
     return (
       <div style={{ marginTop: 8 }}>
         {item.combos.map((cb, cbIdx) => (
           <div key={cbIdx} style={{ marginBottom: 8 }}>
             {/* each product inside combo */}
-            {Array.isArray(cb.products) && cb.products.map((p, pi) => (
+            {Array.isArray(cb.products) && cb.products.length > 0 ? cb.products.map((p, pi) => (
               <div key={`${p.code}-${pi}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px dashed #eee' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600 }}>{p.name}</div>
@@ -318,15 +362,18 @@ export default function CheckoutPage() {
                         <div key={ci} className={styles.addonLine}>- {c.name}{c.qty && c.qty > 1 ? ` x${c.qty}` : ''}</div>
                       ))}
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className={styles.addonLine} style={{ color: '#666', fontStyle: 'italic', marginTop: 4  }}>Tidak ada condiments</div>
+                  )}
                 </div>
 
                 <div style={{ textAlign: 'right', minWidth: 90 }}>
-                  {/* <div style={{ fontSize: 14 }}>{formatRp((Number(p.price || 0) * Number(p.qty || 1)) * Number(cb.qty || 1) * Number(item.qty || 1))}</div> */}
                   <div style={{ fontSize: 12, color: '#666' }}>x{p.qty ?? 1}</div>
                 </div>
               </div>
-            ))}
+            )) : (
+              <div className={styles.addonLine} style={{ color: '#666', fontStyle: 'italic' }}>Tidak ada produk pada combo</div>
+            )}
           </div>
         ))}
       </div>
@@ -376,13 +423,6 @@ export default function CheckoutPage() {
           aria-expanded={showAddPopup}
         >
           Tambah
-          {/* <Image
-            src="/images/caret-down.png"
-            alt=""
-            width={12}
-            height={12}
-            style={{ paddingLeft: "3px" }}
-          /> */}
         </button>
       </div>
 
@@ -453,7 +493,7 @@ export default function CheckoutPage() {
                 <div className={styles.itemTitle}>{title}</div>
 
                 <div className={styles.itemAddon}>
-                  {/* menu item addons */}
+                  {/* menu item addons (always render area) */}
                   {it.type !== 'combo' ? renderAddons(it.addons) : null}
 
                   {/* for combo show breakdown of products + condiments */}
@@ -471,7 +511,7 @@ export default function CheckoutPage() {
                   </svg>
                 </button>
 
-                <button className={styles.trashBtn} onClick={() => handleDelete(i)} title="Hapus item" aria-label={`Hapus item ${title}`}>🗑</button>
+                <button className={styles.trashBtn} onClick={() => handleDeleteRequest(i)} title="Hapus item" aria-label={`Hapus item ${title}`}>🗑</button>
               </div>
 
               <div className={styles.itemRight}>
@@ -543,6 +583,71 @@ export default function CheckoutPage() {
         autoHideMs={0}
       >
       </AddPopup>
+
+      {/* Delete confirmation modal */}
+      {showConfirmDelete && (
+        <>
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.5)',
+              zIndex: 1200
+            }}
+            onClick={handleCancelDelete}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            style={{
+              position: 'fixed',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 1300,
+              background: '#fff',
+              borderRadius: 12,
+              width: 320,
+              maxWidth: '90%',
+              padding: 20,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
+            }}
+          >
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>Konfirmasi Hapus</div>
+            <div style={{ marginBottom: 18, color: '#333' }}>Apakah Anda yakin akan menghapus item ini dari keranjang?</div>
+
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button
+                onClick={handleCancelDelete}
+                style={{
+                  background: '#fff',
+                  border: '1px solid #e11d48',
+                  color: '#e11d48',
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+
+              <button
+                onClick={handleConfirmDelete}
+                style={{
+                  background: '#10b981',
+                  border: '1px solid #10b981',
+                  color: '#fff',
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  cursor: 'pointer'
+                }}
+              >
+                Setuju
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

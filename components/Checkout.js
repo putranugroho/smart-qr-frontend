@@ -294,7 +294,7 @@ export default function CheckoutPage() {
 
   // Render addons: always show the addon area for menu items.
   // Accept various shapes: array of { name } or array of strings or array of { code, name }.
-  function renderAddons(addons) {
+  function renderAddons(addons, item) {
     // If addons not an array or empty -> show explicit "Tidak ada add-on"
     if (!Array.isArray(addons) || addons.length === 0) {
       return (
@@ -307,7 +307,7 @@ export default function CheckoutPage() {
 
      // ambil map code -> name dari menus[].condiments
     const condimentMap = {}
-    if (Array.isArray(item?.menus)) {
+    if (item && Array.isArray(item.menus)) {
       item.menus.forEach(m => {
         if (Array.isArray(m.condiments)) {
           m.condiments.forEach(c => {

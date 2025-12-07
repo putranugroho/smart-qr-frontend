@@ -44,6 +44,26 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   const [showPopup, setShowPopup] = useState(false)
   const toastTimerRef = useRef(null)
 
+  useEffect(() => {
+    if (!fromCheckout || editingIndex == null) return
+    const cart = getCart() || []
+    const cartItem = cart[editingIndex]
+    if (!cartItem || !Array.isArray(cartItem.addons)) return
+
+    const sel = {}
+    cartItem.addons.forEach(a => {
+      const code = String(a.code || '')
+      addons.forEach(g => {
+        const found = g.options.find(o => String(o.id) === code)
+        if (found) sel[g.group] = found.id
+      })
+    })
+
+    if (Object.keys(sel).length > 0) {
+      setSelected(prev => ({ ...prev, ...sel }))
+    }
+  }, [addons])
+
   // Save last_item on mount so Menu can restore to it when returning
   useEffect(() => {
     try {

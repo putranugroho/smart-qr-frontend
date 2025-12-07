@@ -317,21 +317,24 @@ export default function CheckoutPage() {
       })
     }
 
-      const lines = []
-    (addons || []).forEach(a => {
-      if (!a) return
-      if (typeof a === 'object') {
-        if (a.code && condimentMap[a.code]) {
-          lines.push(condimentMap[a.code])
-        } else if (a.name) {
-          lines.push(a.name)
-        } else if (a.code) {
-          lines.push(String(a.code))
+    const lines = []
+    if (Array.isArray(addons)) {
+      for (let i = 0; i < addons.length; i++) {
+        const a = addons[i]
+        if (!a) continue
+        if (typeof a === 'object') {
+          if (a.code && condimentMap[a.code]) {
+            lines.push(condimentMap[a.code])
+          } else if (a.name) {
+            lines.push(a.name)
+          } else if (a.code) {
+            lines.push(String(a.code))
+          }
+        } else if (typeof a === 'string' || typeof a === 'number') {
+          lines.push(String(a))
         }
-      } else if (typeof a === 'string' || typeof a === 'number') {
-        lines.push(String(a))
       }
-    })
+    }
 
     if (lines.length === 0) {
       return (

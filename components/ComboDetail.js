@@ -15,22 +15,10 @@ function formatRp(n) {
   return 'Rp' + new Intl.NumberFormat('id-ID').format(Number(n || 0))
 }
 
-/**
- * ComboDetail (sequence mode)
- * - choose 1 product per comboGroup (in sequence)
- * - condiments per product supported
- *
- * props:
- * - combo (preferred) OR combo passed via query/sessionStorage on page
- *
- * This component also supports "edit from checkout" by reading cart[index]
- * and attempting to recover the full combo definition (from sessionStorage or fetch).
- */
 export default function ComboDetail({ combo: propCombo = null }) {
   const router = useRouter()
   const q = router.query
 
-  // Try to parse combo from query if present (stringified)
   const comboFromQuery = useMemo(() => {
     try {
       if (q.combo) return JSON.parse(String(q.combo))
@@ -39,12 +27,10 @@ export default function ComboDetail({ combo: propCombo = null }) {
     return null
   }, [q.combo, q.item])
 
-  // comboState is the authoritative combo object used to render/options
   const [comboState, setComboState] = useState(propCombo || comboFromQuery || null)
 
-  // selection state
-  const [selectedProducts, setSelectedProducts] = useState({}) // {groupKey: productCode}
-  const [selectedCondiments, setSelectedCondiments] = useState({}) // {productCode: {condGroup: sel}}
+  const [selectedProducts, setSelectedProducts] = useState({})
+  const [selectedCondiments, setSelectedCondiments] = useState({})
   const [expandedGroup, setExpandedGroup] = useState(null)
 
   const [qty, setQty] = useState(1)
@@ -55,37 +41,25 @@ export default function ComboDetail({ combo: propCombo = null }) {
   const toastTimerRef = useRef(null)
   const [loadingCombo, setLoadingCombo] = useState(false)
 
-  // editing support
   const fromCheckout = String(router.query?.from || '') === 'checkout'
   const editIndexQuery = router.query?.index != null ? Number(router.query.index) : null
   const [editingIndex] = useState(editIndexQuery != null ? editIndexQuery : null)
 
-  // derive some helpers based on comboState
   const comboGroups = useMemo(() => (comboState && Array.isArray(comboState.comboGroups) ? comboState.comboGroups : []), [comboState])
 
-  // If prop changes, sync comboState
   useEffect(() => {
     if (propCombo) setComboState(propCombo)
   }, [propCombo])
 
-  // If query-provided combo present, set it too
   useEffect(() => {
     if (comboFromQuery) setComboState(comboFromQuery)
   }, [comboFromQuery])
 
-  // When opened for editing from checkout, attempt to load combo detail:
-  // 1) read cart[index] to learn combo code
-  // 2) try sessionStorage key combo_<code>
-  // 3) try fetch `/api/proxy/combo-detail?comboCode=...` (best-effort)
-  // 4) fallback: construct minimal comboState from cart data (so UI can prefill selections)
+  // Recover / prefill for edit (kept as original)
   useEffect(() => {
     async function recoverComboForEdit() {
       if (!fromCheckout || editingIndex == null) return
-      if (comboState) {
-        // already have combo data (prop or query) -> keep
-        return
-      }
-
+      if (comboState) return
       try {
         setLoadingCombo(true)
         const cart = getCart() || []
@@ -94,12 +68,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
           setLoadingCombo(false)
           return
         }
-
-        // try to extract combo code
         const firstComboBlock = Array.isArray(entry.combos) && entry.combos.length > 0 ? entry.combos[0] : null
         const comboCode = (entry.detailCombo && (entry.detailCombo.code || entry.detailCombo.name)) || (firstComboBlock && (firstComboBlock.detailCombo?.code || firstComboBlock.detailCombo?.name)) || null
 
-        // 1) try sessionStorage key: combo_<code>
         if (comboCode) {
           try {
             const key = `combo_${String(comboCode)}`
@@ -110,23 +81,17 @@ export default function ComboDetail({ combo: propCombo = null }) {
                 setComboState(parsed)
                 setLoadingCombo(false)
                 return
-              } catch (e) {
-                // continue to fetch
-              }
+              } catch (e) {}
             }
-          } catch (e) {
-            // ignore
-          }
+          } catch (e) {}
         }
 
-        // 2) try server fetch (best-effort, may 404; we don't fail hard if not available)
         if (comboCode) {
           try {
             const url = `/api/proxy/combo-detail?comboCode=${encodeURIComponent(comboCode)}&orderCategoryCode=DI&storeCode=MGI`
             const r = await fetch(url)
             if (r.ok) {
               const j = await r.json()
-              // assume API returns the combo object in j.data or j.data[0]
               const maybe = Array.isArray(j?.data) && j.data.length ? j.data[0] : (j?.data ?? j?.combo ?? null)
               if (maybe) {
                 setComboState(maybe)
@@ -134,13 +99,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
                 return
               }
             }
-          } catch (e) {
-            // ignore fetch errors and fallback
-          }
+          } catch (e) {}
         }
 
-        // 3) fallback: build minimal comboState from cart entry so UI can at least render selected items
-        // We'll create comboGroups from entry.combos[0].products grouping by comboGroup codes (but without full options)
         if (firstComboBlock && Array.isArray(firstComboBlock.products)) {
           const groupsMap = {}
           firstComboBlock.products.forEach(p => {
@@ -154,14 +115,13 @@ export default function ComboDetail({ combo: propCombo = null }) {
                 products: []
               }
             }
-            // push the selected product as the only available option
             groupsMap[gKey].products.push({
               id: p.code ?? p.id,
               code: p.code ?? p.id,
               name: p.name || p.itemName || '',
               price: p.price ?? 0,
               imagePath: p.imagePath ?? p.image ?? null,
-              condimentGroups: Array.isArray(p.condiments) && p.condiments.length === 0 ? [] : [] // no detailed condiment options from cart
+              condimentGroups: []
             })
           })
 
@@ -185,19 +145,13 @@ export default function ComboDetail({ combo: propCombo = null }) {
         setLoadingCombo(false)
       }
     }
-
     recoverComboForEdit()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromCheckout, editingIndex])
 
-  // Prefill selections when editing: read cart at index and set selectedProducts/selectedCondiments accordingly
   useEffect(() => {
     if (!fromCheckout || editingIndex == null) return
-    if (!comboState) {
-      // wait until comboState is recovered
-      return
-    }
-
+    if (!comboState) return
     try {
       const cart = getCart() || []
       const item = cart[editingIndex]
@@ -216,11 +170,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
             if (Array.isArray(p.condiments) && p.condiments.length > 0) {
               sc[p.code] = {}
               p.condiments.forEach(c => {
-                // condiments in cart may not include comboGroupCode; try to derive or use synthetic key
                 const cg = c.comboGroupCode || c.group || c.comboGroup || null
                 if (cg) sc[p.code][cg] = c.code ?? c.name ?? null
                 else {
-                  // fallback: use condiment.code as key (best-effort)
                   sc[p.code][String(c.code ?? c.name ?? c.id ?? '')] = c.code ?? c.name ?? null
                 }
               })
@@ -230,7 +182,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
         setSelectedProducts(sp)
         setSelectedCondiments(sc)
 
-        // expand first unpicked group or first group
         const firstUnpicked = comboGroups.find(g => !sp[(g.code ?? g.name ?? String(g.id))])
         const firstGroup = firstUnpicked ? (firstUnpicked.code ?? firstUnpicked.name ?? String(firstUnpicked.id)) : (comboGroups[0] ? (comboGroups[0].code ?? comboGroups[0].name ?? String(comboGroups[0].id)) : null)
         setExpandedGroup(firstGroup)
@@ -241,7 +192,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromCheckout, editingIndex, comboState])
 
-  // helpers
   function getGroupKey(g) {
     return g.code ?? g.name ?? String(g.id)
   }
@@ -268,7 +218,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
       if (prevProduct && prevProduct === productCode) {
         // no change
       } else {
-        // if changing selection, remove condiments for previous product
         if (prevProduct) {
           setSelectedCondiments(scPrev => {
             const scNext = { ...scPrev }
@@ -281,14 +230,12 @@ export default function ComboDetail({ combo: propCombo = null }) {
       return next
     })
 
-    // auto-expand next group to guide sequence, if exists
     const idx = (comboState?.comboGroups || []).findIndex(g => getGroupKey(g) === String(groupKey))
     if (idx >= 0 && idx < (comboState?.comboGroups?.length || 0) - 1) {
       const nextGroup = comboState.comboGroups[idx + 1]
       const nextKey = getGroupKey(nextGroup)
       setExpandedGroup(nextKey)
     } else {
-      // stay on same group if last
       setExpandedGroup(groupKey)
     }
     setMissingAddons(null)
@@ -317,14 +264,47 @@ export default function ComboDetail({ combo: propCombo = null }) {
     setMissingAddons(null)
   }
 
-  // compute subtotal: sum of (product.price + selected condiments price) for all selected products, times qty
+  // product element refs map
+  const productRefs = useRef({})
+
+  // scroll/drag function: expand group (if needed), then scroll to product element smoothly and highlight
+  function scrollToProduct(productCode, groupKey = null) {
+    // ensure expandedGroup is set to the product's group
+    if (groupKey) {
+      setExpandedGroup(groupKey)
+    }
+
+    // wait next paint to ensure DOM updated
+    requestAnimationFrame(() => {
+      // small delay to allow expandedGroup render
+      requestAnimationFrame(() => {
+        const el = productRefs.current[String(productCode)]
+        if (el && el.scrollIntoView) {
+          try {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            // highlight effect
+            el.classList.add('combo-highlight')
+            // remove highlight after 900ms
+            setTimeout(() => {
+              el.classList.remove('combo-highlight')
+            }, 900)
+          } catch (e) {
+            // fallback silent
+            el.scrollIntoView()
+          }
+        }
+      })
+    })
+  }
+
+  // compute subtotal (kept same)
   const subtotal = useMemo(() => {
     if (!comboState) return 0
     let total = 0
     Object.keys(selectedProducts).forEach(groupKey => {
       const productCode = selectedProducts[groupKey]
       if (!productCode) return
-      if (String(productCode) === NO_ADDON_CODE) return // skip "Tanpa Add On"
+      if (String(productCode) === NO_ADDON_CODE) return
       const grp = findComboGroupByKey(groupKey)
       const prod = findProductInGroup(grp, productCode)
       if (!prod) return
@@ -341,7 +321,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
             if (opt) line += Number(opt.price || 0)
           })
         } else if (sel === NONE_OPTION_ID) {
-          // nothing
         } else {
           const opt = (g.products || []).find(p => String(p.code ?? p.id) === String(sel))
           if (opt) line += Number(opt.price || 0)
@@ -352,7 +331,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
     return Math.round(total * Number(qty || 1))
   }, [selectedProducts, selectedCondiments, qty, comboState])
 
-  // build payload: include only selected products (skip NO_ADDON_CODE)
   function buildComboCartPayload() {
     if (!comboState) return null
 
@@ -361,7 +339,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
     Object.keys(selectedProducts).forEach(groupKey => {
       const prodCode = selectedProducts[groupKey]
       if (!prodCode) return
-      if (String(prodCode) === NO_ADDON_CODE) return // skip synthetic "no addon"
+      if (String(prodCode) === NO_ADDON_CODE) return
       const grp = findComboGroupByKey(groupKey)
       const prod = findProductInGroup(grp, prodCode)
       if (!prod) return
@@ -412,7 +390,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
         }
       })
 
-      // compute taxes amounts
       const calcLineTaxes = (price, qty, taxesArr) => {
         return (taxesArr || []).map(t => {
           const p = Number(t.taxPercentage || t.amount || 0)
@@ -445,7 +422,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
       },
     ];
 
-    // final cart entry
     const cartEntry = {
       type: "combo",
       combos: combosForCart,
@@ -458,7 +434,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
     return cartEntry
   }
 
-  // validate: require each non-allowSkip group to have a selected product (and condiments per product)
   function validateSelectionBeforeAdd() {
     const missingGroups = []
     for (let g of comboGroups) {
@@ -472,7 +447,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
     }
     if (missingGroups.length > 0) return { ok: false, msg: `Pilih produk untuk: ${missingGroups.join(', ')}` }
 
-    // per product condiments
     const missingCond = []
     Object.keys(selectedProducts).forEach(groupKey => {
       const prodCode = selectedProducts[groupKey]
@@ -538,6 +512,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
   const addBtnLabel = (fromCheckout && editingIndex != null) ? 'Ubah Pesanan' : 'Tambah Paket'
   const subtotalForDisplay = subtotal
 
+  // If no combo data
   if (!comboState && !loadingCombo) {
     return (
       <div className={styles.page}>
@@ -552,8 +527,20 @@ export default function ComboDetail({ combo: propCombo = null }) {
     return <div className={styles.page}><div style={{ padding: 16 }}>Memuat data paket...</div></div>
   }
 
+  // inline CSS for highlight effect (minimal, won't disturb existing styling)
+  const highlightStyle = (
+    <style>{`
+      .combo-highlight {
+        box-shadow: 0 0 0 3px rgba(99,102,241,0.18);
+        transition: box-shadow 220ms ease;
+      }
+    `}</style>
+  )
+
   return (
     <div className={styles.page}>
+      {highlightStyle}
+
       <div className={styles.headerArea}>
         <div className={styles.btnLeft}>
           <button
@@ -587,45 +574,61 @@ export default function ComboDetail({ combo: propCombo = null }) {
       </div>
 
       <div style={{ display: 'block', gap: 12, padding: 12 }}>
-        {/* Left: groups summary (each group is selectable/expandable) */}
+        {/* Left: groups summary */}
         <div style={{ flex: '0 0 320px', borderRight: '1px solid #eee', paddingRight: 12 }}>
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>Pilih Paket</div>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>Pilih Paket</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {(comboState.comboGroups || []).map((g, idx) => {
               const key = getGroupKey(g)
               const selProd = selectedProducts[key]
               const selProdObj = selProd && String(selProd) !== NO_ADDON_CODE ? findProductInGroup(g, selProd) : null
               const expanded = expandedGroup === key
+
+              // determine default product to scroll to (first product or NO_ADDON_CODE)
+              const defaultProduct = (Array.isArray(g.products) && g.products.length) ? (g.products[0].code ?? g.products[0].id) : NO_ADDON_CODE
+
               return (
                 <div key={key} style={{ borderRadius: 10, overflow: 'hidden', border: expanded ? '1px solid #e2e8f0' : '1px solid transparent', background: expanded ? '#fff' : 'transparent' }}>
-                  <button
-                    onClick={() => toggleExpandGroup(key)}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '12px 10px',
-                      background: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <div style={{ textAlign: 'left' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px' }}>
+                    <div>
                       <div style={{ fontWeight: 600 }}>{g.name}</div>
                       <div style={{ fontSize: 13, color: '#666' }}>
                         {selProdObj ? selProdObj.name : (selectedProducts[key] === NO_ADDON_CODE ? 'Tanpa Add On' : (g.allowSkip ? 'Boleh dikosongkan' : 'Belum dipilih'))}
                       </div>
                     </div>
-                    <div style={{ marginLeft: 8, color: '#666' }}>{idx + 1}</div>
-                  </button>
+
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button
+                        onClick={() => {
+                          // open group and scroll to its first product
+                          setExpandedGroup(key)
+                          const prodToScroll = defaultProduct
+                          scrollToProduct(prodToScroll, key)
+                        }}
+                        type="button"
+                        style={{
+                          background: '#efefef',
+                          border: 'none',
+                          padding: '6px 10px',
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                          fontSize: 13
+                        }}
+                        aria-label={`Pilih paket ${g.name}`}
+                      >
+                        Pilih Paket
+                      </button>
+
+                      <div style={{ marginLeft: 8, color: '#666' }}>{idx + 1}</div>
+                    </div>
+                  </div>
                 </div>
               )
             })}
           </div>
         </div>
 
-        {/* Right: show expanded group's products + condiments */}
+        {/* Right: expanded group */}
         <div style={{ flex: 1 }}>
           {!expandedGroup && <div style={{ padding: 12, color: '#666' }}>Klik sebuah paket di sebelah kiri lalu pilih produk untuk setiap paket.</div>}
 
@@ -634,8 +637,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
             if (!grp) return <div style={{ padding: 12 }}>Paket tidak ditemukan.</div>
 
             const products = Array.isArray(grp.products) ? grp.products : []
-
-            // determine if we should show "Tanpa Add On" synthetic product first (for topping group)
             const isToppingGroup = String((grp.code || '').toUpperCase()) === 'KIDS-TOPPING-ALL' ||
                                    String((grp.name || '').toLowerCase()).includes('add on topping')
 
@@ -652,14 +653,19 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
             return (
               <div>
-                <div style={{ marginBottom: 12, fontWeight: 600 }}>{grp.name}</div>
+                <div style={{ marginBottom: 12, marginTop: 12, fontWeight: 700 }}>{grp.name}</div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {productsToShow.map(p => {
                     const pCode = p.code ?? String(p.id)
                     const checked = selectedProducts[getGroupKey(grp)] === pCode
                     return (
-                      <div key={pCode} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 8, borderRadius: 8, background: checked ? '#fff' : '#fff', border: '1px solid #f0f0f0' }}>
+                      <div
+                        key={pCode}
+                        ref={el => { if (el) productRefs.current[String(pCode)] = el }}
+                        data-product-code={pCode}
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 8, borderRadius: 8, background: checked ? '#fff' : '#fff', border: '1px solid #f0f0f0' }}
+                      >
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           <div style={{ width: 64, height: 64, position: 'relative', borderRadius: 8, overflow: 'hidden', background: '#f7f7f7' }}>
                             {p.imagePath ? (<Image src={p.imagePath} alt={p.name} fill style={{ objectFit: 'cover' }} />) : null}
@@ -709,7 +715,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
           <div className={styles.addModal} role="dialog" aria-modal="true">
             <div className={styles.addModalContent}>
-
               {missingAddons ? (
                 <>
                   <div className={styles.addModalIcon}>
@@ -749,7 +754,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
                   </div>
                 </>
               )}
-
             </div>
           </div>
         </>

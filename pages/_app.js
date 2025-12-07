@@ -6,6 +6,11 @@ import { useEffect } from 'react'
 
 export default function MyApp({ Component, pageProps }) {
   useEffect(() => {
+    window.addEventListener('error', e => console.error('window error:', e.error ?? e.message ?? e));
+    window.addEventListener('unhandledrejection', e => console.error('unhandled rejection:', e.reason ?? e));
+  }, []);
+
+  useEffect(() => {
     // Register a simple service worker that caches the Tailwind CDN script (if available)
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       navigator.serviceWorker

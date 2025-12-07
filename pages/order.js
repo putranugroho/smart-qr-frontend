@@ -55,7 +55,7 @@ export default function OrderPage() {
         // Normalize values as you prefer
         const storeCode = (paramsObj.storeCode || paramsObj.storeLocation || "").toString();
         const tableNumberRaw = paramsObj.tableNumber || "";
-        const tableNumber = tableNumberRaw ? (tableNumberRaw.toString().startsWith("Table") ? tableNumberRaw : `Table ${tableNumberRaw}`) : "";
+        const tableNumber = tableNumberRaw ? tableNumberRaw : "";
 
         const userAuth = {
           storeLocation: storeCode ? storeCode.toUpperCase() : "MGI",

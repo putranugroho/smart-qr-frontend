@@ -338,14 +338,6 @@ export default function CheckoutPage() {
 
   // render combo products inside one cart item
   function renderComboDetails(item) {
-    if (!item || item.type !== 'combo' || !Array.isArray(item.combos)) {
-      return (
-        <div style={{ marginTop: 8 }}>
-          <div className={styles.addonLine} style={{ color: '#666', fontStyle: 'italic' }}>Tidak ada condiments</div>
-        </div>
-      )
-    }
-
     return (
       <div style={{ marginTop: 8 }}>
         {item.combos.map((cb, cbIdx) => (
@@ -355,16 +347,11 @@ export default function CheckoutPage() {
               <div key={`${p.code}-${pi}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px dashed #eee' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600 }}>{p.name}</div>
-                  {/* condiments for this product */}
-                  {Array.isArray(p.condiments) && p.condiments.length > 0 ? (
                     <div style={{ marginTop: 4 }}>
                       {p.condiments.map((c, ci) => (
                         <div key={ci} className={styles.addonLine}>- {c.name}{c.qty && c.qty > 1 ? ` x${c.qty}` : ''}</div>
                       ))}
                     </div>
-                  ) : (
-                    <div className={styles.addonLine} style={{ color: '#666', fontStyle: 'italic', marginTop: 4  }}>Tidak ada condiments</div>
-                  )}
                 </div>
 
                 <div style={{ textAlign: 'right', minWidth: 90 }}>

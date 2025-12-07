@@ -19,7 +19,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   const productCode = propProductCode || q.productCode || propItem.code || propItem.productCode || propItem.id
 
   const initialItem = {
-    code: propItem.code || propItem.id || undefined,
+    code: propItem.code || propItem.id || productCode || undefined,
     title: q.title || propItem.name || propItem.title || '',
     price: q.price ? Number(q.price) : (propItem.price ?? 0),
     image: q.image || propItem.imagePath || propItem.image || '',
@@ -307,45 +307,46 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     const unitPrice = basePrice + addonTotalSingle;
 
     // 3. Ambil data pajak dari menu (propItem)
-    // Jika tidak ada, fallback ke item
-    const apiItem = propItem && Object.keys(propItem).length
-      ? propItem
-      : item || {};
+    // Jika tidak ada, fallback ke item (yang sudah kita isi saat kondimen)
+    const apiItem = (propItem && Object.keys(propItem).length) ? propItem : item || {};
 
-    const rawTaxes = Array.isArray(apiItem.taxes)
-      ? apiItem.taxes
-      : [];
+    // Normalisasi: item.taxes atau apiItem.taxes bisa punya format beragam.
+    // Kita buat taxesForOrder dengan bentuk { name, amount } agar kompatibel dengan addToCart()
+    const rawTaxes = Array.isArray(apiItem.taxes) ? apiItem.taxes : [];
 
-    // 4. Map pajak ke format yang dipakai checkout
-    const taxesArr = rawTaxes.map(t => ({
-      taxName: t.name || t.code || '',
-      taxPercentage: Number(t.amount || 0),
-      taxAmount: 0
-    }));
+    // Normalize rawTaxes -> taxesForOrder (fields: name, amount)
+    const taxesForOrder = rawTaxes.map(t => {
+      // Support both shapes: { name, amount } OR { taxName, taxPercentage } OR { code, amount }
+      const name = (t.name ?? t.code ?? t.taxName ?? '').toString();
+      const amount = Number(t.amount ?? t.taxPercentage ?? t.taxPercentage ?? 0);
+      return { name, amount };
+    });
 
-    // 5. Deteksi PB1 & PPN
-    const pb1Meta = rawTaxes.find(t =>
-      String(t.name ?? t.code ?? '').toUpperCase().includes('PB')
-    );
-
-    const ppnMeta = rawTaxes.find(t => {
-      const name = String(t.name ?? t.code ?? '').toUpperCase();
-      return name.includes('PPN') || name.includes('VAT');
+    // Detect pb1 & ppn using normalized taxesForOrder (name uppercase)
+    const pb1Meta = taxesForOrder.find(t => String(t.name || '').toUpperCase().includes('PB'));
+    const ppnMeta = taxesForOrder.find(t => {
+      const n = String(t.name || '').toUpperCase();
+      return n.includes('PPN') || n.includes('VAT');
     });
 
     // 6. Buat object final ke cart
+    const resolvedId = String(apiItem.code ?? apiItem.id ?? item.code ?? productCode ?? '');
+    const resolvedTitle = String(item.title || apiItem.name || apiItem.title || productCode || '');
+
     const final_order = {
-      id: String(apiItem.code ?? apiItem.id ?? item.code ?? ''),
-      productCode: String(apiItem.code ?? apiItem.id ?? item.code ?? ''),
-      title: String(item.title || apiItem.name || ''),
+      id: resolvedId,
+      productCode: resolvedId,
+      title: resolvedTitle,
       price: Number(unitPrice),
       qty: Number(qty || 1),
-      image: item.image || apiItem.imagePath || '/images/gambar-menu.jpg',
+      image: item.image || apiItem.imagePath || apiItem.image || '/images/gambar-menu.jpg',
       note: String(note || ''),
 
       addons: addonsForCart,
-      taxes: taxesArr,
+      // **Important**: set taxes in the shape addToCart expects ({ name, amount })
+      taxes: taxesForOrder,
 
+      // also expose percent fields for UI/checkout convenience (use amount as percent)
       pb1Percent: pb1Meta ? Number(pb1Meta.amount || 0) : 0,
       ppnPercent: ppnMeta ? Number(ppnMeta.amount || 0) : 0,
 

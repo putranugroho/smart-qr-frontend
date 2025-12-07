@@ -58,10 +58,15 @@ export default function PaymentPage() {
 
   // helper untuk cek apakah order type adalah take away
   const isTakeAway = (() => {
-    if (!user || !user.orderType) return false;
-    const t = String(user.orderType).toUpperCase();
+    const t = String(user?.orderType || '').toUpperCase();
     return t === 'TA' || t.includes('TAKE');
   })();
+
+  const hasPresetTable =
+    !!(user?.tableNumber && String(user.tableNumber).trim() !== '');
+
+  const mustFillTableNumber =
+    !isTakeAway && !hasPresetTable;
 
   // compute payload from cart and use it as source of truth for totals
   function buildPayload(grossAmountForRounding = null) {
@@ -93,19 +98,10 @@ export default function PaymentPage() {
       ok = false;
     }
 
-    // hanya validasi tableNumber kalau bukan take away
-    if (!isTakeAway) {
-      if (!tableNumber || String(tableNumber).trim() === '') {
+    if (mustFillTableNumber) {
+      if (!tableNumber || !String(tableNumber).trim()) {
         next.tableNumber = 'Nomer meja wajib diisi.';
         ok = false;
-      } else {
-        // aturan: pertama 1 huruf di depan lalu 2-3 angka (kami izinkan 2 atau 3 digit)
-        const v = String(tableNumber).trim();
-        const regex = /^[A-Za-z]\d{2,3}$/;
-        if (!regex.test(v)) {
-          next.tableNumber = 'Format nomer meja: 1 huruf di depan diikuti 2–3 angka (contoh: A01 atau A001).';
-          ok = false;
-        }
       }
     }
 
@@ -261,8 +257,7 @@ export default function PaymentPage() {
   function handleTableBlur() {
     const formatted = formatTableOnBlur(tableNumber);
     if (formatted !== tableNumber) setTableNumber(formatted);
-    // revalidate
-    if (!isTakeAway) validateAll(true);
+    if (mustFillTableNumber) validateAll(true);
   }
 
   const payloadPreview = buildPayload();
@@ -317,24 +312,20 @@ export default function PaymentPage() {
         {errors.phone && <div style={{ color: 'red', fontSize: 12, marginTop: 6 }}>{errors.phone}</div>}
 
         {/* show table input only when not take away */}
-        {!isTakeAway && (
+        {mustFillTableNumber && (
           <>
-            <label className={styles.label}>Nomer Meja <span style={{color:'red'}}>*</span></label>
+            <label className={styles.label}>Nomer Meja *</label>
             <div className={styles.inputWrap}>
               <input
                 className={styles.input}
-                placeholder="Masukan Nomer Meja (contoh: A01 atau A001)"
-                value={tableNumber || ''}
-                onChange={(e) => handleTableChange(e.target.value)}
+                placeholder="Masukan Nomer Meja (contoh: A01 / A001)"
+                value={tableNumber}
+                onChange={(e)=>handleTableChange(e.target.value)}
                 onBlur={handleTableBlur}
                 style={errors.tableNumber ? { borderColor: 'red' } : {}}
               />
             </div>
-            {errors.tableNumber && <div style={{ color: 'red', fontSize: 12, marginTop: 6 }}>{errors.tableNumber}</div>}
-            {/* hint kecil */}
-            <div style={{ fontSize: 12, color: '#666', marginTop: 6 }}>
-              Aturan: 1 huruf diawal lalu 2–3 angka. Contoh: <strong>A01</strong> atau <strong>A001</strong>. Jika Anda mengetik <strong>A1</strong> sistem akan otomatis mengubah menjadi <strong>A01</strong>.
-            </div>
+            {errors.tableNumber && <div style={{ color: 'red', fontSize: 12 }}>{errors.tableNumber}</div>}
           </>
         )}
       </div>

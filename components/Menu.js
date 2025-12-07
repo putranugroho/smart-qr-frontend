@@ -41,10 +41,10 @@ function ensureUniqueIdForMenu(it, categoryId, idx = 0) {
   // prefer code/id, else name+price fallback
   const code = it.code ?? it.id ?? it.productCode ?? null;
   if (code) {
-    return `menu_${String(categoryId)}_${String(code)}`;
+    return `${String(code)}`;
   }
   if (it.name) {
-    return `menu_${String(categoryId)}_${it.name.replace(/\s+/g, '_')}_${String(it.price ?? '')}`;
+    return `${it.name.replace(/\s+/g, '_')}_${String(it.price ?? '')}`;
   }
   return `menu_${String(categoryId)}_unknown_${idx}`;
 }

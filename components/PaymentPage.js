@@ -101,9 +101,18 @@ export default function PaymentPage() {
       ok = false;
     }
 
+    // Table number validation: require pattern 1 letter + at least 2 digits: /^[A-Za-z]\d{2,}$/
     if (mustFillTableNumber) {
-      if (!tableNumber || !String(tableNumber).trim()) {
-        next.tableNumber = 'Nomer meja wajib diisi.';
+      // try auto-format first (handles A1 -> A01)
+      const formatted = formatTableOnBlur(tableNumber || '');
+      // if formatting changed, persist it so user sees it
+      if (formatted && formatted !== tableNumber) {
+        setTableNumber(formatted);
+      }
+
+      const pattern = /^[A-Za-z]\d{2,}$/;
+      if (!formatted || !pattern.test(formatted)) {
+        next.tableNumber = 'Nomer meja harus format: 1 huruf di depan lalu 2 angka (contoh: A01).';
         ok = false;
       }
     }
@@ -124,7 +133,22 @@ export default function PaymentPage() {
       // pad to at least 2 digits
       if (digits.length === 1) digits = digits.padStart(2, '0'); // A1 -> A01
       s = letter + digits;
+      return s;
     }
+
+    // if user typed single letter + nothing or single letter + single digit (like "A" or "A1"),
+    // attempt to normalize A1 -> A01 already handled; A alone -> return as-is (so validation will catch it)
+    // Also remove whitespace in between (e.g., "A 1" -> "A1" -> will be padded)
+    const compact = s.replace(/\s+/g, '');
+    // try again for pattern Letter + Digit(s)
+    const mm = compact.match(/^([A-Z])(\d+)$/i);
+    if (mm) {
+      const letter = mm[1];
+      let digits = mm[2];
+      if (digits.length === 1) digits = digits.padStart(2, '0');
+      return letter + digits;
+    }
+
     return s;
   }
 
@@ -257,7 +281,9 @@ export default function PaymentPage() {
 
   // table input change
   function handleTableChange(v) {
-    setTableNumber(v);
+    // normalize to uppercase + trim spaces (live)
+    const normalized = String(v || '').toUpperCase().replace(/\s+/g, '');
+    setTableNumber(normalized);
     if (errors.tableNumber) setErrors(prev => ({ ...prev, tableNumber: '' }));
   }
 

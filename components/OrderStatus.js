@@ -280,7 +280,7 @@ export default function OrderStatus() {
     if (!orderCodeToFetch) return null
     try {
       // use proxy in nextjs to avoid CORS / reveal keys
-      const url = `/api/proxy/order/${encodeURIComponent(orderCodeToFetch)}`
+      const url = `/api/proxy/order/check-status?orderCode=${encodeURIComponent(orderCodeToFetch)}`
       const r = await fetch(url)
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       const j = await r.json()

@@ -305,15 +305,29 @@ export default function CheckoutPage() {
       )
     }
 
-    // Try to render lines intelligently
-    const lines = []
-    addons.forEach(a => {
+     // ambil map code -> name dari menus[].condiments
+    const condimentMap = {}
+    if (Array.isArray(item?.menus)) {
+      item.menus.forEach(m => {
+        if (Array.isArray(m.condiments)) {
+          m.condiments.forEach(c => {
+            if (c.code) condimentMap[c.code] = c.name || c.code
+          })
+        }
+      })
+    }
+
+      const lines = []
+    (addons || []).forEach(a => {
       if (!a) return
-      // If addon has name property (object)
       if (typeof a === 'object') {
-        if (a.name) lines.push(a.name)
-        else if (a.label) lines.push(a.label)
-        else if (a.code) lines.push(String(a.code))
+        if (a.code && condimentMap[a.code]) {
+          lines.push(condimentMap[a.code])
+        } else if (a.name) {
+          lines.push(a.name)
+        } else if (a.code) {
+          lines.push(String(a.code))
+        }
       } else if (typeof a === 'string' || typeof a === 'number') {
         lines.push(String(a))
       }
@@ -481,7 +495,7 @@ export default function CheckoutPage() {
 
                 <div className={styles.itemAddon}>
                   {/* menu item addons (always render area) */}
-                  {it.type !== 'combo' ? renderAddons(it.addons) : null}
+                  {it.type !== 'combo' ? renderAddons(it.addons, it) : null}
 
                   {/* for combo show breakdown of products + condiments */}
                   {it.type === 'combo' ? renderComboDetails(it) : null}

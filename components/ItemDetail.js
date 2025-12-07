@@ -87,11 +87,14 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
           if (Array.isArray(cartItem.addons)) {
             const sel = {}
-            // cartItem.addons expected as [{ code, qty, price }]
             cartItem.addons.forEach(a => {
-              // restore selection by matching addon code
-              // we store selected by addon group in selected state; if unknown keep null
-              sel[a.group] = a.code || a.id || null
+              const code = String(a.code || a.id || '')
+              addons.forEach(g => {
+                const found = (g.options || []).find(o => String(o.id) === code)
+                if (found) {
+                  sel[g.group] = found.id
+                }
+              })
             })
             setSelected(prev => ({ ...prev, ...sel }))
           }

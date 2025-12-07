@@ -269,92 +269,104 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   }
 
   function buildOrderObject() {
-    // 1. Map addons ke bentuk array simple
-    const addonsForCart = addons.flatMap(g => {
+    const apiItem = (propItem && Object.keys(propItem).length) ? propItem : item || {};
+    const basePrice = Number(item.price || 0);
+    const qtyNum = Number(qty || 1);
+
+    // ======== Build Condiments (Addons) =========
+    const condiments = addons.flatMap(g => {
       const val = selected[g.group];
       if (val == null || val === NONE_OPTION_ID) return [];
 
-      if (Array.isArray(val)) {
-        return val.map(v => {
-          const opt = findOption(g, v);
-          return {
-            group: g.group,
-            groupName: g.name ?? g.group,
-            code: opt ? String(opt.id) : String(v),
-            qty: 1,
-            price: opt ? Number(opt.price || 0) : 0
-          };
-        });
-      }
+      const mapOne = (optId) => {
+        const opt = findOption(g, optId);
+        const price = Number(opt?.price || 0);
 
-      const opt = findOption(g, val);
-      return [{
-        group: g.group,
-        groupName: g.name ?? g.group,
-        code: opt ? String(opt.id) : String(val),
-        qty: 1,
-        price: opt ? Number(opt.price || 0) : 0
-      }];
+        const taxes = Array.isArray(apiItem.taxes)
+          ? apiItem.taxes.map(t => {
+              const taxName = (t.taxName || t.name || '').toString();
+              const taxPercentage = Number(t.taxPercentage || t.amount || 0);
+              const taxAmount = Math.round((taxPercentage / 100) * price);
+
+              return { taxName, taxPercentage, taxAmount };
+            })
+          : [];
+
+        return {
+          code: opt?.id || String(optId),
+          name: opt?.name || '',
+          price,
+          qty: 1,
+          taxes
+        };
+      };
+
+      return Array.isArray(val)
+        ? val.map(mapOne)
+        : [mapOne(val)];
     });
 
-    // 2. Hitung addon total / unit
-    const addonTotalSingle = addonsForCart.reduce(
-      (acc, a) => acc + (Number(a.price || 0) * Number(a.qty || 1)),
-      0
-    );
+    // ======== Taxes for Menu only =========
+    const menuTaxes = Array.isArray(apiItem.taxes)
+      ? apiItem.taxes.map(t => {
+          const taxName = (t.taxName || t.name || '').toString();
+          const taxPercentage = Number(t.taxPercentage || t.amount || 0);
+          const taxAmount = Math.round((taxPercentage / 100) * basePrice);
 
-    const basePrice = Number(item.price || 0);
-    const unitPrice = basePrice + addonTotalSingle;
+          return { taxName, taxPercentage, taxAmount };
+        })
+      : [];
 
-    // 3. Ambil data pajak dari menu (propItem)
-    // Jika tidak ada, fallback ke item (yang sudah kita isi saat kondimen)
-    const apiItem = (propItem && Object.keys(propItem).length) ? propItem : item || {};
+    // ======== menus[] payload =========
+    const menusPayload = [{
+      condiments,
+      detailMenu: {
+        code: apiItem.code || item.code || productCode || '',
+        name: item.title || apiItem.name || '',
+        price: basePrice
+      },
+      isFromMacro: true,
+      orderType: "DI",
+      qty: qtyNum,
+      taxes: menuTaxes
+    }];
 
-    // Normalisasi: item.taxes atau apiItem.taxes bisa punya format beragam.
-    // Kita buat taxesForOrder dengan bentuk { name, amount } agar kompatibel dengan addToCart()
-    const rawTaxes = Array.isArray(apiItem.taxes) ? apiItem.taxes : [];
+    // ======== CART COMPATIBILITY =========
+    const addonsForCart = condiments.map(c => ({
+      group: '',
+      groupName: '',
+      code: c.code,
+      qty: c.qty,
+      price: c.price
+    }));
 
-    // Normalize rawTaxes -> taxesForOrder (fields: name, amount)
-    const taxesForOrder = rawTaxes.map(t => {
-      // Support both shapes: { name, amount } OR { taxName, taxPercentage } OR { code, amount }
-      const name = (t.name ?? t.code ?? t.taxName ?? '').toString();
-      const amount = Number(t.amount ?? t.taxPercentage ?? t.taxPercentage ?? 0);
-      return { name, amount };
-    });
+    const unitPrice = basePrice + condiments.reduce((s, c) => s + c.price, 0);
 
-    // Detect pb1 & ppn using normalized taxesForOrder (name uppercase)
-    const pb1Meta = taxesForOrder.find(t => String(t.name || '').toUpperCase().includes('PB'));
-    const ppnMeta = taxesForOrder.find(t => {
-      const n = String(t.name || '').toUpperCase();
-      return n.includes('PPN') || n.includes('VAT');
-    });
-
-    // 6. Buat object final ke cart
-    const resolvedId = String(apiItem.code ?? apiItem.id ?? item.code ?? productCode ?? '');
-    const resolvedTitle = String(item.title || apiItem.name || apiItem.title || productCode || '');
-
+    // ======== Final order object (cart compatible) =========
     const final_order = {
-      id: resolvedId,
-      productCode: resolvedId,
-      title: resolvedTitle,
-      price: Number(unitPrice),
-      qty: Number(qty || 1),
-      image: item.image || apiItem.imagePath || apiItem.image || '/images/gambar-menu.jpg',
+      id: menusPayload[0].detailMenu.code,
+      productCode: menusPayload[0].detailMenu.code,
+      title: menusPayload[0].detailMenu.name,
+      price: unitPrice,
+      qty: qtyNum,
+      image: item.image || apiItem.imagePath || '',
       note: String(note || ''),
 
+      // keep old cart support
       addons: addonsForCart,
-      // **Important**: set taxes in the shape addToCart expects ({ name, amount })
-      taxes: taxesForOrder,
 
-      // also expose percent fields for UI/checkout convenience (use amount as percent)
-      pb1Percent: pb1Meta ? Number(pb1Meta.amount || 0) : 0,
-      ppnPercent: ppnMeta ? Number(ppnMeta.amount || 0) : 0,
+      // NEW payload for backend
+      menus: menusPayload,
 
-      hasPB1: !!pb1Meta,
-      hasPPN: !!ppnMeta
+      // leave legacy tax flags as-is
+      taxes: [],
+      pb1Percent: 0,
+      ppnPercent: 0,
+      hasPB1: false,
+      hasPPN: false
     };
 
-    console.log('final_order', final_order);
+    console.log('final_order (patched)', JSON.stringify(final_order, null, 2));
     return final_order;
   }
 

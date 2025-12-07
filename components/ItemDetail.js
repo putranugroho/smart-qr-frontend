@@ -302,6 +302,20 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     const basePrice = Number(item.price || 0);
     const qtyNum = Number(qty || 1);
 
+    // If editing an existing cart item, prefer it as source for legacy tax info
+    let legacySourceForTaxes = apiItem;
+    try {
+      if (fromCheckout && editingIndex != null) {
+        const currentCart = getCart() || [];
+        const original = currentCart[editingIndex];
+        if (original && typeof original === 'object') {
+          legacySourceForTaxes = original;
+        }
+      }
+    } catch (e) {
+      // ignore - fallback to apiItem
+    }
+
     // ======== Build Condiments (Addons) =========
     const condiments = addons.flatMap(g => {
       const val = selected[g.group];
@@ -311,12 +325,12 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         const opt = findOption(g, optId);
         const price = Number(opt?.price || 0);
 
-        const taxes = Array.isArray(apiItem.taxes)
-          ? apiItem.taxes.map(t => {
+        // Use legacySourceForTaxes to compute taxes for condiments (preserves original tax config)
+        const taxes = Array.isArray(legacySourceForTaxes.taxes)
+          ? legacySourceForTaxes.taxes.map(t => {
               const taxName = (t.taxName || t.name || '').toString();
               const taxPercentage = Number(t.taxPercentage || t.amount || 0);
               const taxAmount = Math.round((taxPercentage / 100) * price);
-
               return { taxName, taxPercentage, taxAmount };
             })
           : [];
@@ -335,13 +349,12 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         : [mapOne(val)];
     });
 
-    // ======== Taxes for Menu only =========
-    const menuTaxes = Array.isArray(apiItem.taxes)
-      ? apiItem.taxes.map(t => {
+    // ======== Taxes for Menu only (use legacySourceForTaxes) =========
+    const menuTaxes = Array.isArray(legacySourceForTaxes.taxes)
+      ? legacySourceForTaxes.taxes.map(t => {
           const taxName = (t.taxName || t.name || '').toString();
           const taxPercentage = Number(t.taxPercentage || t.amount || 0);
           const taxAmount = Math.round((taxPercentage / 100) * basePrice);
-
           return { taxName, taxPercentage, taxAmount };
         })
       : [];
@@ -387,12 +400,13 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
       // NEW payload for backend
       menus: menusPayload,
 
-      // leave legacy tax flags as-is
-      taxes: [],
-      pb1Percent: 0,
-      ppnPercent: 0,
-      hasPB1: false,
-      hasPPN: false
+      // Preserve legacy tax fields from legacySourceForTaxes when available,
+      // otherwise default to empty/0 as before.
+      taxes: Array.isArray(legacySourceForTaxes.taxes) ? legacySourceForTaxes.taxes : [],
+      pb1Percent: Number(legacySourceForTaxes.pb1Percent || legacySourceForTaxes.pb1 || 0),
+      ppnPercent: Number(legacySourceForTaxes.ppnPercent || legacySourceForTaxes.ppn || 0),
+      hasPB1: !!legacySourceForTaxes.hasPB1 || !!legacySourceForTaxes.hasPB1 === true,
+      hasPPN: !!legacySourceForTaxes.hasPPN || !!legacySourceForTaxes.hasPPN === true
     };
 
     console.log('final_order (patched)', JSON.stringify(final_order, null, 2));

@@ -96,6 +96,9 @@ export default function PaymentPage() {
     } else if ((customer.phone || '').length < 8) {
       next.phone = 'Nomor WhatsApp minimal 8 digit.';
       ok = false;
+    } else if ((customer.phone || '').length > 12) {
+      next.phone = 'Nomor WhatsApp maksimal 12 digit.';
+      ok = false;
     }
 
     if (mustFillTableNumber) {
@@ -240,9 +243,14 @@ export default function PaymentPage() {
     if (errors.first_name) setErrors(prev => ({ ...prev, first_name: '' }));
   }
   function handlePhoneChange(v) {
-    // only numbers, remove leading zeros
-    let val = v.replace(/\D/g, "");
+    // hanya angka
+    let val = String(v || '').replace(/\D/g, "");
+    // hapus leading zeros
     val = val.replace(/^0+/, "");
+    // batasi maksimal 12 digit
+    if (val.length > 12) {
+      val = val.slice(0, 12);
+    }
     setCustomer(prev => ({ ...prev, phone: val }));
     if (errors.phone) setErrors(prev => ({ ...prev, phone: '' }));
   }
@@ -307,6 +315,8 @@ export default function PaymentPage() {
             value={customer.phone || ""}
             onChange={(e) => handlePhoneChange(e.target.value)}
             style={errors.phone ? { borderColor: 'red' } : {}}
+            inputMode="numeric"
+            maxLength={12}
           />
         </div>
         {errors.phone && <div style={{ color: 'red', fontSize: 12, marginTop: 6 }}>{errors.phone}</div>}

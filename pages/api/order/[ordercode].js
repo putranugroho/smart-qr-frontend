@@ -4,10 +4,14 @@ export default async function handler(req, res) {
   if (!orderCode) return res.status(400).json({ error: 'orderCode required' });
 
   try {
-    // External API base (the SmartQR endpoint you provided)
-    const base = 'https://yoshi-smartqr-api-ergyata5hff3cfhz.southeastasia-01.azurewebsites.net';
+    // ensure base url set
+    const baseUrl = process.env.NEXT_PUBLIC_URL_API || process.env.NEXT_PUBLIC_URL_DEV;
+    if (!baseUrl) {
+      console.error('Missing NEXT_PUBLIC_URL_API / NEXT_PUBLIC_URL_DEV env var');
+      return res.status(500).json({ error: 'Server misconfiguration: missing base url' });
+    }
     // build url
-    const url = `${base}/smartqr/v1/order/${encodeURIComponent(orderCode)}`;
+    const url = `${baseUrl}/smartqr/v1/order/${encodeURIComponent(orderCode)}`;
 
     // If you need headers, e.g. API key, put them here:
     const headers = {

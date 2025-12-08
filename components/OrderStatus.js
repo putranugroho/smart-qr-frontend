@@ -18,100 +18,145 @@ function calculateItemTaxes(it) {
   let ppn = 0
 
   if (it && it.type === 'combo' && Array.isArray(it.combos)) {
-    const products = it.combos.flatMap(cb => (Array.isArray(cb.products) ? cb.products : []))
-    products.forEach((p) => {
-      const pQty = Number(p.qty || 1)
-      const basePrice = Number(p.price || 0)
-      const cbQty = Number(p._comboQty || 1)
-      const itemQty = Number(it.qty || 1)
-      const lineBase = basePrice * pQty * cbQty * itemQty
-      base += lineBase
+    // iterate each combo block so we have cb.qty (combo-block multiplier)
+    it.combos.forEach(cb => {
+      const cbQty = Number(cb.qty || cb.Qty || 1)
+      const products = Array.isArray(cb.products) ? cb.products : []
 
-      // Prefer explicit taxAmount if present on product taxes
-      if (Array.isArray(p.taxes)) {
-        p.taxes.forEach(tx => {
-          const taxAmtProvided = Number(tx.taxAmount ?? tx.TaxAmount ?? 0)
-          if (taxAmtProvided) {
-            if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmtProvided * cbQty * itemQty
-            else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmtProvided * cbQty * itemQty
-          } else {
-            // fallback to percentage calculation
-            const pct = Number(tx.taxPercentage ?? tx.TaxPercentage ?? tx.amount ?? 0)
-            const taxAmt = Math.round(lineBase * (pct / 100))
-            if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmt
-            else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmt
-          }
-        })
-      }
+      products.forEach(p => {
+        const pQty = Number(p.qty ?? p.Qty ?? 1)
+        const basePrice = Number(p.price ?? p.Price ?? 0)
+        const itemQty = Number(it.qty ?? 1)
 
-      // condiments under product
-      if (Array.isArray(p.condiments)) {
-        p.condiments.forEach(c => {
-          const cQty = Number(c.qty || 1)
-          const cPrice = Number(c.price || 0)
-          const cBase = cPrice * cQty * pQty * cbQty * itemQty
-          base += cBase
-          if (Array.isArray(c.taxes)) {
-            c.taxes.forEach(tx => {
-              const taxAmtProvided = Number(tx.taxAmount ?? tx.TaxAmount ?? 0)
-              if (taxAmtProvided) {
-                if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmtProvided * cbQty * itemQty
-                else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmtProvided * cbQty * itemQty
-              } else {
-                const pct = Number(tx.taxPercentage ?? tx.TaxPercentage ?? tx.amount ?? 0)
-                const taxAmt = Math.round(cBase * (pct / 100))
-                if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmt
-                else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmt
-              }
-            })
-          }
-        })
-      }
+        // line base = product price * product qty * combo block qty * item qty
+        const lineBase = basePrice * pQty * cbQty * itemQty
+        base += lineBase
+
+
+        // taxes for product: prefer explicit taxAmount (may be per unit)
+        if (Array.isArray(p.taxes)) {
+          p.taxes.forEach(tx => {
+            const provided = Number(tx.taxAmount ?? tx.TaxAmount ?? 0)
+            if (provided && provided !== 0) {
+              // if provided, assume it's per product unit (as in payload examples)
+              const amt = provided * pQty * cbQty * itemQty
+              if ((String(tx.taxName ?? tx.TaxName ?? '').toUpperCase()).includes('PB')) pb1 += amt
+              else if ((String(tx.taxName ?? tx.TaxName ?? '').toUpperCase()).includes('PPN')) ppn += amt
+            } else {
+              const pct = Number(tx.taxPercentage ?? tx.TaxPercentage ?? tx.amount ?? 0)
+              const taxAmt = Math.round(lineBase * (pct / 100))
+              if ((String(tx.taxName ?? tx.TaxName ?? '').toUpperCase()).includes('PB')) pb1 += taxAmt
+              else if ((String(tx.taxName ?? tx.TaxName ?? '').toUpperCase()).includes('PPN')) ppn += taxAmt
+            }
+          })
+        }
+
+        // condiments under product
+        if (Array.isArray(p.condiments)) {
+          p.condiments.forEach(c => {
+            const cQty = Number(c.qty ?? c.Qty ?? 1)
+            const cPrice = Number(c.price ?? c.Price ?? 0)
+            const cBase = cPrice * cQty * pQty * cbQty * itemQty
+            base += cBase
+
+            if (Array.isArray(c.taxes)) {
+              c.taxes.forEach(tx => {
+                const provided = Number(tx.taxAmount ?? tx.TaxAmount ?? 0)
+                if (provided && provided !== 0) {
+                  const amt = provided * pQty * cbQty * itemQty * cQty
+                  if ((String(tx.taxName ?? tx.TaxName ?? '').toUpperCase()).includes('PB')) pb1 += amt
+                  else if ((String(tx.taxName ?? tx.TaxName ?? '').toUpperCase()).includes('PPN')) ppn += amt
+                } else {
+                  const pct = Number(tx.taxPercentage ?? tx.TaxPercentage ?? tx.amount ?? 0)
+                  const taxAmt = Math.round(cBase * (pct / 100))
+                  if ((String(tx.taxName ?? tx.TaxName ?? '').toUpperCase()).includes('PB')) pb1 += taxAmt
+                  else if ((String(tx.taxName ?? tx.TaxName ?? '').toUpperCase()).includes('PPN')) ppn += taxAmt
+                }
+              })
+            }
+          })
+        }
+      })
     })
   } else {
-    const qty = Number(it.qty || 1)
-    const price = Number(it.price ?? it.detailMenu?.Price ?? it.detailMenu?.price ?? 0)
-    base = price * qty
+    const qty = Number(it.qty ?? 1)
 
-    // Prefer explicit taxAmount if present on item taxes
+    // harga dasar yang dilaporkan di payload (bisa berupa detailPrice atau already-included)
+    const reportedPrice = Number(it.price ?? it.detailMenu?.price ?? 0)
+
+    // harga detail (apa yang ada di detailMenu) — fallback ke reportedPrice jika tidak ada
+    const detailPrice = Number(it.detailMenu?.price ?? it.detailMenu?.Price ?? reportedPrice)
+
+    // total condiment (sum harga * qty)
+    const conds = Array.isArray(it.condiments) ? it.condiments : []
+    const condTotal = conds.reduce((s, c) => s + (Number(c.price ?? c.Price ?? 0) * Number(c.qty ?? c.Qty ?? 1)), 0)
+
+    // If reportedPrice already includes condTotal, use it directly; otherwise combine detailPrice + condTotal
+    let unitBase = reportedPrice
+    if (reportedPrice === detailPrice + condTotal) {
+      // reported already includes condiments -> don't double-add later
+      unitBase = reportedPrice
+    } else if (reportedPrice === detailPrice) {
+      // reported is detail only -> we'll add conds below
+      unitBase = detailPrice
+    } else if (reportedPrice === 0 && detailPrice > 0) {
+      // safe fallback: use detailPrice
+      unitBase = detailPrice
+    } else {
+      // last fallback: treat reported as the authoritative unit price
+      unitBase = reportedPrice
+    }
+
+    base = unitBase * qty
+
+    // Taxes on the item itself (prefer explicit taxAmount)
     if (Array.isArray(it.taxes)) {
       it.taxes.forEach(tx => {
-        const taxAmtProvided = Number(tx.taxAmount ?? tx.TaxAmount ?? 0)
-        if (taxAmtProvided) {
-          if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmtProvided
-          else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmtProvided
+        const provided = Number(tx.taxAmount ?? tx.TaxAmount ?? 0)
+        if (provided && provided !== 0) {
+          if ((String(tx.taxName ?? tx.TaxName ?? '').toUpperCase()).includes('PB')) pb1 += provided
+          else if ((String(tx.taxName ?? tx.TaxName ?? '').toUpperCase()).includes('PPN')) ppn += provided
         } else {
           const pct = Number(tx.taxPercentage ?? tx.TaxPercentage ?? tx.amount ?? 0)
-          const taxAmt = Math.round(base * (pct / 100))
-          if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmt
-          else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmt
+          const taxAmt = Math.round((unitBase * qty) * (pct / 100))
+          if ((String(tx.taxName ?? tx.TaxName ?? '').toUpperCase()).includes('PB')) pb1 += taxAmt
+          else if ((String(tx.taxName ?? tx.TaxName ?? '').toUpperCase()).includes('PPN')) ppn += taxAmt
         }
       })
     }
 
-    // condiments
-    if (Array.isArray(it.condiments)) {
-      it.condiments.forEach(c => {
-        const cQty = Number(c.qty || 1)
-        const cPrice = Number(c.price || 0)
+    // Add condiments only if they were NOT already included in reportedPrice
+    if (!(reportedPrice === detailPrice + condTotal)) {
+      // add conds base + their taxes
+      conds.forEach(c => {
+        const cQty = Number(c.qty ?? c.Qty ?? 1)
+        const cPrice = Number(c.price ?? c.Price ?? 0)
         const cBase = cPrice * cQty * qty
         base += cBase
+
         if (Array.isArray(c.taxes)) {
           c.taxes.forEach(tx => {
-            const taxAmtProvided = Number(tx.taxAmount ?? tx.TaxAmount ?? 0)
-            if (taxAmtProvided) {
-              if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmtProvided
-              else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmtProvided
+            const provided = Number(tx.taxAmount ?? tx.TaxAmount ?? 0)
+            if (provided && provided !== 0) {
+              if ((String(tx.taxName ?? tx.TaxName ?? '').toUpperCase()).includes('PB')) pb1 += provided
+              else if ((String(tx.taxName ?? tx.TaxName ?? '').toUpperCase()).includes('PPN')) ppn += provided
             } else {
               const pct = Number(tx.taxPercentage ?? tx.TaxPercentage ?? tx.amount ?? 0)
               const taxAmt = Math.round(cBase * (pct / 100))
-              if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PB')) pb1 += taxAmt
-              else if ((tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase().includes('PPN')) ppn += taxAmt
+              if ((String(tx.taxName ?? tx.TaxName ?? '').toUpperCase()).includes('PB')) pb1 += taxAmt
+              else if ((String(tx.taxName ?? tx.TaxName ?? '').toUpperCase()).includes('PPN')) ppn += taxAmt
             }
           })
         }
       })
     }
+
+    console.log('MENU DEBUG', {
+      reportedPrice: reportedPrice,
+      detailPrice: detailPrice,
+      condTotal: condTotal,
+      qty
+    })
   }
 
   return { base: Math.round(base), pb1: Math.round(pb1), ppn: Math.round(ppn) }
@@ -251,24 +296,40 @@ export default function OrderStatus() {
     if (Array.isArray(menus) && menus.length > 0) {
       menus.forEach(m => {
         const conds = Array.isArray(m.condiments ?? m.Condiments) ? (m.condiments ?? m.Condiments) : []
-        const detailPrice = Number(m.detailMenu?.price ?? m.DetailMenu?.Price ?? m.price ?? 0)
-        const condTotal = conds.reduce((s, c) => s + (Number(c.price || 0) * Number(c.qty || 1)), 0)
-        const unitPrice = detailPrice + condTotal
+        const condTotal = conds.reduce((s, c) => s + (Number(c.price ?? c.Price ?? 0) * Number(c.qty ?? c.Qty ?? 1)), 0)
+        const detailPrice = Number(m.detailMenu?.price ?? m.DetailMenu?.Price ?? 0)
 
-        // normalize taxes for menu item (use provided taxes on condiments or item)
-        const taxes = Array.isArray(m.taxes ?? m.Taxes) ? (m.taxes ?? m.Taxes) : []
-
-        arr.push({
-          type: 'menu',
-          price: Number(unitPrice),
-          qty: m.qty ?? m.Qty ?? 1,
-          title: m.detailMenu?.name ?? m.DetailMenu?.Name ?? m.name ?? m.title ?? '',
-          name: m.detailMenu?.name ?? m.DetailMenu?.Name ?? m.name ?? m.title ?? '',
-          image: m.detailMenu?.image ?? m.DetailMenu?.Image ?? m.image ?? null,
-          condiments: conds,
-          taxes: taxes,
-          note: m.note ?? m.Note ?? ''
-        })
+        // If server provided final m.price -> treat it as authoritative final price and avoid double-count:
+        if (typeof m.price === 'number' && Number(m.price) > 0) {
+          arr.push({
+            type: 'menu',
+            // final price provided by server (assume already includes condiments)
+            price: Number(m.price),
+            qty: m.qty ?? m.Qty ?? 1,
+            title: m.detailMenu?.name ?? m.DetailMenu?.Name ?? m.name ?? m.title ?? '',
+            name: m.detailMenu?.name ?? m.DetailMenu?.Name ?? m.name ?? m.title ?? '',
+            image: m.detailMenu?.image ?? m.DetailMenu?.Image ?? m.image ?? null,
+            // keep condiments for display but set a separate field to prevent double-counting
+            condiments: [],                 // empty so calculation won't add condTotal again
+            _condimentsForDisplay: conds,   // optional: keep names for UI if you want to show them
+            taxes: Array.isArray(m.taxes ?? m.Taxes) ? (m.taxes ?? m.Taxes) : [],
+            note: m.note ?? m.Note ?? ''
+          })
+        } else {
+          // server didn't give final price -> use detailPrice as base and keep condiments
+          arr.push({
+            type: 'menu',
+            // price = detailPrice (condiments will be added by calculateItemTaxes)
+            price: Number(detailPrice),
+            qty: m.qty ?? m.Qty ?? 1,
+            title: m.detailMenu?.name ?? m.DetailMenu?.Name ?? m.name ?? m.title ?? '',
+            name: m.detailMenu?.name ?? m.DetailMenu?.Name ?? m.name ?? m.title ?? '',
+            image: m.detailMenu?.image ?? m.DetailMenu?.Image ?? m.image ?? null,
+            condiments: conds,
+            taxes: Array.isArray(m.taxes ?? m.Taxes) ? (m.taxes ?? m.Taxes) : [],
+            note: m.note ?? m.Note ?? ''
+          })
+        }
       })
     }
 
@@ -285,6 +346,8 @@ export default function OrderStatus() {
 
   items.forEach((it) => {
     const t = calculateItemTaxes(it)
+    console.log("t isinya apa ? ", t);
+    
     computedSubtotal += t.base
     computedPB1 += t.pb1
     computedPPN += t.ppn

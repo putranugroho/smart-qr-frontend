@@ -1,4 +1,5 @@
-import { useRouter } from 'next/router'
+// pages/paymentpage.js
+import { useRouter } from 'next/router' 
 import { useEffect, useState } from 'react'
 import styles from '../styles/PaymentPage.module.css'
 import Image from 'next/image'
@@ -85,9 +86,17 @@ export default function PaymentPage() {
     const next = { first_name: '', phone: '', tableNumber: '' };
     let ok = true;
 
-    if (!customer.first_name || String(customer.first_name).trim() === '') {
+    const nameVal = (customer.first_name || '').trim().replace(/\s+/g, ' ');
+
+    if (!nameVal) {
       next.first_name = 'Nama wajib diisi.';
       ok = false;
+    } else {
+      const namePattern = /^[\p{L}\s]+$/u;
+      if (!namePattern.test(nameVal)) {
+        next.first_name = 'Nama hanya boleh berisi huruf dan spasi.';
+        ok = false;
+      }
     }
 
     if (!customer.phone || String(customer.phone).trim() === '') {
@@ -136,11 +145,7 @@ export default function PaymentPage() {
       return s;
     }
 
-    // if user typed single letter + nothing or single letter + single digit (like "A" or "A1"),
-    // attempt to normalize A1 -> A01 already handled; A alone -> return as-is (so validation will catch it)
-    // Also remove whitespace in between (e.g., "A 1" -> "A1" -> will be padded)
     const compact = s.replace(/\s+/g, '');
-    // try again for pattern Letter + Digit(s)
     const mm = compact.match(/^([A-Z])(\d+)$/i);
     if (mm) {
       const letter = mm[1];
@@ -263,7 +268,13 @@ export default function PaymentPage() {
 
   // when phone/name change, we clear related errors
   function handleNameChange(v) {
-    setCustomer(prev => ({ ...prev, first_name: v }));
+    // izinkan huruf semua bahasa dan spasi
+    let val = v.replace(/[^\p{L}\s]/gu, '');
+
+    // jangan trim di sini — biarkan input alami
+    // biarkan multiple spaces dulu (bisa diperbaiki saat submit)
+
+    setCustomer(prev => ({ ...prev, first_name: val }));
     if (errors.first_name) setErrors(prev => ({ ...prev, first_name: '' }));
   }
   function handlePhoneChange(v) {
@@ -299,6 +310,10 @@ export default function PaymentPage() {
   const taxes = (Array.isArray(payloadPreview.taxes) ? payloadPreview.taxes.reduce((s,t)=>s+(Number(t.taxAmount||0)),0) : 0);
   const total = payloadPreview.grandTotal || 0;
 
+  // Payment method list and disabled set
+  const methods = ['qris','shopee','gopay','ovo','dana'];
+  const disabledMethods = new Set(['ovo','dana','shopee']); // these will be shown as under maintenance
+
   return (
     <div className={styles.page}>
       {/* HEADER */}
@@ -328,9 +343,11 @@ export default function PaymentPage() {
             value={customer.first_name || ''}
             onChange={(e)=>handleNameChange(e.target.value)}
             style={errors.first_name ? { borderColor: 'red' } : {}}
+            aria-invalid={errors.first_name ? 'true' : 'false'}
+            aria-describedby={errors.first_name ? 'err-first-name' : undefined}
           />
         </div>
-        {errors.first_name && <div style={{ color: 'red', fontSize: 12, marginTop: 6 }}>{errors.first_name}</div>}
+        {errors.first_name && <div id="err-first-name" style={{ color: 'red', fontSize: 12, marginTop: 6 }}>{errors.first_name}</div>}
 
         <label className={styles.label}>Nomor WhatsApp <span style={{color:'red'}}>*</span></label>
         <div className={styles.phoneRow}>
@@ -377,19 +394,33 @@ export default function PaymentPage() {
           </div>
         </div>
 
-        {['qris','shopee','gopay','ovo','dana'].map(m => (
-          <div
-            key={m}
-            className={`${styles.paymentItem} ${selectedMethod === m ? styles.selected : ''}`}
-            onClick={() => setSelectedMethod(m)}
-          >
-            <div className={styles.paymentItemLeft}>
-              <Image src={`/images/pay-${m}.png`} alt={m} width={55} height={14} className={styles.iconImg} />
-              {m.toUpperCase()}
+        {methods.map(m => {
+          const isDisabled = disabledMethods.has(m);
+          return (
+            <div
+              key={m}
+              className={`${styles.paymentItem} ${selectedMethod === m ? styles.selected : ''} ${isDisabled ? styles.disabledPaymentItem : ''}`}
+              onClick={() => {
+                if (isDisabled) return; // tidak bisa dipilih
+                setSelectedMethod(m);
+              }}
+              role="button"
+              aria-disabled={isDisabled ? 'true' : 'false'}
+              style={isDisabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+            >
+              <div className={styles.paymentItemLeft} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <Image src={`/images/pay-${m}.png`} alt={m} width={55} height={14} className={styles.iconImg} />
+                <div>
+                  <div style={{ fontWeight: 600 }}>{m.toUpperCase()}</div>
+                  {isDisabled && <div style={{ fontSize: 12, color: '#b00' }}>UNDER MAINTENANCE</div>}
+                </div>
+              </div>
+              <div className={styles.radio}>
+                {isDisabled ? '' : (selectedMethod === m ? '✔' : '')}
+              </div>
             </div>
-            <div className={styles.radio}>{selectedMethod === m ? '✔' : ''}</div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* STICKY FOOTER */}

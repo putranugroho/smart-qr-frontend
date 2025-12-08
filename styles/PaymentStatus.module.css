@@ -190,12 +190,18 @@
   color: #555;
 }
 
+.qrLogo {
+  text-align: -webkit-center;
+  justify-items: center;
+  place-items: center;
+}
+
 /* QR wrapper: make QR centered and fit visible area */
 .qrWrap {
   width: 100%;
   /* allocate generous height so QR is large on mobile; adjust as needed */
   height: calc(100vh - 280px);
-  display: flex;
+  display: block;
   align-items: center;
   justify-content: center;
   overflow: hidden;

@@ -145,7 +145,7 @@ export default function Menu() {
             ...parsed,
             id,
             code: parsed.code ?? parsed.id ?? parsed.comboId ?? parsed.code,
-            image: parsed.image ?? parsed.imagePath ?? parsed.imageUrl ?? "/images/gambar-menu.jpg",
+            image: parsed.image ?? parsed.imagePath ?? parsed.imageUrl ?? "/images/no-image-available.jpg",
             price: parsed.price ?? parsed.totalPrice ?? 0
           };
         });
@@ -368,7 +368,7 @@ export default function Menu() {
                 code,
                 name: it.name,
                 price: it.price,
-                image: it.imagePath ?? it.imageUrl ?? "/images/gambar-menu.jpg",
+                image: it.imagePath ?? it.imageUrl ?? "/images/no-image-available.jpg",
                 category: cat.name
               };
             });
@@ -451,7 +451,7 @@ export default function Menu() {
                     code,
                     name: it.name,
                     price: it.price,
-                    image: it.imagePath ?? it.imageUrl ?? "/images/gambar-menu.jpg",
+                    image: it.imagePath ?? it.imageUrl ?? "/images/no-image-available.jpg",
                     category: catObj.name
                   };
                 });
@@ -771,7 +771,7 @@ export default function Menu() {
                 code,
                 name: it.name,
                 price: it.price,
-                image: it.imagePath ?? it.imageUrl ?? "/images/gambar-menu.jpg",
+                image: it.imagePath ?? it.imageUrl ?? "/images/no-image-available.jpg",
                 category: categories.find(c => String(c.id) === String(menuCategoryId))?.name ?? ''
               }
             })

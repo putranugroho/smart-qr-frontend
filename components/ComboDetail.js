@@ -556,11 +556,11 @@ export default function ComboDetail({ combo: propCombo = null }) {
         </div>
 
         <div className={styles.btnRight}>
-          <button title="Fullscreen" className={styles.iconBtn} onClick={() => window.open(comboState.imagePath || comboState.image || '/images/gambar-menu.jpg')}>⤢</button>
+          <button title="Fullscreen" className={styles.iconBtn} onClick={() => window.open(comboState.imagePath || comboState.image || '/images/no-image-available.jpg')}>⤢</button>
         </div>
 
         <div className={styles.imageWrapper}>
-          <Image src={comboState.imagePath || comboState.image || '/images/gambar-menu.jpg'} alt={comboState.name || 'combo'} fill className={styles.image} priority />
+          <Image src={comboState.imagePath || comboState.image || '/images/no-image-available.jpg'} alt={comboState.name || 'combo'} fill className={styles.image} priority />
         </div>
       </div>
 

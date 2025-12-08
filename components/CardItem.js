@@ -10,7 +10,7 @@ function formatRp(n) {
 
 export default function CardItem({ item, onAdd, mode = "grid" }) {
   const router = useRouter();
-  const imgSrc = item.image ?? "/images/gambar-menu.jpg";
+  const imgSrc = item.image ?? "/images/no-image-available.jpg";
   const name = item.name || item.itemName || item.title || "";
   // item may have `categoryId` or `category` name; we prefer numeric id if available
   const categoryId = item.categoryId ?? item.categoryIdRaw ?? item.menuCategoryId ?? null

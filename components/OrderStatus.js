@@ -179,6 +179,8 @@ export default function OrderStatus() {
   const pollOrderRef = useRef(null)
   const [paymentAccepted, setPaymentAccepted] = useState(false)
   const [clientPayment, setClientPayment] = useState({ items: [], paymentTotal: 0 })
+  const [lastManualCheckAt, setLastManualCheckAt] = useState(null)
+  const [checkingNow, setCheckingNow] = useState(false)
 
   // load session midtrans/do_order_result + user (prefer do_order_result stored in session)
   useEffect(() => {
@@ -243,7 +245,6 @@ export default function OrderStatus() {
         // compute combo unit price (sum product prices * qty + condiments)
         const comboUnitPrice = mappedProducts.reduce((s, p) => {
           const prodBase = Number(p.price || 0) * Number(p.qty || 1)
-          // condiments under product (unlikely) — include
           const condTotal = (Array.isArray(p.condiments) ? p.condiments.reduce((ss, c) => ss + (Number(c.price || 0) * Number(c.qty || 1)), 0) : 0)
           return s + prodBase + condTotal
         }, 0)
@@ -367,7 +368,6 @@ export default function OrderStatus() {
       return acc
     }, { pb1: 0, ppn: 0 })
 
-    // Only override when amounts are > 0 to avoid hiding computed values unintentionally
     if (topTaxes.pb1 || topTaxes.ppn) {
       computedPB1 = Math.round(topTaxes.pb1)
       computedPPN = Math.round(topTaxes.ppn)
@@ -391,7 +391,241 @@ export default function OrderStatus() {
     setShowAllItems(prev => !prev)
   }
 
-  // visibleItems: if showAllItems -> all, else first
+  // helper: parse order_id from paymentLink (try decode percent-encoding)
+  function parseOrderIdFromPaymentLink(link) {
+    if (!link) return null
+    try {
+      const decoded = decodeURIComponent(link)
+      const m = decoded.match(/[?&]order_id=([^&]+)/i) || decoded.match(/[?&]orderId=([^&]+)/i) || decoded.match(/order_id%3D([^&]+)/i)
+      if (m && m[1]) return decodeURIComponent(m[1])
+    } catch (e) { /* ignore */ }
+    return null
+  }
+
+  // Improved fetch with timeout and logs. This is the place we use to call backend "check-status".
+  async function fetchRemoteOrder(orderCodeToFetch) {
+    if (!orderCodeToFetch) return null
+    try {
+      // --- DEFAULT: use proxy route (keamanan / CORS)
+      const url = `/api/order/check-status?orderCode=${encodeURIComponent(orderCodeToFetch)}`
+      console.debug('[OrderStatus] fetchRemoteOrder ->', url)
+
+      // --- TIMEOUT helper
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000) // 10s timeout
+
+      const r = await fetch(url, { signal: controller.signal, method: 'GET', headers: { 'Accept': 'application/json' } })
+      clearTimeout(timeout)
+
+      if (!r.ok) {
+        console.warn('[OrderStatus] fetchRemoteOrder HTTP', r.status)
+        return null
+      }
+      const j = await r.json().catch(() => null)
+      return j
+    } catch (e) {
+      if (e && e.name === 'AbortError') {
+        console.warn('[OrderStatus] fetchRemoteOrder timed out')
+      } else {
+        console.warn('[OrderStatus] fetchRemoteOrder failed', e)
+      }
+      return null
+    }
+  }
+
+  // ----- MANUAL CHECK BUTTON (and wrapper) -----
+  async function handleManualCheck() {
+    // convenience: pick orderCode from route, do_order_result, or stored current_order_code
+    let orderCodeToPoll = String(id || '').trim()
+    if (!orderCodeToPoll) {
+      try {
+        const stored = sessionStorage.getItem('do_order_result')
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          orderCodeToPoll = parsed?.data?.orderCode ?? parsed?.orderCode ?? ''
+        }
+      } catch (e) { /* ignore */ }
+    }
+    if (!orderCodeToPoll) {
+      alert('Order code tidak ditemukan untuk pengecekan.')
+      return
+    }
+
+    setCheckingNow(true)
+    try {
+      const apiResp = await fetchRemoteOrder(orderCodeToPoll)
+      console.debug('[OrderStatus] manual check result', apiResp)
+      if (!apiResp || !apiResp.data) {
+        alert('Pengecekan gagal atau tidak ada data dari API.')
+        return
+      }
+      // reuse the same processing as in polling (update states)
+      setRemoteOrderRaw(apiResp)
+      setDataOrder(apiResp.data)
+      try { sessionStorage.setItem('do_order_result', JSON.stringify(apiResp)) } catch (e) {}
+      const oc = apiResp?.data?.orderCode ?? apiResp?.orderCode ?? null
+      if (oc) setDisplayOrderId(String(oc))
+      setLastManualCheckAt(new Date().toISOString())
+      // optionally show popup if payment pending etc. (mimic polling behaviour)
+      const statusNum = Number(apiResp.data.Status ?? apiResp.data.status ?? 0)
+      if (statusNum === -1) {
+        // payment waiting
+        const paymentLinkFromApi = (apiResp.data.PaymentLink ?? apiResp.data.paymentLink ?? apiResp.data.PaymentUrl ?? '') || ''
+        const displayOrderIdFromApi = apiResp.data.DisplayOrderId ?? apiResp.data.displayOrderId ?? null
+        const foundDisplayOrderId = displayOrderIdFromApi || parseOrderIdFromPaymentLink(paymentLinkFromApi) || sessionStorage.getItem('display_order_id')
+        if (foundDisplayOrderId) {
+          try {
+            const stResp = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(foundDisplayOrderId)}`)
+            if (stResp.ok) {
+              const stj = await stResp.json()
+              const txStatus = (stj.transaction_status || stj.status || '').toString().toLowerCase()
+              if (!['capture','settlement','success'].includes(txStatus)) {
+                setPaymentRedirectUrl(paymentLinkFromApi || '')
+                setShowPaymentRedirectModal(true)
+              } else {
+                setCurrentStep(2)
+                setPaymentAccepted(true)
+              }
+            }
+          } catch (e) {
+            console.warn('midtrans status check failed', e)
+          }
+        } else {
+          if (paymentLinkFromApi) {
+            setPaymentRedirectUrl(paymentLinkFromApi)
+            setShowPaymentRedirectModal(true)
+          }
+        }
+      } else if (statusNum === 0) {
+        setCurrentStep(2)
+        setPaymentAccepted(true)
+      } else if (statusNum === 2 || statusNum === 1) {
+        setCurrentStep(1)
+      }
+    } finally {
+      setCheckingNow(false)
+    }
+  }
+
+  // Polling remote order API (start when id available or when do_order_result exists)
+  useEffect(() => {
+    if (!router.isReady) return
+
+    let orderCodeToPoll = String(id || '').trim()
+    if (!orderCodeToPoll) {
+      try {
+        const stored = sessionStorage.getItem('do_order_result')
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          orderCodeToPoll = parsed?.data?.orderCode ?? parsed?.orderCode ?? ''
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    if (!orderCodeToPoll) {
+      return
+    }
+
+    try { sessionStorage.setItem('current_order_code', orderCodeToPoll) } catch (e) {}
+
+    let mounted = true
+
+    async function checkOrder() {
+      try {
+        const apiResp = await fetchRemoteOrder(orderCodeToPoll)
+        if (!apiResp || !apiResp.data) return
+        if (!mounted) return
+
+        setRemoteOrderRaw(apiResp)
+        setDataOrder(apiResp.data)
+        try { sessionStorage.setItem('do_order_result', JSON.stringify(apiResp)) } catch (e) {}
+
+        const oc = apiResp?.data?.orderCode ?? apiResp?.orderCode ?? null
+        if (oc) setDisplayOrderId(String(oc))
+
+        const statusNum = Number(apiResp.data.Status ?? apiResp.data.status ?? 0)
+
+        if (statusNum === -1) {
+          setCurrentStep(4)
+
+          const paymentLinkFromApi = (apiResp.data.PaymentLink ?? apiResp.data.paymentLink ?? apiResp.data.PaymentUrl ?? '') || ''
+          const displayOrderIdFromApi = apiResp.data.DisplayOrderId ?? apiResp.data.displayOrderId ?? null
+          const foundDisplayOrderId = displayOrderIdFromApi || parseOrderIdFromPaymentLink(paymentLinkFromApi) || sessionStorage.getItem('display_order_id')
+
+          if (foundDisplayOrderId) {
+            try {
+              const stResp = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(foundDisplayOrderId)}`)
+              if (stResp.ok) {
+                const stj = await stResp.json()
+                const txStatus = (stj.transaction_status || stj.status || '').toString().toLowerCase()
+                if (!['capture','settlement','success'].includes(txStatus)) {
+                  const popupKey = `payment_redirect_shown:${orderCodeToPoll}`
+                  const already = sessionStorage.getItem(popupKey)
+                  if (!already && !popupShownRef.current) {
+                    popupShownRef.current = true
+                    try { sessionStorage.setItem(popupKey, '1') } catch (e) {}
+                    setPaymentRedirectUrl(paymentLinkFromApi || sessionStorage.getItem('payment_link_for_order') || '')
+                    setShowPaymentRedirectModal(true)
+                  }
+                } else {
+                  setCurrentStep(2)
+                  setPaymentAccepted(true)
+                }
+              }
+            } catch (e) {
+              console.warn('midtrans status check failed inside order polling', e)
+            }
+          } else {
+            const paymentLinkExists = paymentLinkFromApi || sessionStorage.getItem('payment_link_for_order') || ''
+            if (paymentLinkExists) {
+              const popupKey = `payment_redirect_shown:${orderCodeToPoll}`
+              const already = sessionStorage.getItem(popupKey)
+              if (!already && !popupShownRef.current) {
+                popupShownRef.current = true
+                try { sessionStorage.setItem(popupKey, '1') } catch (e) {}
+                setPaymentRedirectUrl(paymentLinkExists)
+                setShowPaymentRedirectModal(true)
+              }
+            }
+          }
+        } else if (statusNum === 0) {
+          setCurrentStep(2)
+          setPaymentAccepted(true)
+        } else if (statusNum === 2 || statusNum === 1) {
+          setCurrentStep(1)
+        }
+      } catch (err) {
+        console.warn('checkOrder error', err)
+      }
+    }
+
+    // initial check & interval
+    checkOrder()
+    pollOrderRef.current = setInterval(checkOrder, 5000)
+
+    return () => {
+      mounted = false
+      if (pollOrderRef.current) {
+        clearInterval(pollOrderRef.current)
+        pollOrderRef.current = null
+      }
+    }
+  }, [router.isReady, id])
+
+  const baseSteps = [
+    { key: 1, title: 'Pesanan Selesai', desc: 'Pesanan sudah selesai', img : '/images/check-icon.png'},
+    { key: 2, title: 'Makanan Sedang Disiapkan', desc: 'Pesanan kamu sedang disiapkan', img : '/images/bowl-icon.png' },
+    { key: 3, title: 'Pembayaran Pending', desc: 'Silahkan selesesaikan pembayaran kamu', img : '/images/wallet-icon.png' },
+    { key: 4, title: 'Pesanan Dibuat', desc: 'Pesanan kamu sudah masuk', img : '/images/mobile-icon.png' },
+  ]
+
+  const steps = baseSteps.map(s => {
+    if (s.key === 3 && paymentAccepted) {
+      return { ...s, title: 'Pembayaran Berhasil', desc: 'Pembayaran kamu sudah diterima' }
+    }
+    return s
+  })
+
   const visibleItems = showAllItems ? items : (itemsCount > 0 ? [items[0]] : [])
 
   const MERCHANT_PHONE = '+628123456789'
@@ -437,7 +671,7 @@ export default function OrderStatus() {
         </div>
 
         <div className={styles.orderNumberBox}>
-          <div className={styles.smallText}>Nomor Orderan</div>
+          <div className={styles.smallText}>Nomor Order</div>
           <div className={styles.orderNumber}>{String(displayOrderId || '-' )}</div>
         </div>
       </div>
@@ -446,13 +680,19 @@ export default function OrderStatus() {
       <div className={styles.section}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <div className={styles.trackTitle}>Track Orderan</div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button className={styles.btnSmall} onClick={handleManualCheck} disabled={checkingNow}>
+              {checkingNow ? 'Mengecek...' : 'Cek Sekarang'}
+            </button>
+            <div style={{ fontSize: 12, color: '#666' }}>{lastManualCheckAt ? `Terakhir: ${new Date(lastManualCheckAt).toLocaleTimeString()}` : ''}</div>
+          </div>
         </div>
 
         <div className={styles.trackLineWrap}>
           <div className={styles.trackLine}></div>
 
           <div className={styles.stepsWrap}>
-            {[{key:1,title:'Pesanan Selesai',desc:'Pesanan sudah selesai',img:'/images/check-icon.png'},{key:2,title:'Makanan Sedang Disiapkan',desc:'Pesanan kamu sedang disiapkan',img:'/images/bowl-icon.png'},{key:3,title:'Pembayaran Pending',desc:'Silahkan selesesaikan pembayaran kamu',img:'/images/wallet-icon.png'},{key:4,title:'Pesanan Dibuat',desc:'Pesanan kamu sudah masuk',img:'/images/mobile-icon.png'}].map((s) => {
+            {steps.map((s) => {
               const status = s.key > currentStep ? 'done' : (s.key === currentStep ? 'ongoing' : 'upcoming')
               return (
                 <div key={s.key} className={`${styles.stepItem} ${styles[status]}`}>
@@ -485,7 +725,7 @@ export default function OrderStatus() {
             <div key={i} className={styles.itemRow}>
               <div className={styles.itemImageWrap}>
                 <Image
-                  src={it.detailCombo?.image ?? it.image ?? '/images/gambar-menu.jpg'}
+                  src={it.detailCombo?.image ?? it.image ?? '/images/no-image-available.jpg'}
                   alt={it.detailCombo?.name ?? it.title ?? it.name ?? 'item'}
                   width={64}
                   height={64}
@@ -498,12 +738,10 @@ export default function OrderStatus() {
 
                 <div className={styles.itemAddon}>
                   {it.type === 'combo' ? (
-                    // show combo products summary
                     <>
                       {it.qty || 1}x • {it.combos?.[0]?.products?.map(p => p.name).filter(Boolean).join(' + ') || 'Combo'}
                     </>
                   ) : (
-                    // menu item: show condiments or note
                     <>{(it.qty || 1)}x {it.condiments && it.condiments.length ? it.condiments.map(c => c.name || c.group || c.code).join(', ') : (it.note || 'No Note')}</>
                   )}
                 </div>
@@ -536,6 +774,9 @@ export default function OrderStatus() {
         <div className={styles.paymentItem}>
           <div className={styles.paymentItemLeft}>
             <img src="/images/pay-gopay.png" alt="logo" width={55} height={14} className={styles.iconImg} />
+          </div>
+          <div className={styles.paymentItemRight}>
+            <div className={styles.orderNumber}>DI1982</div>
           </div>
         </div>
       </div>

@@ -463,12 +463,12 @@ export default function CheckoutPage() {
           }
 
           // image: try item.image else for combos try first product image
-          let img = "/images/gambar-menu.jpg"
+          let img = "/images/no-image-available.jpg"
           // Prefer detailCombo.image if available
           if (it && it.type === 'combo') {
             img = it.detailCombo?.image || it.image || img
             // final fallback: first product image if still not found
-            if (!img || img === null || img === "/images/gambar-menu.jpg") {
+            if (!img || img === null || img === "/images/no-image-available.jpg") {
               const firstCombo = Array.isArray(it.combos) && it.combos[0]
               const firstProd = firstCombo && Array.isArray(firstCombo.products) && firstCombo.products[0]
               if (firstProd && (firstProd.imagePath || firstProd.image)) {

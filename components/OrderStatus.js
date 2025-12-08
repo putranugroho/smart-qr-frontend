@@ -217,11 +217,20 @@ export default function OrderStatus() {
   }, [])
 
   useEffect(() => {
+    // 1) Try stored display id first
     try {
-      const d = sessionStorage.getItem('display_order_id') || sessionStorage.getItem('displayOrderId')
-      if (d) setDisplayOrderId(String(d))
+      const stored = sessionStorage.getItem('display_order_id') || sessionStorage.getItem('displayOrderId')
+      if (stored) setDisplayOrderId(String(stored))
     } catch (e) {}
-  }, [])
+
+    // 2) If router already ready and route id present, use it as fallback (useful when opening direct link)
+    if (router.isReady) {
+      const routeId = String(id || '').trim()
+      if (routeId && !displayOrderId) setDisplayOrderId(routeId)
+    }
+
+    // note: we intentionally DON'T return here; this effect runs on mount and whenever router.isReady/id changes
+  }, [router.isReady, id])
 
   // Normalize dataOrder into items array (combo + menu) — supports do_order_result shape
   const itemsFromRemote = (function () {

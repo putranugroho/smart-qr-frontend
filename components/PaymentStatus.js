@@ -14,24 +14,25 @@ export default function PaymentStatus() {
   const router = useRouter()
   const [tx, setTx] = useState(null)
   const [orderMeta, setOrderMeta] = useState(null)
-  const [timeLeft, setTimeLeft] = useState(15 * 60) // contoh 15 menit
+  const [timeLeft, setTimeLeft] = useState(15 * 60)
   const [checking, setChecking] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
   const [redirecting, setRedirecting] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
   const [orderCode, setOrderCode] = useState(null)
-  const [qrDataUri, setQrDataUri] = useState(null) // holds data:image/...base64,...
+  const [qrDataUri, setQrDataUri] = useState(null)
   const [qrLoading, setQrLoading] = useState(false)
   const [qrError, setQrError] = useState(null)
   const pollRef = useRef(null)
 
-  // success state
   const [paymentSuccess, setPaymentSuccess] = useState(false)
   const [successOrderId, setSuccessOrderId] = useState(null)
 
-  // --- NEW: confirmation modal state
   const [showLeaveModal, setShowLeaveModal] = useState(false)
-  const leaveResolveRef = useRef(null) // to resolve Promise when modal answered
+  const leaveResolveRef = useRef(null)
+
+  // NEW: status logs shown in UI
+  const [statusLogs, setStatusLogs] = useState([]) // newest first, capped at 50
 
   // --- Load tx & meta from sessionStorage
   useEffect(() => {
@@ -89,14 +90,12 @@ export default function PaymentStatus() {
     return j
   }
 
-  // helper: find action by names (case-insensitive)
   function findAction(actions = [], names = []) {
     if (!actions || !Array.isArray(actions)) return null
     for (const n of names) {
       const found = actions.find(a => a.name && a.name.toString().toLowerCase() === n.toLowerCase())
       if (found) return found
     }
-    // fallback: try includes
     for (const a of actions) {
       if (!a.name) continue
       const ln = a.name.toLowerCase()
@@ -107,7 +106,6 @@ export default function PaymentStatus() {
 
   async function downloadDataUri(uriOrUrl, filename = 'qris.png') {
     try {
-      // if it's already a data URI
       if (typeof uriOrUrl === 'string' && uriOrUrl.startsWith('data:')) {
         const a = document.createElement('a')
         a.href = uriOrUrl
@@ -118,9 +116,7 @@ export default function PaymentStatus() {
         return true
       }
 
-      // if it's a plain base64 (no data: prefix) - convert to data URI
       if (typeof uriOrUrl === 'string' && /^[A-Za-z0-9+/=]+\s*$/.test(uriOrUrl) && uriOrUrl.length > 100) {
-        // assume PNG
         const dataUri = `data:image/pngbase64,${uriOrUrl}`
         const a = document.createElement('a')
         a.href = dataUri
@@ -131,7 +127,6 @@ export default function PaymentStatus() {
         return true
       }
 
-      // otherwise fetch the resource (works for blob/image URLs and data URIs too)
       const resp = await fetch(uriOrUrl, { mode: 'cors' })
       if (!resp.ok) throw new Error('Fetch failed: ' + resp.status)
       const blob = await resp.blob()
@@ -142,7 +137,6 @@ export default function PaymentStatus() {
       document.body.appendChild(a)
       a.click()
       a.remove()
-      // free memory
       setTimeout(() => URL.revokeObjectURL(url), 3000)
       return true
     } catch (err) {
@@ -151,29 +145,68 @@ export default function PaymentStatus() {
     }
   }
 
+  // helper to push log (ke UI dan console). newest first, cap 50
+  function pushLog(entry) {
+    const ts = new Date().toISOString()
+    const full = { ts, ...entry }
+    console.log('[MIDTRANS-LOG]', full)
+    setStatusLogs(prev => {
+      const next = [full, ...prev]
+      if (next.length > 50) next.length = 50
+      return next
+    })
+  }
+
   // --- Polling: check status immediately and then every 5s
   useEffect(() => {
     async function check() {
-      const orderId = tx?.order_id || tx?.orderId || tx?.raw?.order_id
-      if (!orderId) return
+      const orderId = tx?.order_id || tx?.orderId || orderMeta?.orderId || tx?.raw?.order_id
+      if (!orderId) {
+        pushLog({ type: 'check-skip', reason: 'no-orderId', info: { txPresent: !!tx, orderMetaPresent: !!orderMeta } })
+        return
+      }
+
+      pushLog({ type: 'check-start', orderId })
+
       try {
         const r = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(orderId)}`)
-        const j = await r.json()
+        const statusCode = r.status
+        let j = null
+        try { j = await r.json() } catch (e) { j = null }
+        const jStr = j ? JSON.stringify(j) : null
+        // store small summary (prevent super long logs) but keep full truncated JSON
+        const txStatus = (j?.transaction_status || j?.status || '').toString().toLowerCase()
+        const summary = {
+          orderId: j?.order_id || orderId,
+          txStatus,
+          payment_type: j?.payment_type || j?.paymentType || null
+        }
+
+        // push to UI log
+        pushLog({
+          type: 'check-result',
+          orderId,
+          httpStatus: statusCode,
+          summary,
+          rawJson: jStr ? (jStr.length > 1000 ? jStr.slice(0, 1000) + '... (truncated)' : jStr) : null
+        })
+
+        // existing behaviour: update status message
         setStatusMessage(JSON.stringify(j, null, 2))
-        const txStatus = (j.transaction_status || j.status || '').toString().toLowerCase()
+
         if (['capture','settlement','success'].includes(txStatus)) {
           // stop poll and redirect to order page
           stopPolling()
 
           try {
-            // call do-payment proxy (existing function)
-            const result = await callDoPayment(orderCode, j.payment_type, j.order_id)
+            const result = await callDoPayment(orderCode, j?.payment_type, j?.order_id)
             console.log('do-payment result', result)
+            pushLog({ type: 'do-payment', ok: true, result: (result && JSON.stringify(result).slice(0,1000)) || null })
           } catch (e) {
             console.error('call failed', e)
+            pushLog({ type: 'do-payment', ok: false, error: String(e) })
           }
 
-          // Decide redirect target: prefer orderCode from do_order_result -> fallback to midtrans order_id
           let targetOrderCode = null
           try {
             const doOrderRaw = sessionStorage.getItem('do_order_result')
@@ -183,16 +216,14 @@ export default function PaymentStatus() {
             }
           } catch (e) { /* ignore */ }
 
-          // if we have orderCode, go to /order/{orderCode} else fallback to using midtrans order_id
-          const resolvedTarget = targetOrderCode || j.order_id || orderId
-          // short delay to show success UI
+          const resolvedTarget = targetOrderCode || j?.order_id || orderId
           setTimeout(() => {
             router.push(`/order/${resolvedTarget}`)
           }, 600)
-
         }
       } catch (err) {
         console.warn('status check failed', err)
+        pushLog({ type: 'check-error', error: String(err) })
       }
     }
 
@@ -201,17 +232,20 @@ export default function PaymentStatus() {
       // immediate check
       check()
       pollRef.current = setInterval(check, 5000)
+      pushLog({ type: 'polling-start', intervalMs: 5000 })
     }
 
     function stopPolling() {
       if (pollRef.current) {
         clearInterval(pollRef.current)
         pollRef.current = null
+        pushLog({ type: 'polling-stopped' })
       }
     }
 
     // Start polling if we have a tx.order_id OR orderMeta.orderId
-    if (orderMeta?.orderId) startPolling()
+    const hasOrderId = !!(tx?.order_id || tx?.orderId || orderMeta?.orderId || tx?.raw?.order_id)
+    if (hasOrderId) startPolling()
 
     return () => {
       if (pollRef.current) {
@@ -225,11 +259,9 @@ export default function PaymentStatus() {
   useEffect(() => {
     if (!tx) return
     const method = getNormalizedMethod(tx)
-    // Only for e-wallets (not qris)
     if (!(method === 'gopay' || method === 'ovo' || method === 'shopeepay')) return
 
     const actions = tx.actions || tx.core_response?.actions || []
-
     const deeplinkAction = findAction(actions, ['deeplink-redirect', 'deeplink'])
     const urlAction = findAction(actions, ['mobile_deeplink_web', 'mobile_web_checkout_url', 'url'])
     const deeplinkUrl = deeplinkAction?.url || urlAction?.url || tx.deeplink_url || tx.core_response?.deeplink_url || null
@@ -274,7 +306,6 @@ export default function PaymentStatus() {
         const r = await fetch(api)
         console.log('[QR] converter status', r.status)
         const txt = await r.text().catch(() => null)
-        // Try parse JSON if possible
         let j = null
         try { j = txt ? JSON.parse(txt) : null } catch (e) { j = null }
         console.log('[QR] converter raw response (parsed/txt):', j || txt)
@@ -282,7 +313,6 @@ export default function PaymentStatus() {
           setQrError('failed to convert (status ' + r.status + ')')
           return null
         }
-        // Prefer explicit dataUri field, fallback to Base64 inside data
         const dataUri = (j && (j.dataUri || (j.data && j.data.Base64Image ? `data:image/pngbase64,${j.data.Base64Image}` : null))) || null
         if (!dataUri) {
           console.warn('[QR] converter did not return dataUri or Base64Image')
@@ -302,14 +332,12 @@ export default function PaymentStatus() {
       }
     }
 
-    // Generate high-res PNG client-side from qr_string (best reliability)
     async function generateFromQrString(qrString) {
       if (!qrString) return null
       try {
         setQrError(null)
         setQrLoading(true)
         console.log('[QR] generating from qr_string (client)')
-        // high resolution so scanners can read
         const dataUrl = await QRCode.toDataURL(qrString, {
           errorCorrectionLevel: 'H',
           margin: 1,
@@ -337,26 +365,21 @@ export default function PaymentStatus() {
       return () => { mounted = false }
     }
 
-    // debug output: actions, qr_string
     const actions = tx.actions || tx.core_response?.actions || []
     console.log('[QR] actions:', actions)
     console.log('[QR] tx.qr_string:', tx.qr_string || tx.core_response?.qr_string || tx.raw?.qr_string)
 
-    // Prefer qr_string if available
     const qrString = tx.qr_string || tx.core_response?.qr_string || tx.raw?.qr_string || null
     if (qrString) {
-      // generate from qr_string (most reliable)
       generateFromQrString(qrString)
       return () => { mounted = false }
     }
 
-    // otherwise use image URL -> convert via API
-    const qrV1 = findAction(actions, ['generate-qr-code']) // prefer generate-qr-code per your request
+    const qrV1 = findAction(actions, ['generate-qr-code'])
     const qrV2 = findAction(actions, ['generate-qr-code-v2'])
     const qrUrlFromResp = tx.qr_url || tx.qrUrl || tx.qr_image || null
     const redirectUrl = tx.redirect_url || tx.raw?.redirect_url || null
 
-    // pick order: qrV1 (generate-qr-code) -> qrV2 -> qrUrlFromResp -> redirectUrl
     const imgUrl = (qrV1 && qrV1.url) || (qrV2 && qrV2.url) || qrUrlFromResp || redirectUrl || null
 
     console.log('[QR] qrV1 url:', qrV1?.url, 'qrV2 url:', qrV2?.url, 'qrUrlFromResp:', qrUrlFromResp, 'redirectUrl:', redirectUrl)
@@ -366,7 +389,6 @@ export default function PaymentStatus() {
     setQrError(null)
 
     if (imgUrl) {
-      // call converter and log detailed result
       (async () => {
         const dataUri = await fetchQrDataUri(imgUrl)
         if (!dataUri) {
@@ -383,7 +405,7 @@ export default function PaymentStatus() {
 
   // --- Manual check triggered by button
   async function checkStatus() {
-    const orderId = tx?.order_id
+    const orderId = tx?.order_id || tx?.orderId
     if (!orderId) return alert('Order ID tidak ditemukan')
     setChecking(true)
     try {
@@ -391,19 +413,30 @@ export default function PaymentStatus() {
       const j = await r.json()
       setStatusMessage(JSON.stringify(j, null, 2))
       const txStatus = (j.transaction_status || j.status || '').toString().toLowerCase()
+      pushLog({
+        type: 'manual-check-result',
+        orderId,
+        httpStatus: r.status,
+        summary: {
+          orderId: j.order_id || orderId,
+          txStatus,
+          payment_type: j.payment_type || j.paymentType || null
+        },
+        rawJson: JSON.stringify(j).slice(0, 1000)
+      })
+
       if (['capture','settlement','success'].includes(txStatus)) {
         const resolvedMidtransOrderId = j.order_id || j.orderId || tx.order_id
         try {
           await callDoPayment(orderCode || (orderMeta?.orderId ?? null), j.payment_type || j.paymentType || 'UNKNOWN', resolvedMidtransOrderId)
         } catch (e) {
           console.error('call failed', e)
+          pushLog({ type: 'do-payment', ok: false, error: String(e) })
         }
-        // show success view and navigate
         setPaymentSuccess(true)
         setSuccessOrderId(resolvedMidtransOrderId)
-        
-        // REDIRECT: prefer orderCode (from do-order result) — fallback to midtrans id
-        const targetOrderCode = orderCode || (do_order_result_from_session?.data?.orderCode) || null
+
+        const targetOrderCode = orderCode || (JSON.parse(sessionStorage.getItem('do_order_result')||'{}')?.data?.orderCode) || null
         setTimeout(() => {
           try {
             router.push(`/order/${targetOrderCode}`)
@@ -414,13 +447,13 @@ export default function PaymentStatus() {
       }
     } catch (err) {
       console.error(err)
+      pushLog({ type: 'manual-check-error', error: String(err) })
       alert('Gagal cek status: ' + (err.message || err))
     } finally {
       setChecking(false)
     }
   }
 
-  // --- Manual deeplink open (user-initiated)
   function openDeeplinkManually() {
     if (!tx) return
     const actions = tx.actions || tx.core_response?.actions || []
@@ -437,11 +470,7 @@ export default function PaymentStatus() {
     window.location.href = deeplinkUrl
   }
 
-  // -----------------------
-  // --- NAVIGATION GUARD
-  // -----------------------
-
-  // helper: show modal and return promise resolved with true/false
+  // NAV GUARD
   function askConfirmLeave() {
     return new Promise(resolve => {
       leaveResolveRef.current = resolve
@@ -449,7 +478,6 @@ export default function PaymentStatus() {
     })
   }
 
-  // call this when user clicks "Ya" / "Tidak" on modal
   function handleModalAnswer(answer) {
     setShowLeaveModal(false)
     const resolve = leaveResolveRef.current
@@ -457,16 +485,13 @@ export default function PaymentStatus() {
     if (typeof resolve === 'function') resolve(Boolean(answer))
   }
 
-  // Intercept header back button (use this instead of router.push directly)
   async function handleBackButtonClick() {
     const ok = await askConfirmLeave()
     if (ok) {
       router.push('/checkout')
     }
-    // else do nothing (stay)
   }
 
-  // 1) Prevent SPA route changes (Next.js) unless confirmed
   useEffect(() => {
     try {
       router.beforePopState(() => true)
@@ -476,7 +501,6 @@ export default function PaymentStatus() {
     }
   }, [router])
 
-  // 2) Use history API + popstate to trap back / hardware back
   useEffect(() => {
     const pushDummy = () => {
       try { history.pushState({ paymentStatusGuard: true }, '') } catch (e) {}
@@ -519,11 +543,9 @@ export default function PaymentStatus() {
   const minutes = String(Math.floor(timeLeft / 60)).padStart(2, '0')
   const seconds = String(timeLeft % 60).padStart(2, '0')
 
-  // show total if available in orderMeta or via getPayment
   const payment = getPayment?.() || {}
   const subtotal = payment.paymentTotal || orderMeta?.total || 0
 
-  // If payment succeeded, show success page (your provided UI)
   if (paymentSuccess) {
     return (
       <div className={styles.page}>
@@ -549,7 +571,6 @@ export default function PaymentStatus() {
     )
   }
 
-  // renderPaymentArea re-used from your version (kept behaviour)
   function renderPaymentArea() {
     if (!tx) return <div className={styles.qrLoading}></div>
 
@@ -566,11 +587,9 @@ export default function PaymentStatus() {
       const isLikelyImage = imgUrl && imgUrl.match(/\.(png|jpg|jpeg|svg|webp)(\?|$)/i)
 
       if (imgUrl) {
-        // tampilkan hasil converter (qrDataUri) jika ada, atau langsung imgUrl jika image
         const displaySrc = qrDataUri || (isLikelyImage ? imgUrl : null)
 
         if (displaySrc) {
-          // prepare filename: order code + timestamp (jika ada)
           const filenameBase = (orderCode || orderMeta?.orderCode || orderMeta?.orderId || tx.order_id || 'qris')
             .toString().replace(/[^a-z0-9\-_.]/gi, '_')
           const filename = `${filenameBase}_qr.png`
@@ -579,7 +598,6 @@ export default function PaymentStatus() {
             <div className={styles.qrWrap} style={{ textAlign: 'center' }}>
               {qrLoading && <div className={styles.qrLoading}></div>}
 
-              {/* QR Image */}
               <div className={styles.qrLogo} style={{ marginBottom: 12 }}>
                 <img
                   src={displaySrc}
@@ -589,25 +607,21 @@ export default function PaymentStatus() {
                 />
               </div>
 
-              {/* Buttons */}
-              {/* <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}> */}
-                <button
-                  className={styles.checkBtn}
-                  onClick={async () => {
-                    const ok = await downloadDataUri(displaySrc, filename)
-                    if (!ok) alert('Gagal mengunduh QR. Coba buka di tab baru lalu simpan.')
-                  }}
-                >
-                  Simpan ke Galeri
-                </button>
-              {/* </div> */}
+              <button
+                className={styles.checkBtn}
+                onClick={async () => {
+                  const ok = await downloadDataUri(displaySrc, filename)
+                  if (!ok) alert('Gagal mengunduh QR. Coba buka di tab baru lalu simpan.')
+                }}
+              >
+                Simpan ke Galeri
+              </button>
 
               {qrError && <div className={styles.qrError} style={{ marginTop: 8 }}>{qrError}</div>}
             </div>
           )
         }
 
-        // jika tidak ada displaySrc (mis. halaman eksternal yang tidak bisa di-convert), tampilkan fallback
         return (
           <div className={styles.qrWrap}>
             {qrLoading && <div className={styles.qrLoading}></div>}
@@ -617,7 +631,6 @@ export default function PaymentStatus() {
             <div style={{ display: 'flex', gap: 8 }}>
               <button className={styles.checkBtn} onClick={() => window.open(imgUrl, '_blank', 'noopener')}>Buka QR di Tab Baru</button>
               <button className={styles.btnSecondary} onClick={async () => {
-                // coba download langsung dari imgUrl via helper (server proxy mungkin diperlukan)
                 const ok = await downloadDataUri(imgUrl, `${orderCode || 'qris'}_qr.png`)
                 if (!ok) alert('Gagal mengunduh langsung. Pastikan API converter tersedia atau gunakan tombol buka di tab baru.')
               }}>Download via URL</button>
@@ -690,6 +703,34 @@ export default function PaymentStatus() {
         <button className={styles.checkBtn} onClick={checkStatus} disabled={checking}>
           {checking ? 'Memeriksa...' : 'Check Status Pembayaran'}
         </button>
+      </div>
+
+      {/* -----------------------
+          LOGS PANEL (NEW)
+         ----------------------- */}
+      <div style={{ padding: 12, marginTop: 16, borderTop: '1px solid #eee' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <strong>Logs pengecekan Midtrans</strong>
+          <div style={{ fontSize: 12, color: '#666' }}>{statusLogs.length} entri</div>
+        </div>
+
+        <div style={{ marginTop: 8, maxHeight: 260, overflow: 'auto', background: '#fafafa', padding: 8, borderRadius: 6 }}>
+          {statusLogs.length === 0 && <div style={{ color: '#666' }}>Belum ada log pengecekan.</div>}
+          {statusLogs.map((l, idx) => (
+            <div key={idx} style={{ marginBottom: 8, padding: 8, borderRadius: 6, background: '#fff', boxShadow: '0 0 0 1px rgba(0,0,0,0.03) inset' }}>
+              <div style={{ fontSize: 12, color: '#333', marginBottom: 4 }}>
+                <strong>{l.type}</strong> — <span style={{ color: '#666' }}>{l.ts}</span>
+              </div>
+              <div style={{ fontSize: 13, color: '#444' }}>
+                {l.orderId && <div>orderId: <code style={{ fontSize: 12 }}>{String(l.orderId)}</code></div>}
+                {l.httpStatus && <div>HTTP: {l.httpStatus}</div>}
+                {l.summary && <div>status: {l.summary.txStatus || '-'} — payment_type: {l.summary.payment_type || '-'}</div>}
+                {l.error && <div style={{ color: 'crimson' }}>error: {l.error}</div>}
+                {l.rawJson && <pre style={{ whiteSpace: 'pre-wrap', fontSize: 11, marginTop: 6 }}>{l.rawJson}</pre>}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Confirmation Modal */}

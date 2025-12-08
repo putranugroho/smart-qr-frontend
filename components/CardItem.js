@@ -16,6 +16,22 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
   const categoryId = item.categoryId ?? item.categoryIdRaw ?? item.menuCategoryId ?? null
   const categoryName = item.category ?? null
 
+  function saveLastItemObject() {
+    try {
+      // store a small serialized object so ItemDetail can restore on refresh
+      const toStore = {
+        id: item.id ?? item.code ?? item.productCode,
+        name: item.name ?? item.itemName ?? item.title,
+        price: item.price ?? item.basePrice ?? null,
+        image: imgSrc,
+        description: item.description ?? item.itemName ?? item.title ?? ''
+      }
+      sessionStorage.setItem('last_item_obj', JSON.stringify(toStore));
+    } catch (e) {
+      console.warn('save last_item_obj failed', e);
+    }
+  }
+
   function handleClick() {
     try {
       sessionStorage.setItem('menu_scroll', String(window.scrollY || 0));
@@ -32,6 +48,8 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
         // Save combo object to sessionStorage to avoid very long querystring
         const key = `combo_${item.id}`;
         sessionStorage.setItem(key, JSON.stringify(item));
+        // also save a lightweight last_item_obj for ItemDetail fallback
+        saveLastItemObject();
         // navigate to combo-detail and pass comboId (ComboDetail page will read sessionStorage)
         router.push(`/combo-detail?comboId=${encodeURIComponent(String(item.id))}`);
         return;
@@ -48,6 +66,8 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
         else if (categoryName) q.category = categoryName;
         q.combo = JSON.stringify(item);
         const search = new URLSearchParams(q).toString();
+        // also save last_item_obj before navigating
+        saveLastItemObject();
         router.push(`/combo-detail${search ? `?${search}` : ""}`);
         return;
       }
@@ -64,6 +84,10 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
     else if (categoryName) q.category = categoryName;
 
     const search = new URLSearchParams(q).toString();
+
+    // save a serialized item object for ItemDetail to read on mount (works on refresh)
+    saveLastItemObject();
+
     router.push(`/item/${encodeURIComponent(productCode)}${search ? `?${search}` : ""}`);
   }
 

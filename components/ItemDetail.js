@@ -26,6 +26,38 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     description: q.description || propItem.description || propItem.itemName || ''
   }
 
+  useEffect(() => {
+    // If propItem is empty (navigation didn't pass full object), try restore from sessionStorage
+    try {
+    const hasPropItem = propItem && Object.keys(propItem).length > 0;
+    if (hasPropItem) return; // nothing to restore
+
+
+    const s = sessionStorage.getItem('last_item_obj');
+    if (!s) return;
+
+
+    const parsed = JSON.parse(s);
+    if (!parsed || typeof parsed !== 'object') return;
+
+
+    // If productCode exists and differs from parsed.id, still allow restore — parsed may be generic
+    // Merge parsed values into current `item` state but don't overwrite fields that are already truthy
+    setItem(prev => ({
+    code: prev.code || parsed.id || prev.code,
+    title: prev.title || parsed.name || prev.title,
+    price: prev.price || (parsed.price != null ? Number(parsed.price) : prev.price),
+    image: prev.image || parsed.image || prev.image,
+    description: prev.description || parsed.description || prev.description
+    }));
+    } catch (e) {
+    // silent fail
+    console.warn('restore last_item_obj failed', e);
+    }
+    // run once on mount; productCode/propItem may change but we only want initial restore
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [item, setItem] = useState(initialItem)
   const [addons, setAddons] = useState([])
   const [selected, setSelected] = useState({})
@@ -340,6 +372,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
         if (Array.isArray(optTaxSource) && optTaxSource.length) {
           taxes = optTaxSource.map(t => {
+            console.log("legacySourceForTaxes 1 : ",t);
             const taxName = (t.name || t.taxName || t.name || '').toString();
             const taxPercentage = Number(t.amount ?? t.taxPercentage ?? 0);
             const taxAmount = Math.round((taxPercentage / 100) * price);
@@ -347,12 +380,14 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
           });
         } else if (Array.isArray(legacySourceForTaxes.taxes) && legacySourceForTaxes.taxes.length) {
           taxes = legacySourceForTaxes.taxes.map(t => {
+            console.log("legacySourceForTaxes 2 : ",t);
             const taxName = (t.taxName || t.name || '').toString();
             const taxPercentage = Number(t.taxPercentage || t.amount || 0);
             const taxAmount = Math.round((taxPercentage / 100) * price);
             return { taxName, taxPercentage, taxAmount };
           });
         }
+            console.log("taxes : ",taxes);
 
         return {
           code: opt?.id || String(optId),

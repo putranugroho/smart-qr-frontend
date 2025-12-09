@@ -198,8 +198,16 @@ export default function PaymentStatus() {
           // stop poll and redirect to order page
           stopPolling()
 
+          let PaymentCode 
+          
+          if (j.payment_type.includes("gopay")) {
+            PaymentCode = "GOPAY"
+          } if (j.payment_type.includes("qris")) {
+            PaymentCode = "QRISOTHERS"
+          } 
+
           try {
-            const result = await callDoPayment(orderCode, j?.payment_type, j?.order_id)
+            const result = await callDoPayment(orderCode, PaymentCode, j?.order_id)
             console.log('do-payment result', result)
             pushLog({ type: 'do-payment', ok: true, result: (result && JSON.stringify(result).slice(0,1000)) || null })
           } catch (e) {
@@ -216,10 +224,10 @@ export default function PaymentStatus() {
             }
           } catch (e) { /* ignore */ }
 
-          // const resolvedTarget = targetOrderCode || j?.order_id || orderId
-          // setTimeout(() => {
-          //   router.push(`/order/${resolvedTarget}`)
-          // }, 600)
+          const resolvedTarget = targetOrderCode || j?.order_id || orderId
+          setTimeout(() => {
+            router.push(`/order/${resolvedTarget}`)
+          }, 600)
         }
       } catch (err) {
         console.warn('status check failed', err)

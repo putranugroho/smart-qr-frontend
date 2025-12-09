@@ -1,4 +1,4 @@
-//component/checkout.js
+// component/checkout.js
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/router'
 import Image from 'next/image'
@@ -54,21 +54,17 @@ function calcCartTotals(cart) {
     }
 
     // combo item
-    // The cart item might include multiple combos in item.combos
     const itemQty = Number(it.qty || 1) || 1
 
     if (!Array.isArray(it.combos) || it.combos.length === 0) return
 
-    // For each combo block inside this cart item
     it.combos.forEach(comboBlock => {
       const comboQty = Number(comboBlock.qty || 1) || 1
-      // sum all product lines inside comboBlock
       if (!Array.isArray(comboBlock.products)) return
 
       comboBlock.products.forEach(prod => {
         const prodQty = Number(prod.qty || 1) || 1
         const basePrice = Number(prod.price || 0)
-        // condiments may exist
         let condTotal = 0
         if (Array.isArray(prod.condiments)) {
           prod.condiments.forEach(c => {
@@ -81,14 +77,11 @@ function calcCartTotals(cart) {
         const lineTotal = lineUnit * prodQty * comboQty * itemQty
         subtotal += lineTotal
 
-        // taxes: prefer taxes[] on prod (which may already include taxAmount)
         if (Array.isArray(prod.taxes) && prod.taxes.length) {
           prod.taxes.forEach(t => {
-            // t may already contain taxAmount (precomputed) or taxPercentage
             const taxAmtPerUnit = Number(t.taxAmount ?? 0)
             const taxPct = Number(t.taxPercentage ?? t.amount ?? 0)
             if (taxAmtPerUnit > 0) {
-              // assume taxAmount is per (price * qty) or per unit? In sample it looked like per product unit.
               const amt = taxAmtPerUnit * prodQty * comboQty * itemQty
               if ((String(t.taxName || t.name || '').toUpperCase()).includes('PB1')) taxPB1 += amt
               else if ((String(t.taxName || t.name || '').toUpperCase()).includes('PPN')) taxPPN += amt
@@ -99,7 +92,6 @@ function calcCartTotals(cart) {
             }
           })
         } else {
-          // If no prod.taxes, try to inspect condiment taxes too
           if (Array.isArray(prod.condiments) && prod.condiments.length) {
             prod.condiments.forEach(c => {
               if (Array.isArray(c.taxes) && c.taxes.length) {
@@ -162,7 +154,7 @@ export default function CheckoutPage() {
     const dataUser = getUser?.() || null;
     setUser(dataUser)
 
-    if (dataUser.orderType == "DI") {
+    if (dataUser?.orderType == "DI") {
       setTable(`Table ${dataUser.tableNumber} • Dine In`)
     } else {
       setTable(`Table ${dataUser.tableNumber} • Take Away`)
@@ -181,12 +173,10 @@ export default function CheckoutPage() {
     setTotal(t.total)
 
     // === Rounding rule ===
-    // Jika subtotal < 20 ATAU total < 20 → tidak ada rounding
     if (t.subtotal < 20 || t.total < 20) {
       setRoundedTotal(t.total)
       setRounding(0)
     } else {
-      // normal rounding ke kelipatan 100
       const rTotal = Math.round(t.total / 100) * 100
       setRoundedTotal(rTotal)
       setRounding(rTotal - t.total)
@@ -208,11 +198,8 @@ export default function CheckoutPage() {
 
   function confirmPayment(totalAmt) {
     try {
-      // simpan versi sessionStorage (tetap boleh)
       sessionStorage.setItem("yoshi_cart_payment", JSON.stringify(cart));
       sessionStorage.setItem("yoshi_cart_total", totalAmt);
-
-      // versi baru — simpan ke localStorage (payment session)
 
       savePayment(cart, totalAmt, {
         storeCode: user.storeCode || "",
@@ -267,14 +254,13 @@ export default function CheckoutPage() {
   function handleEdit(index) {
     const it = cart[index]
     if (!it) return
-    // For combo items, open combo edit flow (we used 'from=checkout' convention earlier)
     if (it.type === 'combo') {
-      // put edit indicator in session (index & signature)
       try {
         sessionStorage.setItem('yoshi_edit', JSON.stringify({ index, signature: `combo|${index}` }))
       } catch (e) { /* ignore */ }
-      // route to combo-detail with from=checkout & index
-      router.push(`/combo-detail?comboCode=${it.combos[0].detailCombo.code}&from=checkout&index=${index}`)
+      // be defensive when accessing nested props
+      const comboCode = it.combos?.[0]?.detailCombo?.code ?? ''
+      router.push(`/combo-detail?comboCode=${comboCode}&from=checkout&index=${index}`)
       return
     }
 
@@ -294,9 +280,7 @@ export default function CheckoutPage() {
   }
 
   // Render addons: always show the addon area for menu items.
-  // Accept various shapes: array of { name } or array of strings or array of { code, name }.
   function renderAddons(addons, item) {
-    // If addons not an array or empty -> show explicit "Tidak ada add-on"
     if (!Array.isArray(addons) || addons.length === 0) {
       return (
         <div>
@@ -306,7 +290,6 @@ export default function CheckoutPage() {
       )
     }
 
-     // ambil map code -> name dari menus[].condiments
     const condimentMap = {}
     if (item && Array.isArray(item.menus)) {
       item.menus.forEach(m => {
@@ -360,13 +343,12 @@ export default function CheckoutPage() {
       <div style={{ marginTop: 8 }}>
         {item.combos.map((cb, cbIdx) => (
           <div key={cbIdx} style={{ marginBottom: 8 }}>
-            {/* each product inside combo */}
             {Array.isArray(cb.products) && cb.products.length > 0 ? cb.products.map((p, pi) => (
-              <div key={`${p.code}-${pi}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px dashed #eee' }}>
+              <div key={`${p.code ?? p.id ?? pi}-${pi}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px dashed #eee' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600 }}>{p.name}</div>
                     <div style={{ marginTop: 4 }}>
-                      {p.condiments.map((c, ci) => (
+                      {Array.isArray(p.condiments) && p.condiments.map((c, ci) => (
                         <div key={ci} className={styles.addonLine}>- {c.name}{c.qty && c.qty > 1 ? ` x${c.qty}` : ''}</div>
                       ))}
                     </div>
@@ -393,6 +375,137 @@ export default function CheckoutPage() {
   function closeAddPopup() {
     setShowAddPopup(false)
   }
+
+  // ---------- GROUP cart into DINE IN / TAKEAWAY preserving original index ----------
+  function groupCartByOrderType(cartArr) {
+    function getOrderType(it) {
+      if (it?.type === 'combo' && it?.combos?.[0]) return it.combos[0].orderType || null
+      if (!it?.type && it?.menus?.[0]) return it.menus[0].orderType || null
+      return null
+    }
+
+    const dineIn = []
+    const takeAway = []
+
+    if (!Array.isArray(cartArr)) return { dineIn, takeAway }
+
+    cartArr.forEach((it, idx) => {
+      const ot = getOrderType(it)
+      const wrapped = { item: it, cartIndex: idx }
+      if (ot === 'DI') dineIn.push(wrapped)
+      else if (ot === 'TA') takeAway.push(wrapped)
+      else {
+        // unknown orderType: keep with dineIn by default or push nowhere.
+        // We'll push to dineIn to avoid losing items (you can change rule if needed)
+        dineIn.push(wrapped)
+      }
+    })
+
+    return { dineIn, takeAway }
+  }
+
+  // render single item — now receives original cart index
+  function renderItem(it, cartIndex) {
+    // compute line price (same logic)
+    let linePrice = 0;
+    if (it && it.type === 'combo') {
+      if (Array.isArray(it.combos)) {
+        it.combos.forEach(cb => {
+          const cbQty = Number(cb.qty || 1) || 1;
+          if (Array.isArray(cb.products)) {
+            cb.products.forEach(p => {
+              const pQty = Number(p.qty || 1) || 1;
+              const base = Number(p.price || 0);
+              let condTotal = 0;
+
+              if (Array.isArray(p.condiments)) {
+                p.condiments.forEach(c => {
+                  condTotal += Number(c.price || 0) * (Number(c.qty || 1) || 1);
+                });
+              }
+
+              linePrice += (base + condTotal) * pQty * cbQty;
+            });
+          }
+        });
+      }
+      linePrice = linePrice * (Number(it.qty || 1) || 1);
+    } else {
+      linePrice = Number(it.price || 0) * (Number(it.qty || 1) || 1);
+    }
+
+    // image logic
+    let img = "/images/no-image-available.jpg";
+    if (it && it.type === 'combo') {
+      img = it.detailCombo?.image || it.image || img;
+      if (!img || img === "/images/no-image-available.jpg") {
+        const firstCombo = Array.isArray(it.combos) && it.combos[0];
+        const firstProd = firstCombo && Array.isArray(firstCombo.products) && firstCombo.products[0];
+        if (firstProd && (firstProd.imagePath || firstProd.image)) {
+          img = firstProd.imagePath || firstProd.image;
+        }
+      }
+    } else {
+      img = it.image || img;
+    }
+    const title =
+      it.type === 'combo'
+        ? (it.detailCombo?.name || it.detailCombo?.code || 'Combo')
+        : (it.title || it.name || '');
+
+    return (
+      <div key={cartIndex} className={styles.titleWrap}>
+        <div className={styles.cartItem}>
+          <div className={styles.itemImageWrap}>
+            <Image src={img} alt={title} fill className={styles.itemImage} />
+          </div>
+
+          <div className={styles.itemInfo}>
+            <div className={styles.itemTitle}>{title}</div>
+
+            <div className={styles.itemAddon}>
+              {it.type !== 'combo' ? renderAddons(it.addons, it) : null}
+              {it.type === 'combo' ? renderComboDetails(it) : null}
+            </div>
+          </div>
+
+          <div className={styles.itemRight} style={{ display: "grid" }}>
+            <button
+              className={styles.editIconBtn}
+              onClick={() => handleEdit(cartIndex)}
+              title="Edit item"
+              aria-label={`Edit item ${title}`}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" fill="#111827"/>
+                <path d="M20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="#111827"/>
+              </svg>
+            </button>
+
+            <button
+              className={styles.trashBtn}
+              onClick={() => handleDeleteRequest(cartIndex)}
+              title="Hapus item"
+              aria-label={`Hapus item ${title}`}
+            >
+              🗑
+            </button>
+          </div>
+
+          <div className={styles.itemRight}>
+            <div className={styles.itemPrice}>{formatRp(linePrice)}</div>
+            <div className={styles.qtyRow}>
+              <button className={styles.minusBtn} onClick={() => handleQty(cartIndex, 'minus')}>-</button>
+              <div className={styles.qtyText}>{it.qty}</div>
+              <button className={styles.plusBtn} onClick={() => handleQty(cartIndex, 'plus')}>+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const { dineIn, takeAway } = groupCartByOrderType(cart)
 
   return (
     <div className={styles.page}>
@@ -435,171 +548,19 @@ export default function CheckoutPage() {
       <div className={styles.itemsList}>
         {cart.length === 0 && <div style={{ padding: 20 }}>Keranjang kosong</div>}
 
-        {/* ===========================================================
-            HELPER: Ambil orderType aman tanpa error menus/combos null
-        ============================================================ */}
-        {(() => {
+        {dineIn.length > 0 && (
+          <>
+            <h3 style={{ padding: "12px 0 4px", fontWeight: "bold" }}>DINE IN</h3>
+            {dineIn.map(w => renderItem(w.item, w.cartIndex))}
+          </>
+        )}
 
-          function getOrderType(it) {
-            if (it.type === 'combo' && it.combos?.[0]) {
-              return it.combos[0].orderType || null;
-            }
-            if (!it.type && it.menus?.[0]) {
-              return it.menus[0].orderType || null;
-            }
-            return null;
-          }
-
-          // =============================================================
-          // 1. Grouping Items DI / TA
-          // =============================================================
-          const dineInItems = [];
-          const takeAwayItems = [];
-
-          cart.forEach(it => {
-            const ot = getOrderType(it);
-            if (ot === 'DI') dineInItems.push(it);
-            else if (ot === 'TA') takeAwayItems.push(it);
-          });
-
-          // =============================================================
-          // 2. Fungsi render item (isi sama persis dengan item render kamu)
-          // =============================================================
-          function renderItem(it, i) {
-
-            // =============================
-            // Perhitungan linePrice (ASLI)
-            // =============================
-            let linePrice = 0;
-            if (it && it.type === 'combo') {
-              if (Array.isArray(it.combos)) {
-                it.combos.forEach(cb => {
-                  const cbQty = Number(cb.qty || 1) || 1;
-                  if (Array.isArray(cb.products)) {
-                    cb.products.forEach(p => {
-                      const pQty = Number(p.qty || 1) || 1;
-                      const base = Number(p.price || 0);
-                      let condTotal = 0;
-
-                      if (Array.isArray(p.condiments)) {
-                        p.condiments.forEach(c => {
-                          condTotal += Number(c.price || 0) * (Number(c.qty || 1) || 1);
-                        });
-                      }
-
-                      linePrice += (base + condTotal) * pQty * cbQty;
-                    });
-                  }
-                });
-              }
-              linePrice = linePrice * (Number(it.qty || 1) || 1);
-            } 
-            else {
-              linePrice = Number(it.price || 0) * (Number(it.qty || 1) || 1);
-            }
-
-            // =============================
-            // Image logic (ASLI)
-            // =============================
-            let img = "/images/no-image-available.jpg";
-            if (it && it.type === 'combo') {
-              img = it.detailCombo?.image || it.image || img;
-              if (!img || img === "/images/no-image-available.jpg") {
-                const firstCombo = Array.isArray(it.combos) && it.combos[0];
-                const firstProd = firstCombo && Array.isArray(firstCombo.products) && firstCombo.products[0];
-                if (firstProd && (firstProd.imagePath || firstProd.image)) {
-                  img = firstProd.imagePath || firstProd.image;
-                }
-              }
-            } else {
-              img = it.image || img;
-            }
-            const title =
-              it.type === 'combo'
-                ? (it.detailCombo?.name || it.detailCombo?.code || 'Combo')
-                : (it.title || it.name || '');
-
-            // =============================
-            // RETURN RENDER ITEM (ASLI)
-            // =============================
-            return (
-              <div key={i} className={styles.titleWrap}>
-                <div className={styles.cartItem}>
-                  <div className={styles.itemImageWrap}>
-                    <Image src={img} alt={title} fill className={styles.itemImage} />
-                  </div>
-
-                  <div className={styles.itemInfo}>
-                    <div className={styles.itemTitle}>{title}</div>
-
-                    <div className={styles.itemAddon}>
-                      {it.type !== 'combo' ? renderAddons(it.addons, it) : null}
-                      {it.type === 'combo' ? renderComboDetails(it) : null}
-                    </div>
-                  </div>
-
-                  <div className={styles.itemRight} style={{ display: "grid" }}>
-                    <button
-                      className={styles.editIconBtn}
-                      onClick={() => handleEdit(i)}
-                      title="Edit item"
-                      aria-label={`Edit item ${title}`}
-                    >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" fill="#111827"/>
-                        <path d="M20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="#111827"/>
-                      </svg>
-                    </button>
-
-                    <button
-                      className={styles.trashBtn}
-                      onClick={() => handleDeleteRequest(i)}
-                      title="Hapus item"
-                      aria-label={`Hapus item ${title}`}
-                    >
-                      🗑
-                    </button>
-                  </div>
-
-                  <div className={styles.itemRight}>
-                    <div className={styles.itemPrice}>{formatRp(linePrice)}</div>
-                    <div className={styles.qtyRow}>
-                      <button className={styles.minusBtn} onClick={() => handleQty(i, 'minus')}>-</button>
-                      <div className={styles.qtyText}>{it.qty}</div>
-                      <button className={styles.plusBtn} onClick={() => handleQty(i, 'plus')}>+</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          }
-
-          // =============================================================
-          // 3. RENDER GROUPING DI & TA
-          // =============================================================
-          return (
-            <>
-
-              {/* ------------------------- DINE IN ------------------------- */}
-              {dineInItems.length > 0 && (
-                <>
-                  <h3 style={{ padding: "12px 0 4px", fontWeight: "bold" }}>DINE IN</h3>
-                  {dineInItems.map((it, i) => renderItem(it, `DI-${i}`))}
-                </>
-              )}
-
-              {/* ------------------------- TAKE AWAY ------------------------- */}
-              {takeAwayItems.length > 0 && (
-                <>
-                  <h3 style={{ padding: "12px 0 4px", fontWeight: "bold" }}>TAKEAWAY</h3>
-                  {takeAwayItems.map((it, i) => renderItem(it, `TA-${i}`))}
-                </>
-              )}
-
-            </>
-          );
-
-        })()}
+        {takeAway.length > 0 && (
+          <>
+            <h3 style={{ padding: "12px 0 4px", fontWeight: "bold" }}>TAKEAWAY</h3>
+            {takeAway.map(w => renderItem(w.item, w.cartIndex))}
+          </>
+        )}
       </div>
 
       {/* PAYMENT DETAIL */}

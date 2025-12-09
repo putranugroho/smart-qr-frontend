@@ -273,7 +273,8 @@ export default function PaymentPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          storeCode: user.storeCode,
+          storeCode: "MGI",
+          // storeCode: user.storeCode,
           payload
         })
       });

@@ -725,7 +725,7 @@ export default function OrderStatus() {
 
           <div className={styles.stepsWrap}>
             {steps.map((s) => {
-              const status = ( currentStep === 3 ? 'done' : (s.key > currentStep ? 'done' : (s.key === currentStep ? 'ongoing' : 'upcoming')))
+              const status = ( currentStep === 1 ? 'done' : (s.key > currentStep ? 'done' : (s.key === currentStep ? 'ongoing' : 'upcoming')))
               return (
                 <div key={s.key} className={`${styles.stepItem} ${styles[status]}`}>
                   <div className={styles.iconCircle} aria-hidden>

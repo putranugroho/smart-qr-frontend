@@ -254,6 +254,12 @@ export default function PaymentPage() {
         payload.paymentLink = paymentLink;
       }
 
+      if (selectedMethod.includes("gopay")) {
+        payload.payment = "GOPAY"
+      } if (selectedMethod.includes("qris")) {
+        payload.payment = "QRISOTHERS"
+      } 
+
       payload.customerName = customer.first_name || "";
       payload.customerPhoneNumber = "0" + (customer.phone || "");
       // ensure payload.tableNumber is the formatted one

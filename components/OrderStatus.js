@@ -652,8 +652,8 @@ export default function OrderStatus() {
   ]
 
   const steps = baseSteps.map(s => {
-    if (s.key === 3 && paymentAccepted) {
-      return { ...s, title: 'Pembayaran Berhasil', desc: 'Pembayaran kamu sudah diterima' }
+    if (s.key === 3 && !paymentAccepted) {
+      return { ...s, title: 'Pembayaran Pending', desc: 'Silahkan selesesaikan pembayaran kamu' }
     }
     return s
   })
@@ -774,7 +774,7 @@ export default function OrderStatus() {
                       {it.qty || 1}x • {it.combos?.[0]?.products?.map(p => p.name).filter(Boolean).join(' + ') || 'Combo'}
                     </>
                   ) : (
-                    <>{(it.qty || 1)}x {it.condiments && it.condiments.length ? it.condiments.map(c => c.name || c.group || c.code).join(', ') : (it.note || 'No Note')}</>
+                    <>{(it.qty || 1)}x {it.condiments && it.condiments.length ? it.condiments.map(c => c.name || c.group || c.code).join(', ') : (it.note || 'No Add On')}</>
                   )}
                 </div>
               </div>

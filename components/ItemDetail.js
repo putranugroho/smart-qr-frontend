@@ -401,6 +401,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         return {
           code: opt?.id || String(optId),
           name: opt?.name || '',
+          itemName: opt?.itemName || '',
           price,
           qty: 1,
           taxes
@@ -453,7 +454,8 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
       groupName: '',
       code: c.code,
       qty: c.qty,
-      price: c.price
+      price: c.price,
+      itemName: c.itemName
     }));
 
     const unitPrice = basePrice + condiments.reduce((s, c) => s + c.price, 0);

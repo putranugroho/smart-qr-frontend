@@ -468,7 +468,7 @@ export default function PaymentPage() {
         <div className={styles.stickyTop}>
           <div className={styles.totalLabel}>Total Pembayaran</div>
           <div className={styles.totalValue}>
-            {isMounted ? formatRp(total) : 'Rp0'}
+            {isMounted ? formatRp(payment.paymentTotal) : 'Rp0'}
           </div>
         </div>
 

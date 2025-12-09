@@ -707,7 +707,7 @@ export default function PaymentStatus() {
       </div>
 
       <div className={styles.totalBox}>
-        <div className={styles.totalLabel}>Total Pesanan</div>
+        <div className={styles.totalLabel}>Total Pembayaran</div>
         <div className={styles.totalPrice}>{isMounted ? formatRp(subtotal) : 'Rp 0'}</div>
       </div>
 

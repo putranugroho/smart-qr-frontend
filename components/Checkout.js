@@ -435,103 +435,171 @@ export default function CheckoutPage() {
       <div className={styles.itemsList}>
         {cart.length === 0 && <div style={{ padding: 20 }}>Keranjang kosong</div>}
 
-        {cart.map((it, i) => {
-          // compute line price display
-          let linePrice = 0
-          if (it && it.type === 'combo') {
-            // compute based on combos/products/condiments
-            if (Array.isArray(it.combos)) {
-              it.combos.forEach(cb => {
-                const cbQty = Number(cb.qty || 1) || 1
-                if (Array.isArray(cb.products)) {
-                  cb.products.forEach(p => {
-                    const pQty = Number(p.qty || 1) || 1
-                    const base = Number(p.price || 0)
-                    let condTotal = 0
-                    if (Array.isArray(p.condiments)) {
-                      p.condiments.forEach(c => {
-                        condTotal += Number(c.price || 0) * (Number(c.qty || 1) || 1)
-                      })
-                    }
-                    linePrice += (base + condTotal) * pQty * cbQty
-                  })
-                }
-              })
+        {/* ===========================================================
+            HELPER: Ambil orderType aman tanpa error menus/combos null
+        ============================================================ */}
+        {(() => {
+
+          function getOrderType(it) {
+            if (it.type === 'combo' && it.combos?.[0]) {
+              return it.combos[0].orderType || null;
             }
-            linePrice = linePrice * (Number(it.qty || 1) || 1)
-          } else {
-            linePrice = Number(it.price || 0) * (Number(it.qty || 1) || 1)
+            if (!it.type && it.menus?.[0]) {
+              return it.menus[0].orderType || null;
+            }
+            return null;
           }
 
-          // image: try item.image else for combos try first product image
-          let img = "/images/no-image-available.jpg"
-          // Prefer detailCombo.image if available
-          if (it && it.type === 'combo') {
-            img = it.detailCombo?.image || it.image || img
-            // final fallback: first product image if still not found
-            if (!img || img === null || img === "/images/no-image-available.jpg") {
-              const firstCombo = Array.isArray(it.combos) && it.combos[0]
-              const firstProd = firstCombo && Array.isArray(firstCombo.products) && firstCombo.products[0]
-              if (firstProd && (firstProd.imagePath || firstProd.image)) {
-                img = firstProd.imagePath || firstProd.image
+          // =============================================================
+          // 1. Grouping Items DI / TA
+          // =============================================================
+          const dineInItems = [];
+          const takeAwayItems = [];
+
+          cart.forEach(it => {
+            const ot = getOrderType(it);
+            if (ot === 'DI') dineInItems.push(it);
+            else if (ot === 'TA') takeAwayItems.push(it);
+          });
+
+          // =============================================================
+          // 2. Fungsi render item (isi sama persis dengan item render kamu)
+          // =============================================================
+          function renderItem(it, i) {
+
+            // =============================
+            // Perhitungan linePrice (ASLI)
+            // =============================
+            let linePrice = 0;
+            if (it && it.type === 'combo') {
+              if (Array.isArray(it.combos)) {
+                it.combos.forEach(cb => {
+                  const cbQty = Number(cb.qty || 1) || 1;
+                  if (Array.isArray(cb.products)) {
+                    cb.products.forEach(p => {
+                      const pQty = Number(p.qty || 1) || 1;
+                      const base = Number(p.price || 0);
+                      let condTotal = 0;
+
+                      if (Array.isArray(p.condiments)) {
+                        p.condiments.forEach(c => {
+                          condTotal += Number(c.price || 0) * (Number(c.qty || 1) || 1);
+                        });
+                      }
+
+                      linePrice += (base + condTotal) * pQty * cbQty;
+                    });
+                  }
+                });
               }
+              linePrice = linePrice * (Number(it.qty || 1) || 1);
+            } 
+            else {
+              linePrice = Number(it.price || 0) * (Number(it.qty || 1) || 1);
             }
-          } else {
-            // non-combo item
-            img = it.image || img
+
+            // =============================
+            // Image logic (ASLI)
+            // =============================
+            let img = "/images/no-image-available.jpg";
+            if (it && it.type === 'combo') {
+              img = it.detailCombo?.image || it.image || img;
+              if (!img || img === "/images/no-image-available.jpg") {
+                const firstCombo = Array.isArray(it.combos) && it.combos[0];
+                const firstProd = firstCombo && Array.isArray(firstCombo.products) && firstCombo.products[0];
+                if (firstProd && (firstProd.imagePath || firstProd.image)) {
+                  img = firstProd.imagePath || firstProd.image;
+                }
+              }
+            } else {
+              img = it.image || img;
+            }
+            const title =
+              it.type === 'combo'
+                ? (it.detailCombo?.name || it.detailCombo?.code || 'Combo')
+                : (it.title || it.name || '');
+
+            // =============================
+            // RETURN RENDER ITEM (ASLI)
+            // =============================
+            return (
+              <div key={i} className={styles.titleWrap}>
+                <div className={styles.cartItem}>
+                  <div className={styles.itemImageWrap}>
+                    <Image src={img} alt={title} fill className={styles.itemImage} />
+                  </div>
+
+                  <div className={styles.itemInfo}>
+                    <div className={styles.itemTitle}>{title}</div>
+
+                    <div className={styles.itemAddon}>
+                      {it.type !== 'combo' ? renderAddons(it.addons, it) : null}
+                      {it.type === 'combo' ? renderComboDetails(it) : null}
+                    </div>
+                  </div>
+
+                  <div className={styles.itemRight} style={{ display: "grid" }}>
+                    <button
+                      className={styles.editIconBtn}
+                      onClick={() => handleEdit(i)}
+                      title="Edit item"
+                      aria-label={`Edit item ${title}`}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" fill="#111827"/>
+                        <path d="M20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="#111827"/>
+                      </svg>
+                    </button>
+
+                    <button
+                      className={styles.trashBtn}
+                      onClick={() => handleDeleteRequest(i)}
+                      title="Hapus item"
+                      aria-label={`Hapus item ${title}`}
+                    >
+                      🗑
+                    </button>
+                  </div>
+
+                  <div className={styles.itemRight}>
+                    <div className={styles.itemPrice}>{formatRp(linePrice)}</div>
+                    <div className={styles.qtyRow}>
+                      <button className={styles.minusBtn} onClick={() => handleQty(i, 'minus')}>-</button>
+                      <div className={styles.qtyText}>{it.qty}</div>
+                      <button className={styles.plusBtn} onClick={() => handleQty(i, 'plus')}>+</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
           }
 
-          const title = it.type === 'combo' ? (it.detailCombo?.name || it.detailCombo?.code || 'Combo') : (it.title || it.name || '')
-
+          // =============================================================
+          // 3. RENDER GROUPING DI & TA
+          // =============================================================
           return (
-            <div key={i} className={styles.cartItem}>
-              <div className={styles.itemImageWrap}>
-                <Image
-                  src={img}
-                  alt={title}
-                  fill
-                  className={styles.itemImage}
-                />
-              </div>
+            <>
 
-              <div className={styles.itemInfo}>
-                <div className={styles.itemTitle}>{title}</div>
+              {/* ------------------------- DINE IN ------------------------- */}
+              {dineInItems.length > 0 && (
+                <>
+                  <h3 style={{ padding: "12px 0 4px", fontWeight: "bold" }}>DINE IN</h3>
+                  {dineInItems.map((it, i) => renderItem(it, `DI-${i}`))}
+                </>
+              )}
 
-                <div className={styles.itemAddon}>
-                  {/* menu item addons (always render area) */}
-                  {it.type !== 'combo' ? renderAddons(it.addons, it) : null}
+              {/* ------------------------- TAKE AWAY ------------------------- */}
+              {takeAwayItems.length > 0 && (
+                <>
+                  <h3 style={{ padding: "12px 0 4px", fontWeight: "bold" }}>TAKEAWAY</h3>
+                  {takeAwayItems.map((it, i) => renderItem(it, `TA-${i}`))}
+                </>
+              )}
 
-                  {/* for combo show breakdown of products + condiments */}
-                  {it.type === 'combo' ? renderComboDetails(it) : null}
+            </>
+          );
 
-                  {it.note ? <div className={styles.addonNote}>Catatan: {String(it.note)}</div> : null}
-                </div>
-              </div>
-
-              <div className={styles.itemRight} style={{ display: "grid" }}>
-                <button className={styles.editIconBtn} onClick={() => handleEdit(i)} title="Edit item" aria-label={`Edit item ${title}`}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
-                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" fill="#111827"/>
-                    <path d="M20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="#111827"/>
-                  </svg>
-                </button>
-
-                <button className={styles.trashBtn} onClick={() => handleDeleteRequest(i)} title="Hapus item" aria-label={`Hapus item ${title}`}>🗑</button>
-              </div>
-
-              <div className={styles.itemRight}>
-                {/* show formatted subtotal/price based on client-calculated totals */}
-                <div className={styles.itemPrice}>{formatRp(linePrice)}</div>
-
-                <div className={styles.qtyRow}>
-                  <button className={styles.minusBtn} onClick={() => handleQty(i, 'minus')}>-</button>
-                  <div className={styles.qtyText}>{it.qty}</div>
-                  <button className={styles.plusBtn} onClick={() => handleQty(i, 'plus')}>+</button>
-                </div>
-              </div>
-            </div>
-          )
-        })}
+        })()}
       </div>
 
       {/* PAYMENT DETAIL */}

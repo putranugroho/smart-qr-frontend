@@ -182,7 +182,6 @@ export default function OrderStatus() {
   useEffect(() => {
     try {
       const doOrderPayload = sessionStorage.getItem("do_order_payload");
-      console.log("doOrderPayload", JSON.parse(doOrderPayload).displayOrderId);
       setRemoteOrderPayload(JSON.parse(doOrderPayload))
       
       const doOrderRaw = sessionStorage.getItem('do_order_result')
@@ -425,7 +424,6 @@ export default function OrderStatus() {
     try {
       // --- DEFAULT: use proxy route (keamanan / CORS)
       const url = `/api/order/check-status?orderCode=${encodeURIComponent(orderCodeToFetch)}`
-      console.log('[OrderStatus] fetchRemoteOrder ->', url)
 
       // --- TIMEOUT helper
       const controller = new AbortController()
@@ -471,7 +469,6 @@ export default function OrderStatus() {
     setCheckingNow(true)
     try {
       const apiResp = await fetchRemoteOrder(orderCodeToPoll)
-      console.log('[OrderStatus] manual check result', apiResp)
       if (!apiResp || !apiResp.data) {
         alert('Pengecekan gagal atau tidak ada data dari API.')
         return
@@ -608,7 +605,7 @@ export default function OrderStatus() {
         } else if (statusNum === 0) {
           setCurrentStep(2)
           setPaymentAccepted(true)
-        } else if (statusNum === 2 || statusNum === 1) {
+        } else if (statusNum > 0 || statusNum === 3) {
           setCurrentStep(1)
         }
       } catch (err) {

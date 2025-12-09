@@ -193,7 +193,11 @@ export default function OrderStatus() {
           setRemoteOrderRaw(parsed)
           // set display id (support displayOrderId or orderCode)
           const mt_id = d.displayOrderId
+          console.log("d.displayOrderId", d.displayOrderId);
+          console.log("mt_id", mt_id);
+          
           if (mt_id) setDisplayMtId(String(mt_id))
+            setDisplayMtId(String(d.displayOrderId))
         }
 
         switch ((parsed.data.Payment || '').toString().toLowerCase()) {
@@ -808,7 +812,7 @@ export default function OrderStatus() {
             <img src={urlLogo} alt="logo" width={55} height={14} className={styles.iconImg} />
           </div>
           <div className={styles.paymentItemRight}>
-            <div className={styles.orderNumber}>{dataOrder ? dataOrder.displayOrderId : ""}</div>
+            <div className={styles.orderNumber}>{displayMtId ? displayMtId : ""}</div>
           </div>
         </div>
       </div>

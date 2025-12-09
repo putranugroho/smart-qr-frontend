@@ -682,7 +682,7 @@ export default function PaymentStatus() {
               <button className={styles.checkBtn} onClick={openDeeplinkManually} disabled={redirecting}>
                 {redirecting ? 'Mengarahkan...' : `Redirect Pembayaran`}
               </button>
-              <div style={{ marginTop: 12, wordBreak: 'break-all' }}>{deeplinkUrl}</div>
+              {/* <div style={{ marginTop: 12, wordBreak: 'break-all' }}>{deeplinkUrl}</div> */}
             </>
           ) : (
             <div>Tautan pembayaran tidak tersedia. Silakan gunakan tombol Check Status.</div>
@@ -726,7 +726,7 @@ export default function PaymentStatus() {
       {/* -----------------------
           LOGS PANEL (NEW)
          ----------------------- */}
-      <div style={{ padding: 12, marginTop: 16, borderTop: '1px solid #eee' }}>
+      {/* <div style={{ padding: 12, marginTop: 16, borderTop: '1px solid #eee' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <strong>Logs pengecekan Midtrans</strong>
           <div style={{ fontSize: 12, color: '#666' }}>{statusLogs.length} entri</div>
@@ -749,7 +749,7 @@ export default function PaymentStatus() {
             </div>
           ))}
         </div>
-      </div>
+      </div> */}
 
       {/* Confirmation Modal */}
       {showLeaveModal && (

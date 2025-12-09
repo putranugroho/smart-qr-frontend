@@ -166,7 +166,7 @@ export default function OrderStatus() {
   const [remoteOrderPayload, setRemoteOrderPayload] = useState(null)
   const [user, setUser] = useState(null)
   const [table, setTable] = useState('')
-  const [currentStep, setCurrentStep] = useState(1)
+  const [currentStep, setCurrentStep] = useState(3)
   const [showAllItems, setShowAllItems] = useState(false)
   const [showPaymentRedirectModal, setShowPaymentRedirectModal] = useState(false)
   const [paymentRedirectUrl, setPaymentRedirectUrl] = useState('')
@@ -514,7 +514,7 @@ export default function OrderStatus() {
         setCurrentStep(2)
         setPaymentAccepted(true)
       } else if (statusNum > 0 || statusNum === 3) {
-        setCurrentStep(3)
+        setCurrentStep(1)
       }
     } finally {
       setCheckingNow(false)
@@ -560,6 +560,7 @@ export default function OrderStatus() {
         const statusNum = Number(apiResp.data.Status ?? apiResp.data.status ?? 0)
 
         if (statusNum === -1) {
+          setCurrentStep(4)
 
           const paymentLinkFromApi = (apiResp.data.PaymentLink ?? apiResp.data.paymentLink ?? apiResp.data.PaymentUrl ?? '') || ''
           const displayOrderIdFromApi = apiResp.data.DisplayOrderId ?? apiResp.data.displayOrderId ?? null
@@ -605,7 +606,7 @@ export default function OrderStatus() {
           setCurrentStep(2)
           setPaymentAccepted(true)
         } else if (statusNum > 0 || statusNum === 3) {
-          setCurrentStep(3)
+          setCurrentStep(1)
         }
       } catch (err) {
         console.warn('checkOrder error', err)
@@ -626,15 +627,15 @@ export default function OrderStatus() {
   }, [router.isReady, id])
 
   const baseSteps = [
-    { key: 1, status: 3, title: 'Pesanan Selesai', desc: 'Pesanan sudah selesai', img : '/images/check-icon.png'},
-    { key: 2, status: 2, title: 'Makanan Sedang Disiapkan', desc: 'Pesanan kamu sedang disiapkan', img : '/images/bowl-icon.png' },
-    { key: 3, status: 1, title: 'Pembayaran Pending', desc: 'Silahkan selesesaikan pembayaran kamu', img : '/images/wallet-icon.png' },
-    { key: 4, status: 0, title: 'Pesanan Dibuat', desc: 'Pesanan kamu sudah masuk', img : '/images/mobile-icon.png' },
+    { key: 1, title: 'Pesanan Selesai', desc: 'Pesanan sudah selesai', img : '/images/check-icon.png'},
+    { key: 2, title: 'Makanan Sedang Disiapkan', desc: 'Pesanan kamu sedang disiapkan', img : '/images/bowl-icon.png' },
+    { key: 3, title: 'Pembayaran Pending', desc: 'Silahkan selesesaikan pembayaran kamu', img : '/images/wallet-icon.png' },
+    { key: 4, title: 'Pesanan Dibuat', desc: 'Pesanan kamu sudah masuk', img : '/images/mobile-icon.png' },
   ]
 
   const steps = baseSteps.map(s => {
     if (s.key === 3 && paymentAccepted) {
-      return { ...s, status: 2, title: 'Pembayaran Berhasil', desc: 'Pembayaran kamu sudah diterima' }
+      return { ...s, title: 'Pembayaran Berhasil', desc: 'Pembayaran kamu sudah diterima' }
     }
     return s
   })
@@ -706,7 +707,7 @@ export default function OrderStatus() {
 
           <div className={styles.stepsWrap}>
             {steps.map((s) => {
-              const status = s.status < currentStep || 3 ? 'done' : (s.status === currentStep ? 'ongoing' : 'upcoming')
+              const status = ( currentStep === 3 ? 'done' : (s.key > currentStep ? 'done' : (s.key === currentStep ? 'ongoing' : 'upcoming')))
               return (
                 <div key={s.key} className={`${styles.stepItem} ${styles[status]}`}>
                   <div className={styles.iconCircle} aria-hidden>

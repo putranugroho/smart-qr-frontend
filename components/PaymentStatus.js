@@ -226,9 +226,9 @@ export default function PaymentStatus() {
           } catch (e) { /* ignore */ }
 
           const resolvedTarget = targetOrderCode || j?.order_id || orderId
-          setTimeout(() => {
-            router.push(`/order/${resolvedTarget}`)
-          }, 600)
+          // setTimeout(() => {
+          //   router.push(`/order/${resolvedTarget}`)
+          // }, 600)
         }
       } catch (err) {
         console.warn('status check failed', err)
@@ -457,11 +457,11 @@ export default function PaymentStatus() {
         setSuccessOrderId(resolvedMidtransOrderId)
 
         const targetOrderCode = orderCode || (JSON.parse(sessionStorage.getItem('do_order_result')||'{}')?.data?.orderCode) || null
-        setTimeout(() => {
-          try {
-            router.push(`/order/${targetOrderCode}`)
-          } catch (e) { /* ignore */ }
-        }, 1200)
+        // setTimeout(() => {
+        //   try {
+        //     router.push(`/order/${targetOrderCode}`)
+        //   } catch (e) { /* ignore */ }
+        // }, 1200)
       } else {
         alert('Status: ' + (j.transaction_status || j.status || 'unknown'))
       }

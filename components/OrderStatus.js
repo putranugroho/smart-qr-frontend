@@ -1,4 +1,3 @@
-// pages/order/[id].js
 import { useRouter } from 'next/router'
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
@@ -249,14 +248,22 @@ export default function OrderStatus() {
     const combos = dataOrder.combos ?? dataOrder.Combos ?? []
     if (Array.isArray(combos) && combos.length > 0) {
       combos.forEach(cb => {
-        const products = Array.isArray(cb.products ?? cb.Products) ? (cb.products ?? cb.Products) : []
-        const mappedProducts = products.map(p => ({
-          code: p.code ?? p.Code,
-          name: p.name ?? p.Name,
+        const productsRaw = Array.isArray(cb.products ?? cb.Products) ? (cb.products ?? cb.Products) : []
+        // normalize product condiments and product fields
+        const mappedProducts = productsRaw.map(p => ({
+          code: p.code ?? p.Code ?? '',
+          name: p.name ?? p.Name ?? '',
           price: Number(p.price ?? p.Price ?? 0),
           qty: Number(p.qty ?? p.Qty ?? 1),
           taxes: Array.isArray(p.taxes ?? p.Taxes) ? (p.taxes ?? p.Taxes) : [],
-          condiments: Array.isArray(p.condiments ?? p.Condiments) ? (p.condiments ?? p.Condiments) : []
+          // normalize condiments under product
+          condiments: (Array.isArray(p.condiments ?? p.Condiments) ? (p.condiments ?? p.Condiments) : []).map(c => ({
+            code: c.code ?? c.Code ?? '',
+            name: c.name ?? c.Name ?? c.group ?? '',
+            qty: Number(c.qty ?? c.Qty ?? 1),
+            price: Number(c.price ?? c.Price ?? 0),
+            taxes: Array.isArray(c.taxes ?? c.Taxes) ? (c.taxes ?? c.Taxes) : []
+          }))
         }))
 
         // compute combo unit price (sum product prices * qty + condiments)
@@ -313,8 +320,17 @@ export default function OrderStatus() {
     const menus = dataOrder.menus ?? dataOrder.Menus ?? []
     if (Array.isArray(menus) && menus.length > 0) {
       menus.forEach(m => {
-        const conds = Array.isArray(m.condiments ?? m.Condiments) ? (m.condiments ?? m.Condiments) : []
-        const condTotal = conds.reduce((s, c) => s + (Number(c.price ?? c.Price ?? 0) * Number(c.qty ?? c.Qty ?? 1)), 0)
+        // normalize condiments (accept both Condiments and condiments)
+        const rawConds = Array.isArray(m.condiments ?? m.Condiments) ? (m.condiments ?? m.Condiments) : []
+        const conds = rawConds.map(c => ({
+          code: c.code ?? c.Code ?? '',
+          name: c.name ?? c.Name ?? c.group ?? '',
+          qty: Number(c.qty ?? c.Qty ?? 1),
+          price: Number(c.price ?? c.Price ?? 0),
+          taxes: Array.isArray(c.taxes ?? c.Taxes) ? (c.taxes ?? c.Taxes) : []
+        }))
+
+        const condTotal = conds.reduce((s, c) => s + (Number(c.price ?? 0) * Number(c.qty ?? 1)), 0)
         const detailPrice = Number(m.detailMenu?.price ?? m.DetailMenu?.Price ?? 0)
 
         // If server provided final m.price -> treat it as authoritative final price and avoid double-count:
@@ -568,7 +584,7 @@ export default function OrderStatus() {
 
           if (foundDisplayOrderId) {
             try {
-              const stResp = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(foundDisplayOrderId)}`)
+              const stResp = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(foundDisplayId)}`)
               if (stResp.ok) {
                 const stj = await stResp.json()
                 const txStatus = (stj.transaction_status || stj.status || '').toString().toLowerCase()

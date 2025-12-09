@@ -175,7 +175,7 @@ export default function OrderStatus() {
   const [clientPayment, setClientPayment] = useState({ items: [], paymentTotal: 0 })
   const [lastManualCheckAt, setLastManualCheckAt] = useState(null)
   const [checkingNow, setCheckingNow] = useState(false)
-  const [urlLogo, setUrlLogo] = useState("/images/pay-gopay.png");
+  const [urlLogo, setUrlLogo] = useState("");
 
   // load session midtrans/do_order_result + user (prefer do_order_result stored in session)
   useEffect(() => {
@@ -188,26 +188,20 @@ export default function OrderStatus() {
         const parsed = JSON.parse(doOrderRaw)
         // Accept either shape: { data: {...} } or direct payload
         const d = parsed?.data ?? parsed
-        if (d) {
+        if (d) {          
           setDataOrder(d)
           setRemoteOrderRaw(parsed)
           // set display id (support displayOrderId or orderCode)
-          const mt_id = d.displayOrderId
-          console.log("d.displayOrderId", d.displayOrderId);
-          console.log("mt_id", mt_id);
+          const mt_id = d.DisplayOrderId
           
           if (mt_id) setDisplayMtId(String(mt_id))
-            setDisplayMtId(String(d.displayOrderId))
         }
-
-        switch ((parsed.data.Payment || '').toString().toLowerCase()) {
-          case "qris": setUrlLogo("/images/pay-qris.png"); break;
-          case "shopee": setUrlLogo("/images/pay-shopee.png"); break;
-          case "ovo": setUrlLogo("/images/pay-ovo.png"); break;
-          case "dana": setUrlLogo("/images/pay-dana.png"); break;
-          case "gopay": setUrlLogo("/images/pay-gopay.png"); break;
-          default: setUrlLogo("/images/pay-gopay.png"); break;
-        }
+        
+        if (d.Payment.toLowerCase().includes("gopay")) {
+          setUrlLogo("/images/pay-gopay.png")
+        } if (d.Payment.toLowerCase().includes("qris")) {
+          setUrlLogo("/images/pay-qris.png")
+        } 
       }
     } catch (e) { /* ignore */ }
 
@@ -468,80 +462,6 @@ export default function OrderStatus() {
     }
   }
 
-  // ----- MANUAL CHECK BUTTON (and wrapper) -----
-  async function handleManualCheck() {
-    // convenience: pick orderCode from route, do_order_result, or stored current_order_code
-    let orderCodeToPoll = String(id || '').trim()
-    if (!orderCodeToPoll) {
-      try {
-        const stored = sessionStorage.getItem('do_order_result')
-        if (stored) {
-          const parsed = JSON.parse(stored)
-          orderCodeToPoll = parsed?.data?.orderCode ?? parsed?.orderCode ?? ''
-        }
-      } catch (e) { /* ignore */ }
-    }
-    if (!orderCodeToPoll) {
-      alert('Order code tidak ditemukan untuk pengecekan.')
-      return
-    }
-
-    setCheckingNow(true)
-    try {
-      const apiResp = await fetchRemoteOrder(orderCodeToPoll)
-      if (!apiResp || !apiResp.data) {
-        alert('Pengecekan gagal atau tidak ada data dari API.')
-        return
-      }
-      // reuse the same processing as in polling (update states)
-      setRemoteOrderRaw(apiResp)
-      setDataOrder(apiResp.data)
-      try { sessionStorage.setItem('do_order_result', JSON.stringify(apiResp)) } catch (e) {}
-      const oc = apiResp?.data?.orderCode ?? apiResp?.orderCode ?? null
-      if (oc) setDisplayOrderId(String(oc))
-      setLastManualCheckAt(new Date().toISOString())
-      // optionally show popup if payment pending etc. (mimic polling behaviour)
-      const statusNum = Number(apiResp.data.Status ?? apiResp.data.status ?? 0)
-      if (statusNum === -1) {
-        // payment waiting
-        const paymentLinkFromApi = (apiResp.data.PaymentLink ?? apiResp.data.paymentLink ?? apiResp.data.PaymentUrl ?? '') || ''
-        const displayOrderIdFromApi = apiResp.data.DisplayOrderId ?? apiResp.data.displayOrderId ?? null
-        const foundDisplayOrderId = displayOrderIdFromApi || parseOrderIdFromPaymentLink(paymentLinkFromApi) || sessionStorage.getItem('display_order_id')
-        if (foundDisplayOrderId) {
-          try {
-            const stResp = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(foundDisplayOrderId)}`)
-            if (stResp.ok) {
-              const stj = await stResp.json()
-              const txStatus = (stj.transaction_status || stj.status || '').toString().toLowerCase()
-              if (!['capture','settlement','success'].includes(txStatus)) {
-                setPaymentRedirectUrl(paymentLinkFromApi || '')
-                setShowPaymentRedirectModal(true)
-              } else {
-                setCurrentStep(2)
-                setPaymentAccepted(true)
-              }
-            }
-          } catch (e) {
-            console.warn('midtrans status check failed', e)
-          }
-        } else {
-          if (paymentLinkFromApi) {
-            setPaymentRedirectUrl(paymentLinkFromApi)
-            setShowPaymentRedirectModal(true)
-          }
-        }
-      } else if (statusNum === 0) {
-        setCurrentStep(2)
-        setPaymentAccepted(true)
-      } else if (statusNum > 0 || statusNum === 3) {
-        setCurrentStep(1)
-        setPaymentAccepted(true)
-      }
-    } finally {
-      setCheckingNow(false)
-    }
-  }
-
   // Polling remote order API (start when id available or when do_order_result exists)
   useEffect(() => {
     if (!router.isReady) return
@@ -715,13 +635,6 @@ export default function OrderStatus() {
       {/* TRACK ORDER */}
       <div className={styles.section}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <div className={styles.trackTitle}>Track Orderan</div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button className={styles.btnSmall} onClick={handleManualCheck} disabled={checkingNow}>
-              {checkingNow ? 'Mengecek...' : 'Cek Sekarang'}
-            </button>
-            <div style={{ fontSize: 12, color: '#666' }}>{lastManualCheckAt ? `Terakhir: ${new Date(lastManualCheckAt).toLocaleTimeString()}` : ''}</div>
-          </div>
         </div>
 
         <div className={styles.trackLineWrap}>

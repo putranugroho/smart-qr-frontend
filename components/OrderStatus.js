@@ -769,9 +769,9 @@ export default function OrderStatus() {
             <span>Download Bill</span>
           </button>
 
-          <button className={styles.btnContact} onClick={contactMerchant} aria-label="Kontak merchant" type="button">
+          {/* <button className={styles.btnContact} onClick={contactMerchant} aria-label="Kontak merchant" type="button">
             <span>Kontak</span>
-          </button>
+          </button> */}
         </div>
       </div>
 

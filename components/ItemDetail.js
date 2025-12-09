@@ -555,10 +555,10 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     setAddAnimating(true)
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
 
-    // toastTimerRef.current = setTimeout(() => {
-    //   setAddAnimating(false)
-    //   setShowPopup(true)
-    // }, 520)
+    toastTimerRef.current = setTimeout(() => {
+      setAddAnimating(false)
+      setShowPopup(true)
+    }, 520)
   }
 
   // close popup: then navigate

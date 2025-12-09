@@ -196,8 +196,6 @@ export default function PaymentStatus() {
 
         if (['capture','settlement','success'].includes(txStatus)) {
           // stop poll and redirect to order page
-          stopPolling()
-
           let PaymentCode 
           
           if (j.payment_type.includes("gopay")) {

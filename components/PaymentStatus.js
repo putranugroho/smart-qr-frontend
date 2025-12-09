@@ -216,10 +216,10 @@ export default function PaymentStatus() {
             }
           } catch (e) { /* ignore */ }
 
-          const resolvedTarget = targetOrderCode || j?.order_id || orderId
-          setTimeout(() => {
-            router.push(`/order/${resolvedTarget}`)
-          }, 600)
+          // const resolvedTarget = targetOrderCode || j?.order_id || orderId
+          // setTimeout(() => {
+          //   router.push(`/order/${resolvedTarget}`)
+          // }, 600)
         }
       } catch (err) {
         console.warn('status check failed', err)

@@ -647,7 +647,7 @@ export default function OrderStatus() {
   const baseSteps = [
     { key: 1, title: 'Pesanan Selesai', desc: 'Pesanan sudah selesai', img : '/images/check-icon.png'},
     { key: 2, title: 'Makanan Sedang Disiapkan', desc: 'Pesanan kamu sedang disiapkan', img : '/images/bowl-icon.png' },
-    { key: 3, title: 'Pembayaran Pending', desc: 'Silahkan selesesaikan pembayaran kamu', img : '/images/wallet-icon.png' },
+    { key: 3, title: 'Pembayaran Berhasil', desc: 'Pembayaran kamu sudah diterima', img : '/images/wallet-icon.png' },
     { key: 4, title: 'Pesanan Dibuat', desc: 'Pesanan kamu sudah masuk', img : '/images/mobile-icon.png' },
   ]
 

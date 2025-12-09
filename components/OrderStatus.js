@@ -150,13 +150,6 @@ function calculateItemTaxes(it) {
         }
       })
     }
-
-    console.log('MENU DEBUG', {
-      reportedPrice: reportedPrice,
-      detailPrice: detailPrice,
-      condTotal: condTotal,
-      qty
-    })
   }
 
   return { base: Math.round(base), pb1: Math.round(pb1), ppn: Math.round(ppn) }
@@ -169,6 +162,7 @@ export default function OrderStatus() {
   const [displayOrderId, setDisplayOrderId] = useState('')
   const [dataOrder, setDataOrder] = useState(null)
   const [remoteOrderRaw, setRemoteOrderRaw] = useState(null)
+  const [remoteOrderPayload, setRemoteOrderPayload] = useState(null)
   const [user, setUser] = useState(null)
   const [table, setTable] = useState('')
   const [currentStep, setCurrentStep] = useState(3)
@@ -181,10 +175,15 @@ export default function OrderStatus() {
   const [clientPayment, setClientPayment] = useState({ items: [], paymentTotal: 0 })
   const [lastManualCheckAt, setLastManualCheckAt] = useState(null)
   const [checkingNow, setCheckingNow] = useState(false)
+  const [urlLogo, setUrlLogo] = useState("/images/pay-gopay.png");
 
   // load session midtrans/do_order_result + user (prefer do_order_result stored in session)
   useEffect(() => {
     try {
+      const doOrderPayload = sessionStorage.getItem("do_order_payload");
+      console.log("doOrderPayload", JSON.parse(doOrderPayload).displayOrderId);
+      setRemoteOrderPayload(JSON.parse(doOrderPayload))
+      
       const doOrderRaw = sessionStorage.getItem('do_order_result')
       if (doOrderRaw) {
         const parsed = JSON.parse(doOrderRaw)
@@ -196,6 +195,15 @@ export default function OrderStatus() {
           // set display id (support displayOrderId or orderCode)
           const oc = d.displayOrderId ?? d.orderCode ?? parsed?.data?.orderCode ?? parsed?.orderCode ?? null
           if (oc) setDisplayOrderId(String(oc))
+        }
+
+        switch ((parsed.data.Payment || '').toString().toLowerCase()) {
+          case "qris": setUrlLogo("/images/pay-qris.png"); break;
+          case "shopee": setUrlLogo("/images/pay-shopee.png"); break;
+          case "ovo": setUrlLogo("/images/pay-ovo.png"); break;
+          case "dana": setUrlLogo("/images/pay-dana.png"); break;
+          case "gopay": setUrlLogo("/images/pay-gopay.png"); break;
+          default: setUrlLogo("/images/pay-gopay.png"); break;
         }
       }
     } catch (e) { /* ignore */ }
@@ -356,7 +364,6 @@ export default function OrderStatus() {
 
   items.forEach((it) => {
     const t = calculateItemTaxes(it)
-    console.log("t isinya apa ? ", t);
     
     computedSubtotal += t.base
     computedPB1 += t.pb1
@@ -508,7 +515,7 @@ export default function OrderStatus() {
       } else if (statusNum === 0) {
         setCurrentStep(2)
         setPaymentAccepted(true)
-      } else if (statusNum === 2 || statusNum === 1) {
+      } else if (statusNum > 0 || statusNum === 3) {
         setCurrentStep(1)
       }
     } finally {
@@ -782,10 +789,10 @@ export default function OrderStatus() {
 
         <div className={styles.paymentItem}>
           <div className={styles.paymentItemLeft}>
-            <img src="/images/pay-gopay.png" alt="logo" width={55} height={14} className={styles.iconImg} />
+            <img src={urlLogo} alt="logo" width={55} height={14} className={styles.iconImg} />
           </div>
           <div className={styles.paymentItemRight}>
-            <div className={styles.orderNumber}>DI1982</div>
+            <div className={styles.orderNumber}>{remoteOrderPayload ? remoteOrderPayload.displayOrderId : ""}</div>
           </div>
         </div>
       </div>

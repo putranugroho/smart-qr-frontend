@@ -160,6 +160,7 @@ export default function OrderStatus() {
   const { id } = router.query
 
   const [displayOrderId, setDisplayOrderId] = useState('')
+  const [displayMtId, setDisplayMtId] = useState('')
   const [dataOrder, setDataOrder] = useState(null)
   const [remoteOrderRaw, setRemoteOrderRaw] = useState(null)
   const [remoteOrderPayload, setRemoteOrderPayload] = useState(null)
@@ -193,8 +194,8 @@ export default function OrderStatus() {
           setDataOrder(d)
           setRemoteOrderRaw(parsed)
           // set display id (support displayOrderId or orderCode)
-          const oc = d.displayOrderId ?? d.orderCode ?? parsed?.data?.orderCode ?? parsed?.orderCode ?? null
-          if (oc) setDisplayOrderId(String(oc))
+          const mt_id = d.displayOrderId
+          if (mt_id) setDisplayMtId(String(mt_id))
         }
 
         switch ((parsed.data.Payment || '').toString().toLowerCase()) {
@@ -424,7 +425,7 @@ export default function OrderStatus() {
     try {
       // --- DEFAULT: use proxy route (keamanan / CORS)
       const url = `/api/order/check-status?orderCode=${encodeURIComponent(orderCodeToFetch)}`
-      console.debug('[OrderStatus] fetchRemoteOrder ->', url)
+      console.log('[OrderStatus] fetchRemoteOrder ->', url)
 
       // --- TIMEOUT helper
       const controller = new AbortController()
@@ -470,7 +471,7 @@ export default function OrderStatus() {
     setCheckingNow(true)
     try {
       const apiResp = await fetchRemoteOrder(orderCodeToPoll)
-      console.debug('[OrderStatus] manual check result', apiResp)
+      console.log('[OrderStatus] manual check result', apiResp)
       if (!apiResp || !apiResp.data) {
         alert('Pengecekan gagal atau tidak ada data dari API.')
         return
@@ -792,7 +793,7 @@ export default function OrderStatus() {
             <img src={urlLogo} alt="logo" width={55} height={14} className={styles.iconImg} />
           </div>
           <div className={styles.paymentItemRight}>
-            <div className={styles.orderNumber}>{remoteOrderPayload ? remoteOrderPayload.displayOrderId : ""}</div>
+            <div className={styles.orderNumber}>{displayMtId ? displayMtId : ""}</div>
           </div>
         </div>
       </div>

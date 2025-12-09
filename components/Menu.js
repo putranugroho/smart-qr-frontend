@@ -85,7 +85,7 @@ export default function Menu() {
   const loadingItemsRef = useRef({});
 
   // SWR: fetch categories meta once and cache it
-  const categoriesApi = "/api/proxy/menu-category?storeCode=MGI&orderCategoryCode=DI";
+  const categoriesApi = `/api/proxy/menu-category?storeCode=${getUser().storeLocation}&orderCategoryCode=${getUser().orderType}`;
   const { data: catData, error: catError } = useSWR(categoriesApi, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 60 * 1000
@@ -122,7 +122,7 @@ export default function Menu() {
   useEffect(() => {
     async function loadCombos() {
       try {
-        const url = `/api/proxy/combo-list?orderCategoryCode=DI&storeCode=MGI`;
+        const url = `/api/proxy/combo-list?storeCode=${getUser().storeLocation}&orderCategoryCode=${getUser().orderType}`;
         const r = await fetch(url);
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const j = await r.json();
@@ -207,8 +207,8 @@ export default function Menu() {
       const user = getUser?.() || null;
       if (user) {
         const formatted = {
-          type: user.orderType === "DI" ? (user.tableNumber) : "Takeaway",
-          location: user.storeLocationName || user.location || "Yoshinoya - Mall Grand Indonesia"
+          type: user.orderType,
+          location: user.storeLocation
         };
         setOrderMode(formatted);
       } else {
@@ -349,8 +349,8 @@ export default function Menu() {
         loadingItemsRef.current[String(cat.id)] = true;
         const qs = new URLSearchParams({
           menuCategoryId: String(cat.id),
-          storeCode: 'MGI',
-          orderCategoryCode: 'DI',
+          storeCode: orderMode.location,
+          orderCategoryCode: orderMode.type,
           pageSize: '200'
         }).toString();
 
@@ -432,8 +432,8 @@ export default function Menu() {
             loadingItemsRef.current[String(catObj.id)] = true;
             const qs = new URLSearchParams({
               menuCategoryId: String(catObj.id),
-              storeCode: 'MGI',
-              orderCategoryCode: 'DI',
+              storeCode: orderMode.location,
+              orderCategoryCode: orderMode.type,
               pageSize: '200'
             }).toString();
 

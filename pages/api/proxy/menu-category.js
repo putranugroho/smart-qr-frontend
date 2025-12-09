@@ -1,6 +1,6 @@
 export default async function handler(req, res) {
   try {
-    const { storeCode = 'MGI', orderCategoryCode = 'DI' } = req.query;
+    const { storeCode, orderCategoryCode } = req.query;
 
     const qs = new URLSearchParams({ storeCode, orderCategoryCode });
     const url = process.env.NEXT_PUBLIC_URL_DEV || process.env.NEXT_PUBLIC_URL_API

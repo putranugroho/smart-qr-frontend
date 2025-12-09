@@ -11,8 +11,8 @@ export default async function handler(req, res) {
     }
 
     const {
-      orderCategoryCode = 'DI',
-      storeCode = 'MGI',
+      orderCategoryCode,
+      storeCode,
       // allow passthrough of extra params if needed
       ...restQuery
     } = req.query || {};

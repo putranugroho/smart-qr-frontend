@@ -1,10 +1,11 @@
 // pages/api/proxy/condiment.js
+
 export default async function handler(req, res) {
   try {
     const {
       productCode = '',
-      storeCode = 'MGI',
-      orderCategoryCode = 'DI',
+      orderCategoryCode,
+      storeCode,
       page,
       pageSize
     } = req.query;

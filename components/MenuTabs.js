@@ -1,6 +1,7 @@
 // components/MenuTabs.js
 import React, { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
+import { getUser } from '../lib/auth'
 import styles from "../styles/MenuTabs.module.css";
 
 const fetcher = (u) => fetch(u).then(r => r.json());
@@ -12,7 +13,7 @@ export default function MenuTabs({ selected, onSelect, isHidden, onOpenFullMenu,
   const [topOffset, setTopOffset] = useState(0);
 
   // If parent provided items list, use it; otherwise fetch via SWR and cache
-  const API_URL = "/api/proxy/menu-category?storeCode=MGI&orderCategoryCode=DI";
+  const API_URL = `/api/proxy/menu-category?storeCode=${getUser().storeLocation}&orderCategoryCode=${getUser().orderType}`;
   const { data, error } = useSWR(itemsProp ? null : API_URL, fetcher, { revalidateOnFocus: false, dedupingInterval: 60 * 1000 });
 
   useEffect(() => {

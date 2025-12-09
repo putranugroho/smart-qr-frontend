@@ -273,7 +273,7 @@ export default function PaymentPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          storeCode: getUser().storeCode,
+          storeCode: user.storeCode,
           payload
         })
       });

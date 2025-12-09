@@ -531,6 +531,7 @@ export default function OrderStatus() {
         setPaymentAccepted(true)
       } else if (statusNum > 0 || statusNum === 3) {
         setCurrentStep(1)
+        setPaymentAccepted(true)
       }
     } finally {
       setCheckingNow(false)

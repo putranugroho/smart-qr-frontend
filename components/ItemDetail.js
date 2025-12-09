@@ -4,6 +4,7 @@ import StickyCartBar from './StickyCartBar'
 import { useRouter } from 'next/router'
 import styles from '../styles/ItemDetail.module.css'
 import { addToCart, getCart, updateCart, replaceCartAtIndex } from '../lib/cart'
+import { getUser } from '../lib/auth'
 
 function formatRp(n) {
   if (n == null) return '-'
@@ -59,6 +60,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   }, []);
 
   const [item, setItem] = useState(initialItem)
+  const [dataUser, setDataUser] = useState(initialItem)
   const [addons, setAddons] = useState([])
   const [selected, setSelected] = useState({})
   const [qty, setQty] = useState(1)
@@ -191,9 +193,9 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     setLoading(true)
     setErr(null)
     setNoCondiments(false)
-
-    const orderCategoryCode = 'DI'
-    const storeCode = 'MGI'
+    setDataUser(getUser?.());
+    const orderCategoryCode = dataUser.orderType
+    const storeCode = dataUser.orderType
     const url = `/api/proxy/condiment?productCode=${encodeURIComponent(productCode)}&orderCategoryCode=${encodeURIComponent(orderCategoryCode)}&storeCode=${encodeURIComponent(storeCode)}`
 
     fetch(url)
@@ -333,6 +335,9 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     const apiItem = (propItem && Object.keys(propItem).length) ? propItem : item || {};
     const basePrice = Number(item.price || 0);
     const qtyNum = Number(qty || 1);
+    console.log("propItem", propItem);
+    console.log("item", item);
+    console.log("apiItem", apiItem);
 
     // If editing an existing cart item, prefer it as source for legacy tax info
     let legacySourceForTaxes = apiItem;
@@ -409,14 +414,15 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     const sourceTaxes = Array.isArray(legacySourceForTaxes.taxes) && legacySourceForTaxes.taxes.length
       ? legacySourceForTaxes.taxes
       : (Array.isArray(apiItem.taxes) ? apiItem.taxes : []);
-
-    if (Array.isArray(sourceTaxes) && sourceTaxes.length) {
-      menuTaxes = sourceTaxes.map(t => {
-        const taxName = (t.taxName || t.name || '').toString();
-        const taxPercentage = Number(t.taxPercentage ?? t.amount ?? 0);
-        const taxAmount = Math.round((taxPercentage / 100) * menuBasePrice);
-        return { taxName, taxPercentage, taxAmount };
-      });
+      
+      if (Array.isArray(sourceTaxes) && sourceTaxes.length) {
+        menuTaxes = sourceTaxes.map(t => {
+          const taxName = 'PB1';
+          const taxPercentage = 10;
+          const taxAmount = Math.round((taxPercentage / 100) * menuBasePrice);
+          return { taxName, taxPercentage, taxAmount };
+        });
+        console.log("menuTaxes", menuTaxes);
     } else {
       menuTaxes = [];
     }
@@ -428,10 +434,10 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         code: apiItem.code || item.code || productCode || '',
         name: item.title || apiItem.name || '',
         price: basePrice,
-        image: item.ImagePath || apiItem.ImagePath || '',
+        image: item.image || apiItem.imagePath || '',
       },
       isFromMacro: true,
-      orderType: "DI",
+      orderType: dataUser.orderType,
       qty: qtyNum,
       taxes: menuTaxes
     }];
@@ -549,10 +555,10 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     setAddAnimating(true)
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
 
-    toastTimerRef.current = setTimeout(() => {
-      setAddAnimating(false)
-      setShowPopup(true)
-    }, 520)
+    // toastTimerRef.current = setTimeout(() => {
+    //   setAddAnimating(false)
+    //   setShowPopup(true)
+    // }, 520)
   }
 
   // close popup: then navigate

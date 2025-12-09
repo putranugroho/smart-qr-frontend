@@ -284,7 +284,7 @@ export default function PaymentPage() {
       console.log("doOrderData", doOrderData);
 
       // persist do-order result (orderCode and backend data)
-      sessionStorage.setItem("do_order_result", JSON.stringify(doOrderData));
+      sessionStorage.setItem('do_order_result', JSON.stringify(doOrderData));
       // also persist payload so PaymentStatus can read formatted table number
       try {
         sessionStorage.setItem('do_order_payload', JSON.stringify(payload));

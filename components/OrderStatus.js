@@ -583,6 +583,8 @@ export default function OrderStatus() {
   })
 
   const visibleItems = showAllItems ? items : (itemsCount > 0 ? [items[0]] : [])
+  console.log("visibleItems", visibleItems);
+  
 
   const MERCHANT_PHONE = '+628123456789'
   async function contactMerchant() {

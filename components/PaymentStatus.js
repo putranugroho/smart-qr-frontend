@@ -166,7 +166,7 @@ export default function PaymentStatus() {
         return
       }
 
-      pushLog({ type: 'check-start', orderId, orderCode })
+      pushLog({ type: 'check-start', orderCode })
 
       try {
         const r = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(orderId)}`)

@@ -22,6 +22,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   const initialItem = {
     code: propItem.code || propItem.id || productCode || undefined,
     title: q.title || propItem.name || propItem.title || '',
+    itemName: q.itemName || propItem.itemName || propItem.itemName || '',
     price: q.price ? Number(q.price) : (propItem.price ?? 0),
     image: q.image || propItem.imagePath || propItem.image || '',
     description: q.description || propItem.description || propItem.itemName || ''
@@ -47,6 +48,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     setItem(prev => ({
     code: prev.code || parsed.id || prev.code,
     title: prev.title || parsed.name || prev.title,
+    itemName: prev.itemName || parsed.itemName || prev.itemName,
     price: prev.price || (parsed.price != null ? Number(parsed.price) : prev.price),
     image: prev.image || parsed.image || prev.image,
     description: prev.description || parsed.description || prev.description
@@ -217,7 +219,8 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
           const options = Array.isArray(g.products) ? g.products.map(p => ({
             id: p.code ?? String(p.id),
             rawId: p.id,
-            name: p.name ?? p.itemName ?? '',
+            name: p.name ?? p.name ?? '',
+            itemName: p.itemName ?? p.itemName ?? '',
             price: Number(p.price || 0),
             image: p.imagePath || '',
             description: p.description || ''
@@ -335,13 +338,12 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     const apiItem = (propItem && Object.keys(propItem).length) ? propItem : item || {};
     const basePrice = Number(item.price || 0);
     const qtyNum = Number(qty || 1);
-    console.log("propItem", propItem);
-    console.log("item", item);
-    console.log("apiItem", apiItem);
+    // console.log("propItem", propItem);
+    // console.log("item", item);
+    // console.log("apiItem", apiItem);
 
     // If editing an existing cart item, prefer it as source for legacy tax info
     let legacySourceForTaxes = apiItem;
-    console.log("legacySourceForTaxes.taxes", legacySourceForTaxes.taxes);
     
     try {
       if (fromCheckout && editingIndex != null) {

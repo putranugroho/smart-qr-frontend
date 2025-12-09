@@ -367,9 +367,10 @@ export default function Menu() {
                 id: ensureUniqueIdForMenu(it, cat.id, idx),
                 code,
                 name: it.name,
+                itemName: it.itemName,
                 price: it.price,
                 image: it.imagePath ?? it.imageUrl ?? "/images/no-image-available.jpg",
-                category: cat.name
+                category: cat.name,
               };
             });
 
@@ -450,6 +451,7 @@ export default function Menu() {
                     id: ensureUniqueIdForMenu(it, catObj.id, idx),
                     code,
                     name: it.name,
+                    itemName: it.itemName,
                     price: it.price,
                     image: it.imagePath ?? it.imageUrl ?? "/images/no-image-available.jpg",
                     category: catObj.name
@@ -770,6 +772,7 @@ export default function Menu() {
                 id: ensureUniqueIdForMenu(it, menuCategoryId, idx),
                 code,
                 name: it.name,
+                itemName: it.itemName,
                 price: it.price,
                 image: it.imagePath ?? it.imageUrl ?? "/images/no-image-available.jpg",
                 category: categories.find(c => String(c.id) === String(menuCategoryId))?.name ?? ''

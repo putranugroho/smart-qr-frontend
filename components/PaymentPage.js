@@ -1,5 +1,5 @@
 // pages/paymentpage.js
-import { useRouter } from 'next/router' 
+import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import styles from '../styles/PaymentPage.module.css'
 import Image from 'next/image'
@@ -43,7 +43,7 @@ export default function PaymentPage() {
       storeCode: pay.storeCode || sessionStore,
       tableNumber
     };
-        
+
     const dataUser = getUser?.() || {};
     setUser(dataUser)
 
@@ -51,7 +51,12 @@ export default function PaymentPage() {
       setTable(`Table ${dataUser.tableNumber} • Dine In`)
     } else {
       setTable(`Table ${dataUser.tableNumber} • Take Away`)
-    } 
+    }
+
+    // initialize tableNumber from user if available
+    if (dataUser.tableNumber && String(dataUser.tableNumber).trim() !== '' && String(dataUser.tableNumber).trim() !== '000') {
+      setTableNumber(String(dataUser.tableNumber).trim().toUpperCase());
+    }
 
     setPayment(merged);
     setIsMounted(true);
@@ -63,20 +68,21 @@ export default function PaymentPage() {
     return t === 'TA' || t.includes('TAKE');
   })();
 
+  // treat empty / '000' as not having preset table
   const hasPresetTable =
-    !!(user?.tableNumber && String(user.tableNumber).trim() !== '');
+    !!(user?.tableNumber && String(user.tableNumber).trim() !== '' && String(user.tableNumber).trim() !== '000');
 
   const mustFillTableNumber =
     !isTakeAway && !hasPresetTable;
 
   // compute payload from cart and use it as source of truth for totals
-  function buildPayload(grossAmountForRounding = null) {
+  function buildPayload(grossAmountForRounding = null, explicitTableNumber = null) {
     const cart = payment.cart || [];
     // pass grossAmount so mapDoOrderPayload can compute rounding if needed
     const payload = mapDoOrderPayload(cart, grossAmountForRounding, selectedMethod, {
       posId: 'QR',
       orderType: user.orderType || 'DI',
-      tableNumber: isTakeAway ? '' : tableNumber
+      tableNumber: isTakeAway ? '' : (explicitTableNumber !== null ? explicitTableNumber : tableNumber)
     });
     return payload;
   }
@@ -110,7 +116,7 @@ export default function PaymentPage() {
       ok = false;
     }
 
-    // Table number validation: require pattern 1 letter + at least 2 digits: /^[A-Za-z]\d{2,}$/
+    // Table number validation: require pattern 1 letter + 2-3 digits: /^[A-Za-z]\d{2,3}$/
     if (mustFillTableNumber) {
       // try auto-format first (handles A1 -> A01)
       const formatted = formatTableOnBlur(tableNumber || '');
@@ -119,9 +125,9 @@ export default function PaymentPage() {
         setTableNumber(formatted);
       }
 
-      const pattern = /^[A-Za-z]\d{2,}$/;
+      const pattern = /^[A-Za-z]\d{2,3}$/;
       if (!formatted || !pattern.test(formatted)) {
-        next.tableNumber = 'Nomer meja harus format: 1 huruf di depan lalu 2 angka (contoh: A01).';
+        next.tableNumber = 'Nomer meja harus format: 1 huruf di depan lalu 2–3 angka (contoh: A01 atau A123).';
         ok = false;
       }
     }
@@ -131,27 +137,21 @@ export default function PaymentPage() {
   }
 
   // Auto-format table number on blur:
+  // - Accept 1 letter + 1-3 digits typed by user, then pad to at least 2 digits for payload/display
   function formatTableOnBlur(v) {
     if (!v) return v;
     let s = String(v).trim().toUpperCase();
+    // Remove whitespace inside, e.g. "A 1" -> "A1"
+    s = s.replace(/\s+/g, '');
     // jika mulai dengan letter + digits => pad angka minimal 2 digits (contoh A1 -> A01)
-    const m = s.match(/^([A-Z])(\d+)$/i);
+    const m = s.match(/^([A-Z])(\d{1,3})$/i);
     if (m) {
       const letter = m[1];
       let digits = m[2];
-      // pad to at least 2 digits
+      // pad to at least 2 digits (A1 -> A01), allow up to 3 digits
       if (digits.length === 1) digits = digits.padStart(2, '0'); // A1 -> A01
-      s = letter + digits;
-      return s;
-    }
-
-    const compact = s.replace(/\s+/g, '');
-    const mm = compact.match(/^([A-Z])(\d+)$/i);
-    if (mm) {
-      const letter = mm[1];
-      let digits = mm[2];
-      if (digits.length === 1) digits = digits.padStart(2, '0');
-      return letter + digits;
+      // if digits already 2 or 3, keep as is
+      return `${letter}${digits}`;
     }
 
     return s;
@@ -174,9 +174,35 @@ export default function PaymentPage() {
       const cart = payment.cart || [];
       if (!cart.length) throw new Error("Cart kosong – gagal membuat do-order");
 
-      // Build payload (source of truth)
-      const payload = buildPayload();
+      // Normalize tableNumber now (so payload gets formatted value like A01)
+      const formattedTable = formatTableOnBlur(tableNumber || '');
+      const finalTableForPayload = formattedTable || tableNumber || '';
+
+      // ensure state shows formatted value
+      if (formattedTable && formattedTable !== tableNumber) {
+        setTableNumber(formattedTable);
+      }
+
+      // final validation just to be safe
+      if (!validateAll(true)) {
+        setIsLoading(false);
+        return;
+      }
+
+      // Build payload (source of truth) explicitly passing finalTableForPayload to avoid setState race
+      const payload = buildPayload(null, finalTableForPayload);
       console.log("payload", payload);
+
+      // persist tableNumber in sessionStorage payload so downstream pages can read the same formatted value
+      try {
+        const existing = sessionStorage.getItem('do_order_payload');
+        let p = existing ? JSON.parse(existing) : {};
+        p.tableNumber = finalTableForPayload;
+        p.table_number = finalTableForPayload;
+        sessionStorage.setItem('do_order_payload', JSON.stringify(p));
+      } catch (e) {
+        console.warn('failed to persist do_order_payload tableNumber', e);
+      }
 
       const grossAmount = payload.grandTotal || 1;
 
@@ -230,6 +256,9 @@ export default function PaymentPage() {
 
       payload.customerName = customer.first_name || "";
       payload.customerPhoneNumber = "0" + (customer.phone || "");
+      // ensure payload.tableNumber is the formatted one
+      payload.tableNumber = finalTableForPayload;
+      payload.table_number = finalTableForPayload;
 
       console.log("payload (do-order) :", payload);
 
@@ -250,6 +279,10 @@ export default function PaymentPage() {
 
       // persist do-order result (orderCode and backend data)
       sessionStorage.setItem("do_order_result", JSON.stringify(doOrderData));
+      // also persist payload so PaymentStatus can read formatted table number
+      try {
+        sessionStorage.setItem('do_order_payload', JSON.stringify(payload));
+      } catch (e) { /* ignore */ }
 
       // clear client cart (calls clearCart -> localStorage)
       clearCart();
@@ -292,7 +325,7 @@ export default function PaymentPage() {
 
   // table input change
   function handleTableChange(v) {
-    // normalize to uppercase + trim spaces (live)
+    // normalize to uppercase + remove spaces (live)
     const normalized = String(v || '').toUpperCase().replace(/\s+/g, '');
     setTableNumber(normalized);
     if (errors.tableNumber) setErrors(prev => ({ ...prev, tableNumber: '' }));
@@ -371,7 +404,7 @@ export default function PaymentPage() {
             <div className={styles.inputWrap}>
               <input
                 className={styles.input}
-                placeholder="Masukan Nomer Meja (contoh: A01 / A001)"
+                placeholder="Masukan Nomer Meja (contoh: A01 / A123)"
                 value={tableNumber}
                 onChange={(e)=>handleTableChange(e.target.value)}
                 onBlur={handleTableBlur}

@@ -71,13 +71,13 @@ export default function PaymentStatus() {
     return raw.toLowerCase()
   }
 
-  async function callDoPayment(orderCodeParam, paymentType, reference) {
+  async function callDoPayment(orderCodeParam, PaymentCode, reference) {
     const resp = await fetch('/api/order/do-payment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         orderCode: orderCodeParam,
-        payment: (paymentType || 'GOPAY').toString().toUpperCase(),
+        payment: PaymentCode.toString().toUpperCase(),
         reference
       })
     })
@@ -425,10 +425,18 @@ export default function PaymentStatus() {
         rawJson: JSON.stringify(j).slice(0, 1000)
       })
 
+      let PaymentCode 
+      
+      if (j.payment_type.includes("gopay")) {
+        PaymentCode = "GOPAY"
+      } if (j.payment_type.includes("qris")) {
+        PaymentCode = "QRISOTHERS"
+      } 
+
       if (['capture','settlement','success'].includes(txStatus)) {
         const resolvedMidtransOrderId = j.order_id || j.orderId || tx.order_id
         try {
-          await callDoPayment(orderCode || (orderMeta?.orderId ?? null), j.payment_type || j.paymentType || 'UNKNOWN', resolvedMidtransOrderId)
+          await callDoPayment(orderCode || (orderMeta?.orderId ?? null), PaymentCode, resolvedMidtransOrderId)
         } catch (e) {
           console.error('call failed', e)
           pushLog({ type: 'do-payment', ok: false, error: String(e) })

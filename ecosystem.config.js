@@ -4,8 +4,8 @@ module.exports = {
     {
       name: "smart-qr",
       cwd: "C:/inetpub/wwwroot/smart-qr-frontend",
-      script: "C:/inetpub/wwwroot/smart-qr-frontend/start-smart-qr.bat",
-      exec_interpreter: "none",
+      script: "start-smart-qr.bat",
+      interpreter: "none",
       exec_mode: "fork",
       windowsHide: false,
       env: {

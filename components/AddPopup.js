@@ -2,6 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/router'
+import { userSignIn, getUser } from '../lib/auth';
 
 export default function AddPopup({
   visible = false,
@@ -16,11 +17,45 @@ export default function AddPopup({
   const [show, setShow] = useState(Boolean(visible))
   const popupRef = useRef(null)
   const router = useRouter()
+  const [storeLocation, setStoreLocation] = useState('MGI');
+  const [orderType, setOrderType] = useState(''); // '' | 'DI' | 'TA'
+  const [tableNumber, setTableNumber] = useState(''); // e.g. 'Table 24' or ''
+
+  useEffect(() => {
+    // read saved user from localStorage on mount
+    try {
+      const saved = getUser();
+      if (saved && typeof saved === 'object') {
+        // use saved values if available (keeps fallback if not)
+        if (saved.storeLocation) setStoreLocation(saved.storeLocation);
+        if (saved.orderType) setOrderType(saved.orderType);
+        if (saved.tableNumber) setTableNumber(saved.tableNumber);
+      }
+    } catch (e) {
+      console.error('HeroLocation: failed to read user', e);
+    }
+  }, []);
 
   // sync visible prop -> internal
   useEffect(() => {
     setShow(Boolean(visible))
   }, [visible])
+  
+  const goToMenu = (mode) => {
+    // If mode explicitly provided, use it; else use current orderType or default to TAKEAWAY
+    const chosenMode = mode === 'dinein' ? 'DI' : mode === 'takeaway' ? 'TA' : "" ;
+
+    // Prepare user object using current state
+    const userAuth = {
+      storeLocation: storeLocation || 'MGI',
+      orderType: chosenMode,
+      tableNumber: '', // keep table only for dine-in
+    };
+
+    // persist and go to menu
+    userSignIn(userAuth);
+    router.push('/menu');
+  };
 
   // compute position relative to anchorRef
   useLayoutEffect(() => {
@@ -119,7 +154,7 @@ export default function AddPopup({
             {/* Row: Dine In */}
             <button 
                 style={{ display: 'flex', alignItems: 'center', gap: 10, border: 'none', background: 'white' }}
-                onClick={() => router.push('/menu')}
+                onClick={() => goToMenu('dinein')}
             >
               <div style={{ width: 16, height: 16, flex: '0 0 16px' }}>
                 <Image src="/images/fork-knife-icon.png" alt="Dine In" width={16} height={16} />
@@ -145,7 +180,7 @@ export default function AddPopup({
             {/* Row: Takeaway */}
             <button 
                 style={{ display: 'flex', alignItems: 'center', gap: 10, border: 'none', background: 'white' }}
-                onClick={() => router.push('/menu')}
+                onClick={() => goToMenu('takeaway')}
             >
               <div style={{ width: 16, height: 16, flex: '0 0 16px' }}>
                 <Image src="/images/tote-icon.png" alt="Takeaway" width={16} height={16} />

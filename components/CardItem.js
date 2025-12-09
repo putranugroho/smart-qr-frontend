@@ -77,6 +77,7 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
     const productCode = item.id;
     const q = {};
     if (item.name) q.title = item.name;
+    if (item.itemName) q.itemName = item.itemName;
     if (item.description) q.description = item.description;
     if (item.price != null) q.price = item.price;
     if (imgSrc) q.image = imgSrc;

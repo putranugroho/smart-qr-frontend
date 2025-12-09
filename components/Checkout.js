@@ -1,3 +1,4 @@
+//component/checkout.js
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/router'
 import Image from 'next/image'
@@ -273,7 +274,7 @@ export default function CheckoutPage() {
         sessionStorage.setItem('yoshi_edit', JSON.stringify({ index, signature: `combo|${index}` }))
       } catch (e) { /* ignore */ }
       // route to combo-detail with from=checkout & index
-      router.push(`/combo-detail?from=checkout&index=${index}`)
+      router.push(`/combo-detail?comboCode=${it.combos[0].detailCombo.code}&from=checkout&index=${index}`)
       return
     }
 
@@ -480,7 +481,7 @@ export default function CheckoutPage() {
             img = it.image || img
           }
 
-          const title = it.type === 'combo' ? (it.detailCombo?.name || it.detailCombo?.code || 'Combo') : (it.title || it.name || it.itemName || '')
+          const title = it.type === 'combo' ? (it.detailCombo?.name || it.detailCombo?.code || 'Combo') : (it.title || it.name || '')
 
           return (
             <div key={i} className={styles.cartItem}>

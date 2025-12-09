@@ -10,8 +10,8 @@ function formatRp(n) {
 
 export default function CardItem({ item, onAdd, mode = "grid" }) {
   const router = useRouter();
-  const imgSrc = item.image ?? "/images/no-image-available.jpg";
-  const name = item.name || item.itemName || item.title || "";
+  const imgSrc = (!item.image || item.image == "" ? "/images/no-image-available.jpg" : item.image) ;
+  const name = item.name || "";
   // item may have `categoryId` or `category` name; we prefer numeric id if available
   const categoryId = item.categoryId ?? item.categoryIdRaw ?? item.menuCategoryId ?? null
   const categoryName = item.category ?? null
@@ -21,10 +21,10 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
       // store a small serialized object so ItemDetail can restore on refresh
       const toStore = {
         id: item.id ?? item.code ?? item.productCode,
-        name: item.name ?? item.itemName ?? item.title,
+        name: item.name,
         price: item.price ?? item.basePrice ?? null,
         image: imgSrc,
-        description: item.description ?? item.itemName ?? item.title ?? ''
+        description: item.description ?? ''
       }
       sessionStorage.setItem('last_item_obj', JSON.stringify(toStore));
     } catch (e) {

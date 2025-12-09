@@ -84,7 +84,7 @@ export default function HeroLocation() {
                   width={18}
                   height={18}
                 />
-                <span style={{ fontSize: 14 }}>{tableNumber !== '' && tableNumber !== '000' ? tableNumber : 'Table'}</span>
+                <span style={{ fontSize: 14 }}>{tableNumber !== '' && tableNumber !== '000' ? `tableNumber ${tableNumber}` : 'Table'}</span>
               </button>
             </div>
 

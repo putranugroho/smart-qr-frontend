@@ -2,8 +2,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import dynamic from 'next/dynamic'
+import { getCart } from '../lib/cart' // <-- gunakan helper cart untuk recover saat edit
 
-// import ComboDetail dynamically (client-side). This avoids SSR issues because we read sessionStorage.
 const ComboDetail = dynamic(() => import('../components/ComboDetail'), { ssr: false })
 
 export default function ComboDetailPage() {
@@ -13,37 +13,85 @@ export default function ComboDetailPage() {
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
-    // only run on client and when router ready
     if (!router.isReady) return
 
-    // If opened for editing from checkout, we intentionally pass no comboObj
-    // so that components/ComboDetail can load the combo from cart using the index.
-    if (String(from || '') === 'checkout' && (index != null && index !== '')) {
+    // jika datang dari checkout (mode edit), kita coba ambil data combo dari cart/session
+    if (String(from) === 'checkout' && index != null) {
+      // prefer to get from cart entry (client-side)
+      try {
+        const cart = getCart() || []
+        const idx = Number(index)
+        const entry = cart[idx]
+        if (entry && entry.type === 'combo' && Array.isArray(entry.combos) && entry.combos.length > 0) {
+          // build a combo object similar to the API shape, but keep it simple
+          const first = entry.combos[0]
+          const detail = first.detailCombo || entry.detailCombo || {}
+          const minimal = {
+            id: detail.code || detail.id || detail.name || `combo_${idx}`,
+            code: detail.code || detail.id || detail.name || `combo_${idx}`,
+            name: detail.name || detail.title || 'Combo',
+            description: detail.description || '',
+            image: detail.image || entry.image || null,
+            comboGroups: (first.products || []).reduce((acc, p) => {
+              const gk = p.comboGroup || p.comboGroupCode || `group_${p.comboGroup || p.comboGroupCode || 'x'}`
+              const found = acc.find(x => x.code === gk)
+              if (!found) {
+                acc.push({
+                  id: gk,
+                  code: gk,
+                  name: gk,
+                  allowSkip: true,
+                  products: []
+                })
+              }
+              const group = acc.find(x => x.code === gk)
+              group.products.push({
+                id: p.code ?? p.id,
+                code: p.code ?? p.id,
+                name: p.name || '',
+                price: p.price ?? 0,
+                imagePath: p.imagePath ?? p.image ?? null,
+                condimentGroups: p.condimentGroups || []
+              })
+              return acc
+            }, [])
+          }
+          // persist to session for component recovery under the same key `combo_{code}`
+          try {
+            if (minimal.code) sessionStorage.setItem(`combo_${String(minimal.code)}`, JSON.stringify(minimal))
+          } catch (e) {}
+          setComboObj(minimal)
+          setLoaded(true)
+          return
+        }
+      } catch (e) {
+        console.warn('recover combo page failed', e)
+      }
+
+      // if not found -> still render ComboDetail (it will attempt fetch/recover)
       setComboObj(null)
       setLoaded(true)
       return
     }
 
+    // normal flow (buka dari menu dengan comboId / query)
     let combo = null
+
     try {
+      // ✅ gunakan key yang sama (combo_{code}) agar konsisten
       if (comboId) {
-        const key = `combo_${String(comboId)}`
+        const key = `combo_${comboId}`
         const raw = sessionStorage.getItem(key)
-        if (raw) {
-          combo = JSON.parse(raw)
-        }
+        if (raw) combo = JSON.parse(raw)
       }
+
       if (!combo && comboQuery) {
-        // fallback if full combo JSON passed in querystring
         try {
-          combo = JSON.parse(String(comboQuery))
-        } catch (e) {
-          // try decodeURIComponent
-          try { combo = JSON.parse(decodeURIComponent(String(comboQuery))) } catch (ee) {}
-        }
+          combo = JSON.parse(decodeURIComponent(String(comboQuery)))
+        } catch {}
       }
     } catch (e) {
-      console.warn('combo-detail: read combo failed', e)
+      console.warn('combo-detail read failed', e)
     }
 
     setComboObj(combo)
@@ -52,21 +100,6 @@ export default function ComboDetailPage() {
 
   if (!loaded) return <div style={{ padding: 20 }}>Memuat...</div>
 
-  // If opened for editing from checkout, allow ComboDetail to handle loading by index
-  if (String(from || '') === 'checkout' && (index != null && index !== '')) {
-    return <ComboDetail /> // ComboDetail will read router.query.index and load cart
-  }
-
-  if (!comboObj) {
-    return (
-      <div style={{ padding: 20 }}>
-        <div>Data combo tidak ditemukan. Pastikan Anda membuka halaman ini dari menu/produk combo.</div>
-        <div style={{ marginTop: 12 }}>
-          <button onClick={() => router.push('/menu')}>Kembali ke Menu</button>
-        </div>
-      </div>
-    )
-  }
-
+  // selalu pass comboObj (bisa null)
   return <ComboDetail combo={comboObj} />
 }

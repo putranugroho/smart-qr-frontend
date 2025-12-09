@@ -341,6 +341,8 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
     // If editing an existing cart item, prefer it as source for legacy tax info
     let legacySourceForTaxes = apiItem;
+    console.log("legacySourceForTaxes.taxes", legacySourceForTaxes.taxes);
+    
     try {
       if (fromCheckout && editingIndex != null) {
         const currentCart = getCart() || [];
@@ -433,6 +435,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
       detailMenu: {
         code: apiItem.code || item.code || productCode || '',
         name: item.title || apiItem.name || '',
+        itemName: apiItem.itamName || item.itemName || '',
         price: basePrice,
         image: item.image || apiItem.imagePath || '',
       },

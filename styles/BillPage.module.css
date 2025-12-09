@@ -49,7 +49,9 @@
   display: flex;
   justify-content: space-between;
   border-bottom: 1px solid #e5e5e5;
+  border-top: 1px solid #e5e5e5;
   padding-bottom: 12px;
+  padding-top: 12px;
 }
 
 .billLabel {
@@ -81,6 +83,11 @@
   flex: 1;
   display: flex;
   flex-direction: column;
+}
+
+.sectionHeader{
+  align-self: center;
+  font-weight: 700;
 }
 
 .itemTitle {
@@ -179,4 +186,20 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.outletHeader {
+  text-align: center;
+  margin-bottom: 12px;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.outletName {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.outletAddr {
+  margin-top: 5px;
 }

@@ -134,7 +134,7 @@ export default function BillPage() {
 
     // prefer do_order_result in sessionStorage
     try {
-      const raw = sessionStorage.getItem("do_order_result");
+      const raw = sessionStorage.getItem('do_order_result');
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
@@ -242,6 +242,20 @@ export default function BillPage() {
 
   // final items to render: payload if present else client payment items
   const items = itemsFromPayload.length > 0 ? itemsFromPayload : (paymentFromStorage.items || []);
+  console.log("items", items);
+  
+  {/* ========= GROUPING by ORDERTYPE ========= */}
+  const dineInItems = items.filter(it =>
+    it.type === "combo"
+      ? it.combos?.[0]?.orderType === "DI"
+      : it.menus?.[0]?.orderType === "DI"
+  );
+
+  const takeAwayItems = items.filter(it =>
+    it.type === "combo"
+      ? it.combos?.[0]?.orderType === "TA"
+      : it.menus?.[0]?.orderType === "TA"
+  );
 
   // compute totals using calculateItemTaxes but if doOrderRaw contains top-level taxes, prefer those amounts
   let computedSubtotal = 0;
@@ -303,6 +317,13 @@ export default function BillPage() {
 
       {/* CONTENT */}
       <div ref={printRef} className={styles.billWrapper}>
+        <div className={styles.outletHeader}>
+          <div className={styles.outletName}>Yoshinoya Mall Grand Indonesia</div>
+          <div className={styles.outletAddr}>
+            Jl. M.H. Thamrin No.1, Kb. Melati, Kecamatan Tanah Abang, Kota Jakarta Pusat,  
+            Daerah Khusus Ibukota Jakarta 10230
+          </div>
+        </div>
         {/* NOMOR BILL */}
         <div className={styles.billNumberRow}>
           <div className={styles.billLabel}>Nomor Bill</div>
@@ -315,53 +336,125 @@ export default function BillPage() {
           <div className={styles.npwpLabel}>{user?.tableNumber ?? (doOrderRaw?.tableNumber ?? "")}</div>
         </div>
 
-        {/* ITEMS */}
-        {items.map((it, i) => {
-          if (it.type === "combo") {
-            const comboProducts = it.combos?.[0]?.products ?? [];
-            const comboTotal = comboProducts.reduce((t, p) => t + (Number(p.price || 0) * Number(p.qty || 1)), 0);
-            return (
-              <div key={i} className={styles.itemRow}>
-                <div className={styles.itemLeft}>
-                  <div className={styles.itemTitle}>
-                    {it.detailCombo?.name ?? it.title} ({it.qty}x)
+        {/* ====== DINE IN SECTION ====== */}
+        {dineInItems.length > 0 && (
+          <>
+            <div className={styles.sectionHeader}>DINE IN</div>
+
+            {dineInItems.map((it, i) => {
+              /* ---- Combo DI ---- */
+              if (it.type === "combo") {
+                const comboProducts = it.combos?.[0]?.products ?? [];
+                const comboTotal = comboProducts.reduce(
+                  (t, p) => t + (Number(p.price || 0) * Number(p.qty || 1)),
+                  0
+                );
+
+                return (
+                  <div key={`DI-${i}`} className={styles.itemRow}>
+                    <div className={styles.itemLeft}>
+                      <div className={styles.itemTitle}>
+                        {it.detailCombo?.name} ({it.qty}x)
+                      </div>
+                      <div className={styles.itemAddon}>
+                        {comboProducts.map((p, idx) => (
+                          <div key={idx}>• {p.name}</div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className={styles.itemRight}>{formatRp(comboTotal)}</div>
                   </div>
-                  <div className={styles.itemAddon}>
-                    {comboProducts.map((p, idx) => (
-                      <div key={idx}>• {p.name}</div>
-                    ))}
+                );
+              }
+
+              /* ---- Normal Menu DI ---- */
+              const menu = it.menus?.[0] ?? {};
+              const detail = menu.detailMenu ?? {};
+              const condText =
+                menu.condiments?.length
+                  ? menu.condiments.map(c => c.name || c.group || c.code).join(", ")
+                  : (it.note || "No Add Ons");
+
+              return (
+                <div key={`DI-${i}`} className={styles.itemRow}>
+                  <div className={styles.itemLeft}>
+                    <div className={styles.itemTitle}>{detail.itemName}</div>
+                    <div className={styles.itemAddon}>• {condText}</div>
+                  </div>
+
+                  <div className={styles.itemRight}>
+                    {formatRp(
+                      (Number(detail.price ?? it.price ?? 0)) * (Number(it.qty || 1))
+                    )}
                   </div>
                 </div>
+              );
+            })}
+          </>
+        )}
 
-                <div className={styles.itemRight}>
-                  {formatRp(comboTotal)}
+
+
+        {/* ====== TAKE AWAY SECTION ====== */}
+        {takeAwayItems.length > 0 && (
+          <>
+            <div className={styles.sectionHeader}>TAKE AWAY</div>
+
+            {takeAwayItems.map((it, i) => {
+              /* ---- Combo TA ---- */
+              if (it.type === "combo") {
+                const comboProducts = it.combos?.[0]?.products ?? [];
+                const comboTotal = comboProducts.reduce(
+                  (t, p) => t + (Number(p.price || 0) * Number(p.qty || 1)),
+                  0
+                );
+
+                return (
+                  <div key={`TA-${i}`} className={styles.itemRow}>
+                    <div className={styles.itemLeft}>
+                      <div className={styles.itemTitle}>
+                        {it.detailCombo?.name} ({it.qty}x)
+                      </div>
+                      <div className={styles.itemAddon}>
+                        {comboProducts.map((p, idx) => (
+                          <div key={idx}>• {p.name}</div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className={styles.itemRight}>{formatRp(comboTotal)}</div>
+                  </div>
+                );
+              }
+
+              /* ---- Normal Menu TA ---- */
+              const menu = it.menus?.[0] ?? {};
+              const detail = menu.detailMenu ?? {};
+
+              const condText =
+                menu.condiments?.length
+                  ? menu.condiments.map(c => c.name || c.group || c.code).join(", ")
+                  : (it.note || "No Add Ons");
+
+              return (
+                <div key={`TA-${i}`} className={styles.itemRow}>
+                  <div className={styles.itemLeft}>
+                    <div className={styles.itemTitle}>{detail.itemName}</div>
+                    <div className={styles.itemAddon}>• {condText}</div>
+                  </div>
+
+                  <div className={styles.itemRight}>
+                    {formatRp(
+                      (Number(detail.price ?? it.price ?? 0)) * (Number(it.qty || 1))
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          }
+              );
+            })}
+          </>
+        )}
 
-          // normal menu item
-          const condText = (Array.isArray(it.condiments) && it.condiments.length)
-            ? it.condiments.map(c => c.name || c.group || c.code).join(", ")
-            : (it.note || "No Add Ons");
-
-          return (
-            <div key={i} className={styles.itemRow}>
-              <div className={styles.itemLeft}>
-                <div className={styles.itemTitle}>{it.title ?? it.name}</div>
-                <div className={styles.itemAddon}>• {condText}</div>
-              </div>
-              <div className={styles.itemRight}>
-                {formatRp(
-                  (
-                    Number(it.price ?? it.detailMenu?.price ?? it.detailMenu?.Price ?? 0) +
-                    (Array.isArray(it.condiments) ? it.condiments.reduce((s, c) => s + (Number(c.price || 0) * (Number(c.qty || 1) || 1)), 0) : 0)
-                  ) * (Number(it.qty || 1))
-                )}
-              </div>
-            </div>
-          );
-        })}
 
         {/* PAYMENT BOX */}
         <div className={styles.paymentBox}>

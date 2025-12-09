@@ -172,6 +172,7 @@ export default function OrderStatus() {
   const popupShownRef = useRef(false)
   const pollOrderRef = useRef(null)
   const [paymentAccepted, setPaymentAccepted] = useState(false)
+  const [orderFinish, setOrderFinish] = useState(false)
   const [clientPayment, setClientPayment] = useState({ items: [], paymentTotal: 0 })
   const [lastManualCheckAt, setLastManualCheckAt] = useState(null)
   const [checkingNow, setCheckingNow] = useState(false)
@@ -549,6 +550,7 @@ export default function OrderStatus() {
         } else if (statusNum > 0 || statusNum === 3) {
           setCurrentStep(1)
           setPaymentAccepted(true)
+          setOrderFinish(true)
         }
       } catch (err) {
         console.warn('checkOrder error', err)
@@ -570,7 +572,7 @@ export default function OrderStatus() {
 
   const baseSteps = [
     { key: 1, title: 'Pesanan Selesai', desc: 'Pesanan sudah selesai', img : '/images/check-icon.png'},
-    { key: 2, title: 'Makanan Sedang Disiapkan', desc: 'Pesanan kamu sedang disiapkan', img : '/images/bowl-icon.png' },
+    { key: 2, title: 'Makanan Sudah Siap', desc: 'Pesanan kamu akan segera diantar', img : '/images/bowl-icon.png' },
     { key: 3, title: 'Pembayaran Berhasil', desc: 'Pembayaran kamu sudah diterima', img : '/images/wallet-icon.png' },
     { key: 4, title: 'Pesanan Dibuat', desc: 'Pesanan kamu sudah masuk', img : '/images/mobile-icon.png' },
   ]
@@ -578,6 +580,9 @@ export default function OrderStatus() {
   const steps = baseSteps.map(s => {
     if (s.key === 3 && !paymentAccepted) {
       return { ...s, title: 'Pembayaran Pending', desc: 'Silahkan selesesaikan pembayaran kamu' }
+    }
+    if (s.key === 1 && !orderFinish) {
+      return { ...s, title: 'Makanan Sedang Disiapkan', desc: 'Pesanan kamu sedang disiapkan' }
     }
     return s
   })
@@ -667,45 +672,98 @@ export default function OrderStatus() {
         <div className={styles.itemsTitle}>Ordered Items ({itemsCount})</div>
         <div className={styles.trackLine}></div>
 
-        <div className={styles.itemsList}>
-          {visibleItems.length === 0 && (
-            <div className={styles.noItems}>Belum ada item dipesan.</div>
-          )}
+        {/* Grouping items berdasarkan orderType */}
+        {(() => {
+          const groups = visibleItems.reduce((acc, it) => {
+            const type = it.orderType || it.combos?.[0]?.orderType || it.menus?.[0]?.orderType || 'UNKNOWN';
+            if (!acc[type]) acc[type] = [];
+            acc[type].push(it);
+            return acc;
+          }, {});
 
-          {visibleItems.map((it, i) => (
-            <div key={i} className={styles.itemRow}>
-              <div className={styles.itemImageWrap}>
-                <Image
-                  src={it.detailCombo?.image ?? it.image ?? '/images/no-image-available.jpg'}
-                  alt={it.detailCombo?.name ?? it.title ?? it.name ?? 'item'}
-                  width={64}
-                  height={64}
-                  className={styles.itemImage}
-                />
-              </div>
+          const orderedTypes = ['DI', 'TA']; // urutan tampil
 
-              <div className={styles.itemInfo}>
-                <div className={styles.itemTitle}>{it.detailCombo?.name ?? it.title ?? it.name}</div>
+          return (
+            <div className={styles.itemsList}>
 
-                <div className={styles.itemAddon}>
-                  {it.type === 'combo' ? (
-                    <>
-                      {it.qty || 1}x • {it.combos?.[0]?.products?.map(p => p.name).filter(Boolean).join(' + ') || 'Combo'}
-                    </>
-                  ) : (
-                    <>{(it.qty || 1)}x {it.condiments && it.condiments.length ? it.condiments.map(c => c.name || c.group || c.code).join(', ') : (it.note || 'No Add On')}</>
-                  )}
-                </div>
-              </div>
+              {visibleItems.length === 0 && (
+                <div className={styles.noItems}>Belum ada item dipesan.</div>
+              )}
 
-              <div className={styles.itemPrice}>{formatRp(Number(it.price || 0) * (Number(it.qty || 1)))}</div>
+              {/* Render DI lalu TA */}
+              {orderedTypes.map((ot) =>
+                groups[ot] ? (
+                  <div key={ot} className={styles.groupBlock}>
+
+                    {/* Title per kelompok */}
+                    <div className={styles.groupTitle}>
+                      {ot === 'DI' ? 'Dine In' : 'Take Away'}
+                    </div>
+
+                    {/* List item di dalam kelompok */}
+                    {groups[ot].map((it, i) => (
+                      <div key={i} className={styles.itemRow}>
+                        <div className={styles.itemImageWrap}>
+                          <Image
+                            src={it.detailCombo?.image ?? it.image ?? '/images/no-image-available.jpg'}
+                            alt={it.detailCombo?.name ?? it.title ?? it.name ?? 'item'}
+                            width={64}
+                            height={64}
+                            className={styles.itemImage}
+                          />
+                        </div>
+
+                        <div className={styles.itemInfo}>
+                          <div className={styles.itemTitle}>
+                            {it.detailCombo?.name ?? it.title ?? it.name}
+                          </div>
+
+                          <div className={styles.itemAddon}>
+                            {it.type === 'combo' ? (
+                              <>
+                                {it.qty || 1}x •{' '}
+                                {it.combos?.[0]?.products
+                                  ?.map(p => p.name)
+                                  .filter(Boolean)
+                                  .join(' + ') || 'Combo'}
+                              </>
+                            ) : (
+                              <>
+                                {(it.qty || 1)}x{' '}
+                                {it.condiments && it.condiments.length
+                                  ? it.condiments.map(c =>
+                                      c.name || c.group || c.code
+                                    ).join(', ')
+                                  : it.note || 'No Add On'}
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className={styles.itemPrice}>
+                          {formatRp(Number(it.price || 0) * Number(it.qty || 1))}
+                        </div>
+                      </div>
+                    ))}
+
+                  </div>
+                ) : null
+              )}
+
             </div>
-          ))}
-        </div>
+          );
+        })()}
 
         {itemsCount > 1 && (
-          <button className={styles.viewAllBtn} onClick={handleToggleShowAll} type="button" aria-expanded={showAllItems}>
-            <span className={styles.viewAllText}>{showAllItems ? 'Lebih Sedikit' : 'Lihat Semua'}</span>
+          <button
+            className={styles.viewAllBtn}
+            onClick={handleToggleShowAll}
+            type="button"
+            aria-expanded={showAllItems}
+          >
+            <span className={styles.viewAllText}>
+              {showAllItems ? 'Lebih Sedikit' : 'Lihat Semua'}
+            </span>
           </button>
         )}
       </div>

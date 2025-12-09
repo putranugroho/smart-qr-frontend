@@ -19,6 +19,12 @@ export default function HeroLocation() {
     // read saved user from localStorage on mount
     try {
       const saved = getUser();
+      if (saved && typeof saved === 'object') {
+        // use saved values if available (keeps fallback if not)
+        if (saved.storeLocation) setStoreLocation(saved.storeLocation);
+        if (saved.orderType) setOrderType(saved.orderType);
+        if (saved.tableNumber) setTableNumber(saved.tableNumber);
+      }
     } catch (e) {
       console.error('HeroLocation: failed to read user', e);
     }

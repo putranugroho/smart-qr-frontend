@@ -26,7 +26,7 @@ export default async function handler(req, res) {
       enable_callback: true,
       // contoh callback scheme -> bisa berupa myapp://payment-callback
       // atau https://yourdomain.com/payment-callback jika ingin redirect via web
-      callback_url: process.env.GOPAY_CALLBACK_URL || 'myapp://payment-callback'
+      callback_url: process.env.NEXT_PUBLIC_MIDTRANS_CALLBACK_URL || 'myapp://payment-callback'
     };
   }
 

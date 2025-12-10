@@ -530,8 +530,8 @@ export default function OrderStatus() {
                   if (!already && !popupShownRef.current) {
                     popupShownRef.current = true
                     try { sessionStorage.setItem(popupKey, '1') } catch (e) {}
-                    setPaymentRedirectUrl(paymentLinkFromApi || sessionStorage.getItem('payment_link_for_order') || '')
-                    setShowPaymentRedirectModal(true)
+                    // setPaymentRedirectUrl(paymentLinkFromApi || sessionStorage.getItem('payment_link_for_order') || '')
+                    // setShowPaymentRedirectModal(true)
                   }
                 } else {
                   setCurrentStep(2)

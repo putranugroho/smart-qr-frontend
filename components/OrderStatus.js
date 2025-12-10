@@ -318,7 +318,6 @@ export default function OrderStatus() {
 
     // Menus
     const menus = dataOrder.menus ?? dataOrder.Menus ?? []
-    console.log("menu track order", menus);
     
     if (Array.isArray(menus) && menus.length > 0) {
       menus.forEach(m => {
@@ -598,7 +597,6 @@ export default function OrderStatus() {
     return s
   })
 
-  console.log("items track order", items);
 
   const visibleItems = showAllItems ? items : (itemsCount > 0 ? [items[0]] : [])
   console.log("visibleItems", visibleItems);

@@ -149,7 +149,6 @@ export default function PaymentStatus() {
   function pushLog(entry) {
     const ts = new Date().toISOString()
     const full = { ts, ...entry }
-    console.log('[MIDTRANS-LOG]', full)
     setStatusLogs(prev => {
       const next = [full, ...prev]
       if (next.length > 50) next.length = 50
@@ -205,7 +204,6 @@ export default function PaymentStatus() {
           } 
 
           try {
-            console.log("callDoPayment 2", PaymentCode);
             const result = await callDoPayment(orderCode, PaymentCode, j?.order_id)
             console.log('do-payment result', result)
             pushLog({ type: 'do-payment', ok: true, result: (result && JSON.stringify(result).slice(0,1000)) || null })
@@ -308,27 +306,20 @@ export default function PaymentStatus() {
       try {
         setQrError(null)
         setQrLoading(true)
-        console.log('[QR] calling converter for', imgUrl)
         const api = `/api/convert-image-to-base64?imageUrl=${encodeURIComponent(imgUrl)}&mode=datauri`
         const r = await fetch(api)
-        console.log('[QR] converter status', r.status)
         const txt = await r.text().catch(() => null)
         let j = null
         try { j = txt ? JSON.parse(txt) : null } catch (e) { j = null }
-        console.log('[QR] converter raw response (parsed/txt):', j || txt)
         if (!r.ok) {
-          setQrError('failed to convert (status ' + r.status + ')')
           return null
         }
         const dataUri = (j && (j.dataUri || (j.data && j.data.Base64Image ? `data:image/pngbase64,${j.data.Base64Image}` : null))) || null
         if (!dataUri) {
-          console.warn('[QR] converter did not return dataUri or Base64Image')
-          setQrError('convert API returned no dataUri')
           return null
         }
         if (!mounted) return null
         setQrDataUri(dataUri)
-        console.log('[QR] set qrDataUri (length):', dataUri.length)
         return dataUri
       } catch (err) {
         console.warn('[QR] fetchQrDataUri error', err)
@@ -344,7 +335,6 @@ export default function PaymentStatus() {
       try {
         setQrError(null)
         setQrLoading(true)
-        console.log('[QR] generating from qr_string (client)')
         const dataUrl = await QRCode.toDataURL(qrString, {
           errorCorrectionLevel: 'H',
           margin: 1,
@@ -352,7 +342,6 @@ export default function PaymentStatus() {
         })
         if (!mounted) return null
         setQrDataUri(dataUrl)
-        console.log('[QR] generated dataUrl length:', dataUrl.length)
         return dataUrl
       } catch (err) {
         console.warn('[QR] QR generate error', err)
@@ -365,16 +354,12 @@ export default function PaymentStatus() {
 
     if (!tx) return () => { mounted = false }
 
-    console.log('[QR] tx present:', tx)
     const method = getNormalizedMethod(tx)
     if (method !== 'qris') {
-      console.log('[QR] method is not qris:', method)
       return () => { mounted = false }
     }
 
     const actions = tx.actions || tx.core_response?.actions || []
-    console.log('[QR] actions:', actions)
-    console.log('[QR] tx.qr_string:', tx.qr_string || tx.core_response?.qr_string || tx.raw?.qr_string)
 
     const qrString = tx.qr_string || tx.core_response?.qr_string || tx.raw?.qr_string || null
     if (qrString) {
@@ -389,8 +374,6 @@ export default function PaymentStatus() {
 
     const imgUrl = (qrV1 && qrV1.url) || (qrV2 && qrV2.url) || qrUrlFromResp || redirectUrl || null
 
-    console.log('[QR] qrV1 url:', qrV1?.url, 'qrV2 url:', qrV2?.url, 'qrUrlFromResp:', qrUrlFromResp, 'redirectUrl:', redirectUrl)
-    console.log('[QR] selected imgUrl:', imgUrl)
 
     setQrDataUri(null)
     setQrError(null)

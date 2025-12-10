@@ -31,9 +31,6 @@ export default async function handler(req, res) {
     const bodyText = await upstream.text().catch(() => '');
 
     // log for debugging (remove or lower logging in production)
-    console.log('[do-order] upstream status:', upstream.status);
-    console.log('[do-order] upstream headers:', Object.fromEntries(upstream.headers.entries ? upstream.headers.entries() : []));
-    console.log('[do-order] upstream body length:', bodyText ? bodyText.length : 0);
 
     // handle no-content
     if (!bodyText || bodyText.trim() === '') {

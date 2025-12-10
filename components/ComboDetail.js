@@ -18,11 +18,11 @@ function formatRp(n) {
 function mergeComboStates(prev, fetched) {
   if (!fetched) return prev || fetched || null;
   if (!prev) {
-    console.log('[MERGE] Tidak ada data sebelumnya, menggunakan data fetched.');
+    // console.log('[MERGE] Tidak ada data sebelumnya, menggunakan data fetched.');
     return fetched;
   }
   
-  console.log('[MERGE] Menggabungkan data. Produk yang dipilih sebelumnya akan diprioritaskan.');
+  // console.log('[MERGE] Menggabungkan data. Produk yang dipilih sebelumnya akan diprioritaskan.');
 
   // clone fetched as base
   const out = JSON.parse(JSON.stringify(fetched));
@@ -61,7 +61,7 @@ function mergeComboStates(prev, fetched) {
         if (!prodMap[pcode]) {
           // if prev product not in fetched, append it (so selection still resolvable)
           prodMap[pcode] = p
-          console.log(`[MERGE] Produk cart: ${pcode} (${p.name}) ditambahkan ke grup ${key} karena tidak ada di data API.`);
+          // console.log(`[MERGE] Produk cart: ${pcode} (${p.name}) ditambahkan ke grup ${key} karena tidak ada di data API.`);
         } else {
           // merge condimentGroups carefully: prefer fetched, but add any extra conds from prev
           const fp = prodMap[pcode]
@@ -199,7 +199,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
           return
         }
 
-        console.log('[RECOVER] Memulai Pemulihan Edit Index:', editingIndex);
+        // console.log('[RECOVER] Memulai Pemulihan Edit Index:', editingIndex);
         
         // store original clientInstanceId
         const existingClientId = entry.clientInstanceId || (entry.detailCombo && entry.detailCombo.clientInstanceId) || null
@@ -208,7 +208,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         const firstComboBlock = Array.isArray(entry.combos) && entry.combos.length > 0 ? entry.combos[0] : null
         const comboCode = (entry.detailCombo && (entry.detailCombo.code || entry.detailCombo.name)) || (firstComboBlock && (firstComboBlock.detailCombo?.code || firstComboBlock.detailCombo?.name)) || null
 
-        console.log('[RECOVER] Combo Code terdeteksi:', comboCode);
+        // console.log('[RECOVER] Combo Code terdeteksi:', comboCode);
 
         // build mapping sp/sc
         const sp = {}
@@ -240,7 +240,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
           })
         }
         
-        console.log('[RECOVER] Produk Terpilih (sp):', sp);
+        // console.log('[RECOVER] Produk Terpilih (sp):', sp);
 
         // ============================================================
         // 1) try from sessionStorage (DENGAN VALIDASI KELENGKAPAN DATA)
@@ -260,7 +260,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
               const looksLikeMasterData = Array.isArray(parsed.comboGroups) && parsed.comboGroups.some(g => Array.isArray(g.products) && g.products.length > 1);
 
               if (looksLikeMasterData) {
-                console.log('[RECOVER] Data Session Storage LENGKAP ditemukan. Menggunakan cache.');
+                // console.log('[RECOVER] Data Session Storage LENGKAP ditemukan. Menggunakan cache.');
                 sessionDataIncomplete = false; // Tandai lengkap, kita stop di sini
 
                 setComboState(parsed)
@@ -279,7 +279,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                 prefilledRef.current = true
                 return; // STOP HERE only if data is complete
               } else {
-                 console.log('[RECOVER] Data Session Storage ditemukan tapi TIDAK LENGKAP (versi minimal). Melanjutkan ke Fetch API...');
+                 // console.log('[RECOVER] Data Session Storage ditemukan tapi TIDAK LENGKAP (versi minimal). Melanjutkan ke Fetch API...');
                  // JANGAN RETURN, LANJUT KE STEP 2
               }
             }
@@ -291,7 +291,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         // ============================================================
         if (comboCode) {
           try {
-            console.log('[RECOVER] Memulai Fetch API untuk:', comboCode);
+            // console.log('[RECOVER] Memulai Fetch API untuk:', comboCode);
             const url = `/api/proxy/combo-list?orderCategoryCode=DI&storeCode=MGI`
             const r = await fetch(url)
             if (r.ok) {
@@ -305,7 +305,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                 if (!found) found = list.find(x => String(x.name || '').toLowerCase() === needle.toLowerCase())
 
                 if (found) {
-                  console.log('[RECOVER] Data LENGKAP ditemukan dari API:', found.name);
+                  // console.log('[RECOVER] Data LENGKAP ditemukan dari API:', found.name);
                   try { if (found.code) sessionStorage.setItem(`combo_${String(found.code)}`, JSON.stringify(found)) } catch (e) {}
                   
                   // PENTING: Gunakan mergeComboStates di sini
@@ -338,7 +338,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                   setLoadingCombo(false)
                   return // SUCCESS Fetch
                 } else {
-                    console.log('[RECOVER] Fetch berhasil tapi kode combo tidak ditemukan di list.');
+                    // console.log('[RECOVER] Fetch berhasil tapi kode combo tidak ditemukan di list.');
                 }
               }
             }
@@ -350,7 +350,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         // ============================================================
         // 3) fallback (Hanya jika Fetch gagal total)
         // ============================================================
-        console.log('[RECOVER] Masuk ke Fallback (Data Minimal)');
+        // console.log('[RECOVER] Masuk ke Fallback (Data Minimal)');
         if (firstComboBlock && Array.isArray(firstComboBlock.products)) {
           // ... (Kode fallback lama Anda tetap disini) ...
           // Kode fallback Anda sudah benar untuk menampilkan apa adanya
@@ -406,11 +406,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
     if (!comboState) return
     if (prefilledRef.current) return
     if (fetchedFullRef.current) return;
-    console.log("FETCH GUARD:", {
-      prefilled: prefilledRef.current,
-      fetchedFull: fetchedFullRef.current,
-      comboState,
-    });
 
     try {
       // condition 1: no comboGroups at all -> need fetch
@@ -435,7 +430,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
             fetchedFullRef.current = true;
             return;
           }
-          console.log('[ComboDetail] fetching full combo data for code:', code, 'because needsFetch=', needsFetch, 'groupsTruncated=', groupsTruncated);
+          // console.log('[ComboDetail] fetching full combo data for code:', code, 'because needsFetch=', needsFetch, 'groupsTruncated=', groupsTruncated);
           const url = `/api/proxy/combo-list?orderCategoryCode=DI&storeCode=MGI`
           const r = await fetch(url)
           if (r.ok) {
@@ -464,10 +459,10 @@ export default function ComboDetail({ combo: propCombo = null }) {
                   }
                 })
               } else {
-                console.log('[ComboDetail] fetch returned list but no suitable combo found and comboState already present — skipping overwrite')
+                // console.log('[ComboDetail] fetch returned list but no suitable combo found and comboState already present — skipping overwrite')
               }
             } else {
-              console.log('[ComboDetail] fetch returned empty list')
+              // console.log('[ComboDetail] fetch returned empty list')
             }
           } else {
             console.warn('[ComboDetail] fetch failed status', r.status)
@@ -896,7 +891,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
       return
     }
 
-    console.log("Payload combos:", payload);
+    // console.log("Payload combos:", payload);
     
 
     try {
@@ -1132,8 +1127,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
               ? grp.products
               : (fallbackProductsRef.current[getGroupKey(grp)] || [])
             
-            console.log(`[UI RENDER] Group: ${grp.name}. Total Products: ${products.length}.`);
-            console.log(`[UI RENDER] Daftar Produk:`, products.map(p => p.name));
+            // console.log(`[UI RENDER] Group: ${grp.name}. Total Products: ${products.length}.`);
+            // console.log(`[UI RENDER] Daftar Produk:`, products.map(p => p.name));
 
             const isToppingGroup = String((grp.code || '').toUpperCase()) === 'KIDS-TOPPING-ALL' ||
                                    String((grp.name || '').toLowerCase()).includes('add on topping')

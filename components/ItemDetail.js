@@ -18,7 +18,6 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   const q = router.query
 
   const productCode = propProductCode || q.productCode || propItem.code || propItem.productCode || propItem.id
-  console.log("q.itemName",q.itemName);
   
   const initialItem = {
     code: propItem.code || propItem.id || productCode || undefined,
@@ -339,9 +338,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     const apiItem = (propItem && Object.keys(propItem).length) ? propItem : item || {};
     const basePrice = Number(item.price || 0);
     const qtyNum = Number(qty || 1);
-    console.log("propItem", propItem);
-    console.log("item", item);
-    console.log("apiItem", apiItem);
+
 
     // If editing an existing cart item, prefer it as source for legacy tax info
     let legacySourceForTaxes = apiItem;
@@ -382,7 +379,6 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
         if (Array.isArray(optTaxSource) && optTaxSource.length) {
           taxes = optTaxSource.map(t => {
-            console.log("legacySourceForTaxes 1 : ",t);
             const taxName = (t.name || t.taxName || t.name || '').toString();
             const taxPercentage = Number(t.amount ?? t.taxPercentage ?? 0);
             const taxAmount = Math.round((taxPercentage / 100) * price);
@@ -390,14 +386,12 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
           });
         } else if (Array.isArray(legacySourceForTaxes.taxes) && legacySourceForTaxes.taxes.length) {
           taxes = legacySourceForTaxes.taxes.map(t => {
-            console.log("legacySourceForTaxes 2 : ",t);
             const taxName = (t.taxName || t.name || '').toString();
             const taxPercentage = Number(t.taxPercentage || t.amount || 0);
             const taxAmount = Math.round((taxPercentage / 100) * price);
             return { taxName, taxPercentage, taxAmount };
           });
         }
-            console.log("opt : ",opt);
 
         return {
           code: opt?.id || String(optId),
@@ -428,7 +422,6 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
           const taxAmount = Math.round((taxPercentage / 100) * menuBasePrice);
           return { taxName, taxPercentage, taxAmount };
         });
-        console.log("menuTaxes", menuTaxes);
     } else {
       menuTaxes = [{
           taxName: 'PB1',
@@ -453,9 +446,6 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
       taxes: menuTaxes
     }];
 
-    console.log("apiItem.itemName", apiItem);
-    console.log("item.itemName", item);
-    console.log("menusPayload", menusPayload);
     
 
     // ======== CART COMPATIBILITY =========

@@ -6,7 +6,6 @@ export default async function handler(req, res) {
     const url = process.env.NEXT_PUBLIC_URL_DEV || process.env.NEXT_PUBLIC_URL_API
     const target = `${url}/smartqr/v1/menu/category?` + qs.toString();
 
-    console.log("Proxy target:", target);
 
     const upstream = await fetch(target, {
       method: "GET",

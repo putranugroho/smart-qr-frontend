@@ -132,8 +132,6 @@ export default async function handler(req, res) {
     try {
       const extResp = await fetch(externalUrl, { method: 'GET', headers: { accept: 'application/json' } });
       if (extResp.ok) {
-        console.log("extResp");
-        console.log(extResp);
         converterJson = await extResp.json().catch(() => null);
         
         b64 = converterJson?.data?.Base64Image || converterJson?.data?.base64 || null;

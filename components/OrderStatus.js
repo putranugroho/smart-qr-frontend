@@ -524,10 +524,17 @@ export default function OrderStatus() {
 
           if (foundDisplayOrderId) {
             try {
-              const stResp = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(foundDisplayOrderId)}`)
+              const stResp = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(foundDisplayOrderId)}`, {
+                cache: "no-store"
+              })
               if (stResp.ok) {
                 const stj = await stResp.json()
-                const txStatus = (stj.transaction_status || stj.status || '').toString().toLowerCase()
+                const txStatus = (stj.transaction_status || stj.status || '')
+                  .toString()
+                  .trim()
+                  .toLowerCase();
+                console.log("TX STATUS:", { stj, txStatus })
+           
                 if (!['capture', 'settlement', 'success'].includes(txStatus)) {
                   const popupKey = `payment_redirect_shown:${orderCodeToPoll}`
                   const already = sessionStorage.getItem(popupKey)

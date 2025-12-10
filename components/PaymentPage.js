@@ -236,13 +236,13 @@ export default function PaymentPage() {
       const resp = await fetch('/api/midtrans/create-transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // body: JSON.stringify({
-        //   orderId,
-        //   grossAmount,
-        //   customer,
-        //   selectedMethod
-        // })
-        body: JSON.stringify(payload_midtrans)
+        body: JSON.stringify({
+          orderId,
+          grossAmount,
+          customer,
+          selectedMethod
+        })
+        // body: JSON.stringify(payload_midtrans)
       });
 
       const data = await resp.json();

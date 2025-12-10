@@ -89,6 +89,7 @@ function calculateItemTaxes(it) {
     // total condiment (sum harga * qty)
     const conds = Array.isArray(it.condiments) ? it.condiments : []
     const condTotal = conds.reduce((s, c) => s + (Number(c.price ?? c.Price ?? 0) * Number(c.qty ?? c.Qty ?? 1)), 0)
+    const includeCondiments = !(reportedPrice === detailPrice + condTotal);
 
     // If reportedPrice already includes condTotal, use it directly; otherwise combine detailPrice + condTotal
     let unitBase = reportedPrice
@@ -109,7 +110,7 @@ function calculateItemTaxes(it) {
     base = unitBase * qty
 
     // Taxes on the item itself (prefer explicit taxAmount)
-    if (Array.isArray(it.taxes)) {
+    if (Array.isArray(it.taxes) && it.taxes.length > 0) {
       it.taxes.forEach(tx => {
         const provided = Number(tx.taxAmount ?? tx.TaxAmount ?? 0)
         if (provided && provided !== 0) {
@@ -125,7 +126,7 @@ function calculateItemTaxes(it) {
     }
 
     // Add condiments only if they were NOT already included in reportedPrice
-    if (!(reportedPrice === detailPrice + condTotal)) {
+    if (includeCondiments) {
       // add conds base + their taxes
       conds.forEach(c => {
         const cQty = Number(c.qty ?? c.Qty ?? 1)

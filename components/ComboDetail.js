@@ -812,6 +812,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         detailCombo: {
           code: comboState.code || comboState.id,
           name: comboState.name || comboState.title || '',
+          itemName: comboState.itemName || '',
           image: comboState.imagePath || comboState.image || null,
         },
         isFromMacro: true,

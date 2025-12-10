@@ -184,33 +184,33 @@ export default function OrderStatus() {
     try {
       const doOrderPayload = sessionStorage.getItem("do_order_payload");
       setRemoteOrderPayload(JSON.parse(doOrderPayload))
-      
+
       const doOrderRaw = sessionStorage.getItem('do_order_result')
       if (doOrderRaw) {
         const parsed = JSON.parse(doOrderRaw)
         // Accept either shape: { data: {...} } or direct payload
         const d = parsed?.data ?? parsed
-        if (d) {          
+        if (d) {
           setDataOrder(d)
           setRemoteOrderRaw(parsed)
           // set display id (support displayOrderId or orderCode)
           const mt_id = d.DisplayOrderId
-          
+
           if (mt_id) setDisplayMtId(String(mt_id))
         }
-        
+
         if (d.Payment.toLowerCase().includes("gopay")) {
           setUrlLogo("/images/pay-gopay.png")
         } if (d.Payment.toLowerCase().includes("qris")) {
           setUrlLogo("/images/pay-qris.png")
-        } 
+        }
       }
     } catch (e) { /* ignore */ }
 
     try {
       const s = sessionStorage.getItem('midtrans_tx')
       if (s) setRemoteOrderRaw(prev => prev || JSON.parse(s))
-    } catch (e) {}
+    } catch (e) { }
 
     const dataUser = getUser?.() || null
     setUser(dataUser)
@@ -228,7 +228,7 @@ export default function OrderStatus() {
     try {
       const stored = sessionStorage.getItem('display_order_id') || sessionStorage.getItem('displayOrderId')
       if (stored) setDisplayOrderId(String(stored))
-    } catch (e) {}
+    } catch (e) { }
 
     // 2) If router already ready and route id present, use it as fallback (useful when opening direct link)
     if (router.isReady) {
@@ -282,7 +282,7 @@ export default function OrderStatus() {
             const pct = Number(tx.taxPercentage ?? tx.TaxPercentage ?? tx.amount ?? 0)
             const amt = Number(tx.taxAmount ?? tx.TaxAmount ?? 0)
             if (!taxCollector[name]) taxCollector[name] = { taxName: name, taxPercentage: pct, taxAmount: 0 }
-            taxCollector[name].taxAmount += amt || Math.round((pct/100) * (Number(p.price||0) * Number(p.qty||1)))
+            taxCollector[name].taxAmount += amt || Math.round((pct / 100) * (Number(p.price || 0) * Number(p.qty || 1)))
           })
         })
         Object.values(taxCollector).forEach(v => comboTaxes.push(v))
@@ -318,7 +318,7 @@ export default function OrderStatus() {
 
     // Menus
     const menus = dataOrder.menus ?? dataOrder.Menus ?? []
-    
+
     if (Array.isArray(menus) && menus.length > 0) {
       menus.forEach(m => {
 
@@ -381,7 +381,7 @@ export default function OrderStatus() {
 
   items.forEach((it) => {
     const t = calculateItemTaxes(it)
-    
+
     computedSubtotal += t.base
     computedPB1 += t.pb1
     computedPPN += t.ppn
@@ -468,6 +468,10 @@ export default function OrderStatus() {
   // Polling remote order API (start when id available or when do_order_result exists)
   useEffect(() => {
     if (!router.isReady) return
+    if (pollOrderRef?.current) {
+      clearInterval(pollOrderRef.current);
+      pollOrderRef.current = null;
+    }
 
     let orderCodeToPoll = String(id || '').trim()
     if (!orderCodeToPoll) {
@@ -484,7 +488,7 @@ export default function OrderStatus() {
       return
     }
 
-    try { sessionStorage.setItem('current_order_code', orderCodeToPoll) } catch (e) {}
+    try { sessionStorage.setItem('current_order_code', orderCodeToPoll) } catch (e) { }
 
     let mounted = true
 
@@ -499,12 +503,12 @@ export default function OrderStatus() {
 
         // Validasi sederhana: pastikan ada Combos atau Menus atau Status
         if (!realData.Combos && !realData.Menus && realData.Status === undefined) {
-             return
+          return
         }
 
         setRemoteOrderRaw(apiResp)
         setDataOrder(realData) // Gunakan realData yang sudah dipastikan isinya
-        try { sessionStorage.setItem('do_order_result', JSON.stringify(apiResp)) } catch (e) {}
+        try { sessionStorage.setItem('do_order_result', JSON.stringify(apiResp)) } catch (e) { }
 
         const oc = realData.orderCode ?? realData.OrderCode ?? null // Sesuaikan casing
         if (oc) setDisplayOrderId(String(oc))
@@ -520,18 +524,18 @@ export default function OrderStatus() {
 
           if (foundDisplayOrderId) {
             try {
-              const stResp = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(foundDisplayId)}`)
+              const stResp = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(foundDisplayOrderId)}`)
               if (stResp.ok) {
                 const stj = await stResp.json()
                 const txStatus = (stj.transaction_status || stj.status || '').toString().toLowerCase()
-                if (!['capture','settlement','success'].includes(txStatus)) {
+                if (!['capture', 'settlement', 'success'].includes(txStatus)) {
                   const popupKey = `payment_redirect_shown:${orderCodeToPoll}`
                   const already = sessionStorage.getItem(popupKey)
                   if (!already && !popupShownRef.current) {
                     popupShownRef.current = true
-                    try { sessionStorage.setItem(popupKey, '1') } catch (e) {}
-                    // setPaymentRedirectUrl(paymentLinkFromApi || sessionStorage.getItem('payment_link_for_order') || '')
-                    // setShowPaymentRedirectModal(true)
+                    try { sessionStorage.setItem(popupKey, '1') } catch (e) { }
+                    setPaymentRedirectUrl(paymentLinkFromApi || sessionStorage.getItem('payment_link_for_order') || '')
+                    setShowPaymentRedirectModal(true)
                   }
                 } else {
                   setCurrentStep(2)
@@ -548,7 +552,7 @@ export default function OrderStatus() {
               const already = sessionStorage.getItem(popupKey)
               if (!already && !popupShownRef.current) {
                 popupShownRef.current = true
-                try { sessionStorage.setItem(popupKey, '1') } catch (e) {}
+                try { sessionStorage.setItem(popupKey, '1') } catch (e) { }
                 setPaymentRedirectUrl(paymentLinkExists)
                 setShowPaymentRedirectModal(true)
               }
@@ -581,10 +585,10 @@ export default function OrderStatus() {
   }, [router.isReady, id])
 
   const baseSteps = [
-    { key: 1, title: 'Pesanan Selesai', desc: 'Pesanan sudah selesai', img : '/images/check-icon.png'},
-    { key: 2, title: 'Makanan Sudah Siap', desc: 'Pesanan kamu akan segera diantar', img : '/images/bowl-icon.png' },
-    { key: 3, title: 'Pembayaran Berhasil', desc: 'Pembayaran kamu sudah diterima', img : '/images/wallet-icon.png' },
-    { key: 4, title: 'Pesanan Dibuat', desc: 'Pesanan kamu sudah masuk', img : '/images/mobile-icon.png' },
+    { key: 1, title: 'Pesanan Selesai', desc: 'Pesanan sudah selesai', img: '/images/check-icon.png' },
+    { key: 2, title: 'Makanan Sudah Siap', desc: 'Pesanan kamu akan segera diantar', img: '/images/bowl-icon.png' },
+    { key: 3, title: 'Pembayaran Berhasil', desc: 'Pembayaran kamu sudah diterima', img: '/images/wallet-icon.png' },
+    { key: 4, title: 'Pesanan Dibuat', desc: 'Pesanan kamu sudah masuk', img: '/images/mobile-icon.png' },
   ]
 
   const steps = baseSteps.map(s => {
@@ -600,7 +604,7 @@ export default function OrderStatus() {
 
   const visibleItems = showAllItems ? items : (itemsCount > 0 ? [items[0]] : [])
   console.log("visibleItems", visibleItems);
-  
+
   const computeItemTotal = (item) => {
     const qty = Number(item.qty || 1);
     let base = Number(item.price || 0);
@@ -628,7 +632,7 @@ export default function OrderStatus() {
 
   const MERCHANT_PHONE = '+628123456789'
   async function contactMerchant() {
-    try { if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') await navigator.clipboard.writeText(MERCHANT_PHONE) } catch (e) {}
+    try { if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') await navigator.clipboard.writeText(MERCHANT_PHONE) } catch (e) { }
     const normalized = MERCHANT_PHONE.replace(/\D/g, '')
     if (normalized) {
       const waUrl = `https://wa.me/${normalized}`
@@ -643,7 +647,7 @@ export default function OrderStatus() {
   function onModalProceed() {
     setShowPaymentRedirectModal(false)
     if (paymentRedirectUrl) {
-      try { sessionStorage.setItem(`payment_redirect_attempted:${displayOrderId || id}`, '1') } catch (e) {}
+      try { sessionStorage.setItem(`payment_redirect_attempted:${displayOrderId || id}`, '1') } catch (e) { }
       window.location.href = paymentRedirectUrl
     } else {
       alert('Tautan pembayaran tidak tersedia.')
@@ -670,7 +674,7 @@ export default function OrderStatus() {
 
         <div className={styles.orderNumberBox}>
           <div className={styles.smallText}>Nomor Order</div>
-          <div className={styles.orderNumber}>{String(displayOrderId || '-' )}</div>
+          <div className={styles.orderNumber}>{String(displayOrderId || '-')}</div>
         </div>
       </div>
 
@@ -684,7 +688,7 @@ export default function OrderStatus() {
 
           <div className={styles.stepsWrap}>
             {steps.map((s) => {
-              const status = ( currentStep === 1 ? 'done' : (s.key > currentStep ? 'done' : (s.key === currentStep ? 'ongoing' : 'upcoming')))
+              const status = (currentStep === 1 ? 'done' : (s.key > currentStep ? 'done' : (s.key === currentStep ? 'ongoing' : 'upcoming')))
               return (
                 <div key={s.key} className={`${styles.stepItem} ${styles[status]}`}>
                   <div className={styles.iconCircle} aria-hidden>
@@ -767,8 +771,8 @@ export default function OrderStatus() {
                                 {(it.qty || 1)}x{' '}
                                 {it.condiments && it.condiments.length
                                   ? it.condiments.map(c =>
-                                      c.name || c.group || c.code
-                                    ).join(', ')
+                                    c.name || c.group || c.code
+                                  ).join(', ')
                                   : it.note || 'No Add On'}
                               </>
                             )}

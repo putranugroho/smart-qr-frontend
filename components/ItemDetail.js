@@ -198,7 +198,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     setDataUser(getUser?.());
     const orderCategoryCode = dataUser.orderType
     const storeCode = dataUser.orderType
-    const url = `/api/proxy/condiment?productCode=${encodeURIComponent(productCode)}&orderCategoryCode=${encodeURIComponent(getUser?.().orderCategoryCode)}&storeCode=${encodeURIComponent(getUser?.().storeCode)}`
+    const url = `/api/proxy/condiment?productCode=${encodeURIComponent(productCode)}&orderCategoryCode=${encodeURIComponent(getUser().orderType)}&storeCode=${encodeURIComponent(getUser?.().storeLocation)}`
 
     fetch(url)
       .then(r => {

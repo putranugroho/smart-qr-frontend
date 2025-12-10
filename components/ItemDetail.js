@@ -221,7 +221,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
             id: p.code ?? String(p.id),
             rawId: p.id,
             name: p.name ?? p.name ?? '',
-            itemName: q.itemName ?? p.itemName ?? p.itemName ?? '',
+            itemName: p.itemName ?? p.itemName ?? '',
             price: Number(p.price || 0),
             image: p.imagePath || '',
             description: p.description || ''

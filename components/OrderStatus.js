@@ -440,7 +440,7 @@ export default function OrderStatus() {
     if (!orderCodeToFetch) return null
     try {
       // --- DEFAULT: use proxy route (keamanan / CORS)
-      const url = `/api/order/check-status?orderCode=${encodeURIComponent(orderCodeToFetch)}`
+      const url = `/api/order/check-status?orderCode=${encodeURIComponent(foundDisplayOrderId)}`
 
       // --- TIMEOUT helper
       const controller = new AbortController()
@@ -498,12 +498,14 @@ export default function OrderStatus() {
         const realData = apiResp.data || apiResp
 
         // Validasi sederhana: pastikan ada Combos atau Menus atau Status
-        if (!realData.Combos && !realData.Menus && realData.Status === undefined) {
+        if (!realData.combos && !realData.Combos && !realData.menus && !realData.Menus && realData.Status === undefined) {
              return
         }
 
         setRemoteOrderRaw(apiResp)
-        setDataOrder(realData) // Gunakan realData yang sudah dipastikan isinya
+        if (JSON.stringify(dataOrder) !== JSON.stringify(realData)) {
+          setDataOrder(realData)
+        } // Gunakan realData yang sudah dipastikan isinya
         try { sessionStorage.setItem('do_order_result', JSON.stringify(apiResp)) } catch (e) {}
 
         const oc = realData.orderCode ?? realData.OrderCode ?? null // Sesuaikan casing

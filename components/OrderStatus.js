@@ -595,6 +595,8 @@ export default function OrderStatus() {
     return s
   })
 
+  console.log("items track order", items);
+
   const visibleItems = showAllItems ? items : (itemsCount > 0 ? [items[0]] : [])
   console.log("visibleItems", visibleItems);
   

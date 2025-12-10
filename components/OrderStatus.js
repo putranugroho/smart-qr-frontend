@@ -321,50 +321,50 @@ export default function OrderStatus() {
     
     if (Array.isArray(menus) && menus.length > 0) {
       menus.forEach(m => {
-        // normalize condiments (accept both Condiments and condiments)
-        const rawConds = Array.isArray(m.condiments ?? m.Condiments) ? (m.condiments ?? m.Condiments) : []
+
+        // normalize condiments
+        const rawConds = Array.isArray(m.condiments ?? m.Condiments)
+          ? (m.condiments ?? m.Condiments)
+          : []
+
         const conds = rawConds.map(c => ({
-          code: c.code ?? c.Code ?? '',
-          name: c.name ?? c.Name ?? c.group ?? '',
+          code: c.code ?? c.Code ?? "",
+          name: c.name ?? c.Name ?? c.ItemName ?? c.group ?? "",
           qty: Number(c.qty ?? c.Qty ?? 1),
           price: Number(c.price ?? c.Price ?? 0),
           taxes: Array.isArray(c.taxes ?? c.Taxes) ? (c.taxes ?? c.Taxes) : []
         }))
 
-        const condTotal = conds.reduce((s, c) => s + (Number(c.price ?? 0) * Number(c.qty ?? 1)), 0)
-        const detailPrice = Number(m.detailMenu?.price ?? m.DetailMenu?.Price ?? 0)
+        const detailMenu = m.detailMenu ?? m.DetailMenu ?? {}
 
-        // If server provided final m.price -> treat it as authoritative final price and avoid double-count:
-        if (typeof m.price === 'number' && Number(m.price) > 0) {
-          arr.push({
-            type: 'menu',
-            // final price provided by server (assume already includes condiments)
-            price: Number(m.price),
-            qty: m.qty ?? m.Qty ?? 1,
-            title: m.detailMenu?.name ?? m.DetailMenu?.Name ?? m.name ?? m.title ?? '',
-            name: m.detailMenu?.name ?? m.DetailMenu?.Name ?? m.name ?? m.title ?? '',
-            image: m.detailMenu?.image ?? m.DetailMenu?.Image ?? m.image ?? null,
-            // keep condiments for display but set a separate field to prevent double-counting
-            condiments: [],                 // empty so calculation won't add condTotal again
-            _condimentsForDisplay: conds,   // optional: keep names for UI if you want to show them
-            taxes: Array.isArray(m.taxes ?? m.Taxes) ? (m.taxes ?? m.Taxes) : [],
-            note: m.note ?? m.Note ?? ''
-          })
-        } else {
-          // server didn't give final price -> use detailPrice as base and keep condiments
-          arr.push({
-            type: 'menu',
-            // price = detailPrice (condiments will be added by calculateItemTaxes)
-            price: Number(detailPrice),
-            qty: m.qty ?? m.Qty ?? 1,
-            title: m.detailMenu?.name ?? m.DetailMenu?.Name ?? m.name ?? m.title ?? '',
-            name: m.detailMenu?.name ?? m.DetailMenu?.Name ?? m.name ?? m.title ?? '',
-            image: m.detailMenu?.image ?? m.DetailMenu?.Image ?? m.image ?? null,
-            condiments: conds,
-            taxes: Array.isArray(m.taxes ?? m.Taxes) ? (m.taxes ?? m.Taxes) : [],
-            note: m.note ?? m.Note ?? ''
-          })
-        }
+        const detailPrice = Number(detailMenu.Price ?? 0)
+        const finalPrice = Number(m.price ?? detailPrice)
+
+        arr.push({
+          type: "menu",
+
+          // final price
+          price: finalPrice,
+
+          qty: Number(m.qty ?? m.Qty ?? 1),
+
+          // FIXED NAME & TITLE
+          title: detailMenu.ItemName ?? detailMenu.Name ?? "",
+          name: detailMenu.Name ?? detailMenu.ItemName ?? "",
+
+          // FIXED CODE
+          code: detailMenu.Code ?? "",
+
+          // FIXED IMAGE
+          image: detailMenu.Image ?? m.image ?? null,
+
+          // FIXED ORDER TYPE
+          orderType: m.orderType ?? m.OrderType ?? "",
+
+          condiments: conds,
+          taxes: Array.isArray(m.taxes ?? m.Taxes) ? (m.taxes ?? m.Taxes) : [],
+          note: m.note ?? m.Note ?? ""
+        })
       })
     }
 

@@ -397,7 +397,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
             return { taxName, taxPercentage, taxAmount };
           });
         }
-            console.log("taxes : ",taxes);
+            console.log("opt : ",opt);
 
         return {
           code: opt?.id || String(optId),

@@ -18,7 +18,8 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   const q = router.query
 
   const productCode = propProductCode || q.productCode || propItem.code || propItem.productCode || propItem.id
-
+  console.log("q.itemName",q.itemName);
+  
   const initialItem = {
     code: propItem.code || propItem.id || productCode || undefined,
     title: q.title || propItem.name || propItem.title || '',
@@ -220,7 +221,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
             id: p.code ?? String(p.id),
             rawId: p.id,
             name: p.name ?? p.name ?? '',
-            itemName: p.itemName ?? p.itemName ?? '',
+            itemName: q.itemName ?? p.itemName ?? p.itemName ?? '',
             price: Number(p.price || 0),
             image: p.imagePath || '',
             description: p.description || ''
@@ -338,9 +339,9 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     const apiItem = (propItem && Object.keys(propItem).length) ? propItem : item || {};
     const basePrice = Number(item.price || 0);
     const qtyNum = Number(qty || 1);
-    // console.log("propItem", propItem);
-    // console.log("item", item);
-    // console.log("apiItem", apiItem);
+    console.log("propItem", propItem);
+    console.log("item", item);
+    console.log("apiItem", apiItem);
 
     // If editing an existing cart item, prefer it as source for legacy tax info
     let legacySourceForTaxes = apiItem;
@@ -442,7 +443,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
       detailMenu: {
         code: apiItem.code || item.code || productCode || '',
         name: item.title || apiItem.name || '',
-        itemName: apiItem.itemName || item.itemName || '',
+        itemName: q.itemName || apiItem.itemName || item.itemName || '',
         price: basePrice,
         image: item.image || apiItem.imagePath || '',
       },
@@ -451,6 +452,11 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
       qty: qtyNum,
       taxes: menuTaxes
     }];
+
+    console.log("apiItem.itemName", apiItem);
+    console.log("item.itemName", item);
+    console.log("menusPayload", menusPayload);
+    
 
     // ======== CART COMPATIBILITY =========
     const addonsForCart = condiments.map(c => ({

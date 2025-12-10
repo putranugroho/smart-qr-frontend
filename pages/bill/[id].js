@@ -243,6 +243,7 @@ export default function BillPage() {
   // final items to render: payload if present else client payment items
   const items = itemsFromPayload.length > 0 ? itemsFromPayload : (paymentFromStorage.items || []);
   console.log("items", items);
+  console.log("doOrderRaw", doOrderRaw);
   
   {/* ========= GROUPING by ORDERTYPE ========= */}
   const dineInItems = items.filter(it =>

@@ -429,7 +429,11 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         });
         console.log("menuTaxes", menuTaxes);
     } else {
-      menuTaxes = [];
+      menuTaxes = [{
+          taxName: 'PB1',
+          taxPercentage: 10,
+          taxAmount: 0.1 * menuBasePrice,
+        }];
     }
 
     // ======== menus[] payload =========
@@ -562,10 +566,10 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     setAddAnimating(true)
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
 
-    toastTimerRef.current = setTimeout(() => {
-      setAddAnimating(false)
-      setShowPopup(true)
-    }, 520)
+    // toastTimerRef.current = setTimeout(() => {
+    //   setAddAnimating(false)
+    //   setShowPopup(true)
+    // }, 520)
   }
 
   // close popup: then navigate

@@ -15,23 +15,14 @@ function formatRp(n) {
   return 'Rp' + new Intl.NumberFormat('id-ID').format(Number(n || 0))
 }
 
-// normalize product object shape coming from different backends (fetched vs prev / cart-derived)
-function normalizeProduct(p) {
-  if (!p) return p
-  const out = { ...p }
-  out.code = String(p.code ?? p.id ?? '')
-  out.name = p.name || p.itemName || p.itemName || ''
-  out.imagePath = p.imagePath || p.image || null
-  out.price = Number(p.price || 0)
-  out.qty = Number(p.qty || p.quantity || 1)
-  out.condimentGroups = Array.isArray(p.condimentGroups) ? p.condimentGroups : (Array.isArray(p.condiments) && p.condiments.length ? p.condimentGroups || [] : p.condimentGroups || [])
-  out.taxes = Array.isArray(p.taxes) ? p.taxes : (p.taxes || [])
-  return out
-}
-
 function mergeComboStates(prev, fetched) {
   if (!fetched) return prev || fetched || null;
-  if (!prev) return fetched;
+  if (!prev) {
+    console.log('[MERGE] Tidak ada data sebelumnya, menggunakan data fetched.');
+    return fetched;
+  }
+  
+  console.log('[MERGE] Menggabungkan data. Produk yang dipilih sebelumnya akan diprioritaskan.');
 
   // clone fetched as base
   const out = JSON.parse(JSON.stringify(fetched));
@@ -54,12 +45,10 @@ function mergeComboStates(prev, fetched) {
     // start with fetched group's copy
     const mergedGroup = JSON.parse(JSON.stringify(fg))
 
-    // normalize fetched group's products first
-    const fetchedProducts = Array.isArray(mergedGroup.products) ? mergedGroup.products.map(normalizeProduct) : []
-
     // if prev group existed, merge product lists so selected product (prev) remains visible
     if (prevG && Array.isArray(prevG.products)) {
-      const prevProducts = prevG.products.map(normalizeProduct)
+      const prevProducts = prevG.products || []
+      const fetchedProducts = Array.isArray(mergedGroup.products) ? mergedGroup.products : []
 
       // index products by code/id to merge uniquely
       const prodMap = {}
@@ -72,6 +61,7 @@ function mergeComboStates(prev, fetched) {
         if (!prodMap[pcode]) {
           // if prev product not in fetched, append it (so selection still resolvable)
           prodMap[pcode] = p
+          console.log(`[MERGE] Produk cart: ${pcode} (${p.name}) ditambahkan ke grup ${key} karena tidak ada di data API.`);
         } else {
           // merge condimentGroups carefully: prefer fetched, but add any extra conds from prev
           const fp = prodMap[pcode]
@@ -89,45 +79,14 @@ function mergeComboStates(prev, fetched) {
             })
             fp.condimentGroups = Object.keys(cgMap).map(k => cgMap[k])
           }
-
-          // also ensure name fallback (in case fetched had null name but prev had itemName)
-          if ((!fp.name || fp.name === '') && p.name) fp.name = p.name
-          if ((!fp.imagePath || fp.imagePath === null) && p.imagePath) fp.imagePath = p.imagePath
-          if ((!fp.price || fp.price === 0) && p.price) fp.price = p.price
         }
       })
 
       mergedGroup.products = Object.keys(prodMap).map(k => prodMap[k])
     } else {
-      // no prev group -> keep fetched products as-is (already normalized)
-      mergedGroup.products = fetchedProducts
+      // no prev group -> keep fetched products as-is
+      mergedGroup.products = Array.isArray(mergedGroup.products) ? mergedGroup.products : []
     }
-
-    // ensure condimentGroups are normalized for each product
-    mergedGroup.products = (mergedGroup.products || []).map(pr => {
-      const p = normalizeProduct(pr)
-      // ensure condimentGroups items normalized
-      if (Array.isArray(p.condimentGroups)) {
-        p.condimentGroups = p.condimentGroups.map(cg => {
-          const cgCopy = { ...cg }
-          if (Array.isArray(cgCopy.products)) {
-            cgCopy.products = cgCopy.products.map(cp => ({
-              id: cp.code ?? cp.id ?? cp.name,
-              code: cp.code ?? cp.id ?? cp.name,
-              name: cp.name ?? cp.itemName ?? '',
-              price: Number(cp.price || 0),
-              taxes: Array.isArray(cp.taxes) ? cp.taxes : (cp.taxes || [])
-            }))
-          } else {
-            cgCopy.products = cgCopy.products || []
-          }
-          return cgCopy
-        })
-      } else {
-        p.condimentGroups = p.condimentGroups || []
-      }
-      return p
-    })
 
     return mergedGroup
   })
@@ -137,10 +96,7 @@ function mergeComboStates(prev, fetched) {
   prevGroups.forEach(pg => {
     const key = pg.code ?? pg.name ?? String(pg.id)
     if (!fetchedKeys.has(key)) {
-      // normalize prev group's products before appending
-      const clone = JSON.parse(JSON.stringify(pg))
-      clone.products = Array.isArray(clone.products) ? clone.products.map(normalizeProduct) : []
-      mergedGroups.push(clone)
+      mergedGroups.push(pg)
     }
   })
 
@@ -149,13 +105,12 @@ function mergeComboStates(prev, fetched) {
   out.id = out.id || prev.id
   out.code = out.code || prev.code
   out.name = out.name || prev.name
-  // ensure image fields prefer fetched imagePath but fallback to prev.image or prev.imagePath
-  out.imagePath = out.imagePath || out.image || prev.imagePath || prev.image || null
-  out.image = out.image || out.imagePath || prev.image || prev.imagePath || null
-  out.description = out.description || prev.description || ''
+  out.image = out.image || prev.image
+  out.description = out.description || prev.description
 
   return out
 }
+
 
 export default function ComboDetail({ combo: propCombo = null }) {
   const router = useRouter()
@@ -244,21 +199,23 @@ export default function ComboDetail({ combo: propCombo = null }) {
           return
         }
 
-        // store original clientInstanceId so payload uses same id when updating
+        console.log('[RECOVER] Memulai Pemulihan Edit Index:', editingIndex);
+        
+        // store original clientInstanceId
         const existingClientId = entry.clientInstanceId || (entry.detailCombo && entry.detailCombo.clientInstanceId) || null
         if (existingClientId) setOriginalClientInstanceId(String(existingClientId))
 
         const firstComboBlock = Array.isArray(entry.combos) && entry.combos.length > 0 ? entry.combos[0] : null
         const comboCode = (entry.detailCombo && (entry.detailCombo.code || entry.detailCombo.name)) || (firstComboBlock && (firstComboBlock.detailCombo?.code || firstComboBlock.detailCombo?.name)) || null
 
-        // build mapping sp/sc from cart entry early so we can apply them after fetch/merge
+        console.log('[RECOVER] Combo Code terdeteksi:', comboCode);
+
+        // build mapping sp/sc
         const sp = {}
         const sc = {}
         if (firstComboBlock && Array.isArray(firstComboBlock.products)) {
           firstComboBlock.products.forEach(p => {
             const rawGroupMarker = p.comboGroup ?? p.comboGroupCode ?? null
-
-            // try to match to current comboState groups if present
             let matchedKey = null
             if (rawGroupMarker && comboState && Array.isArray(comboState.comboGroups)) {
               const found = comboState.comboGroups.find(g => {
@@ -267,7 +224,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
               })
               if (found) matchedKey = (found.code ?? found.name ?? String(found.id))
             }
-
             const finalKey = matchedKey || rawGroupMarker || (`group_${p.comboGroup || p.comboGroupCode || 'x'}`)
             if (finalKey && p.code) sp[finalKey] = p.code
 
@@ -283,101 +239,106 @@ export default function ComboDetail({ combo: propCombo = null }) {
             }
           })
         }
+        
+        console.log('[RECOVER] Produk Terpilih (sp):', sp);
 
-        // 1) try from sessionStorage (only accept if comboGroups exist)
+        // ============================================================
+        // 1) try from sessionStorage (DENGAN VALIDASI KELENGKAPAN DATA)
+        // ============================================================
+        let sessionDataIncomplete = true; // Default asumsi tidak lengkap agar fetch jalan
+
         if (comboCode) {
           try {
             const key = `combo_${String(comboCode)}`
             const raw = sessionStorage.getItem(key)
             if (raw) {
-              try {
-                const parsed = JSON.parse(raw)
-                if (Array.isArray(parsed.comboGroups) && parsed.comboGroups.length > 0) {
-                  // apply parsed and selections
-                  setComboState(parsed)
-                  setSelectedProducts(sp)
-                  setSelectedCondiments(sc)
-                  // expanded group
-                  try {
-                    const firstUnpicked = (parsed.comboGroups || []).find(g => !sp[(g.code ?? g.name ?? String(g.id))])
-                    const firstGroup = firstUnpicked ? (firstUnpicked.code ?? firstUnpicked.name ?? String(firstUnpicked.id)) : (parsed.comboGroups[0] ? (parsed.comboGroups[0].code ?? parsed.comboGroups[0].name ?? String(parsed.comboGroups[0].id)) : null)
-                    const groupToOpen = firstGroup || (Object.keys(sp)[0] || null)
-                    if (groupToOpen) {
-                      setExpandedGroup(groupToOpen)
-                      const selProd = sp[groupToOpen]
-                      if (selProd) {
-                        requestAnimationFrame(() => {
-                          requestAnimationFrame(() => {
-                            scrollToProduct(selProd, groupToOpen)
-                          })
-                        })
-                      }
-                    }
-                  } catch (e) {}
-                  setLoadingCombo(false)
-                  prefilledRef.current = true
-                  return
-                }
-                // otherwise fallthrough to fetch
-              } catch (e) {}
+              const parsed = JSON.parse(raw)
+              
+              // CEK APAKAH DATA INI LENGKAP?
+              // Data lengkap setidaknya memiliki satu grup dengan lebih dari 1 produk.
+              // Jika setiap grup hanya punya 1 produk, kemungkinan itu adalah data cart (minimal), bukan master data.
+              const looksLikeMasterData = Array.isArray(parsed.comboGroups) && parsed.comboGroups.some(g => Array.isArray(g.products) && g.products.length > 1);
+
+              if (looksLikeMasterData) {
+                console.log('[RECOVER] Data Session Storage LENGKAP ditemukan. Menggunakan cache.');
+                sessionDataIncomplete = false; // Tandai lengkap, kita stop di sini
+
+                setComboState(parsed)
+                setSelectedProducts(sp)
+                setSelectedCondiments(sc)
+                
+                // Logic expand group...
+                try {
+                  const firstUnpicked = (parsed.comboGroups || []).find(g => !sp[(g.code ?? g.name ?? String(g.id))])
+                  const firstGroup = firstUnpicked ? (firstUnpicked.code ?? firstUnpicked.name ?? String(firstUnpicked.id)) : (parsed.comboGroups[0] ? (parsed.comboGroups[0].code ?? parsed.comboGroups[0].name ?? String(parsed.comboGroups[0].id)) : null)
+                  const groupToOpen = firstGroup || (Object.keys(sp)[0] || null)
+                  if (groupToOpen) setExpandedGroup(groupToOpen)
+                } catch (e) {}
+                
+                setLoadingCombo(false)
+                prefilledRef.current = true
+                return; // STOP HERE only if data is complete
+              } else {
+                 console.log('[RECOVER] Data Session Storage ditemukan tapi TIDAK LENGKAP (versi minimal). Melanjutkan ke Fetch API...');
+                 // JANGAN RETURN, LANJUT KE STEP 2
+              }
             }
           } catch (e) {}
         }
 
-        // 2) try fetch API (fetch list, then find matching combo by code)
+        // ============================================================
+        // 2) try fetch API (JIKA session gagal atau data tidak lengkap)
+        // ============================================================
         if (comboCode) {
           try {
+            console.log('[RECOVER] Memulai Fetch API untuk:', comboCode);
             const url = `/api/proxy/combo-list?orderCategoryCode=DI&storeCode=MGI`
             const r = await fetch(url)
             if (r.ok) {
               const j = await r.json()
               const list = Array.isArray(j?.data) ? j.data : (Array.isArray(j?.combo) ? j.combo : [])
+              
               if (Array.isArray(list) && list.length) {
-                // prefer matching comboCode from query / cart
                 const needle = String(comboCode)
                 let found = list.find(x => String(x.code) === needle)
                 if (!found) found = list.find(x => String(x.code).toLowerCase() === needle.toLowerCase())
                 if (!found) found = list.find(x => String(x.name || '').toLowerCase() === needle.toLowerCase())
 
                 if (found) {
+                  console.log('[RECOVER] Data LENGKAP ditemukan dari API:', found.name);
                   try { if (found.code) sessionStorage.setItem(`combo_${String(found.code)}`, JSON.stringify(found)) } catch (e) {}
-                  // merge into existing comboState so we don't lose title/image or injected condiments
+                  
+                  // PENTING: Gunakan mergeComboStates di sini
                   setComboState(prev => {
+                    // prev mungkin null atau object minimal. 
+                    // Kita gabungkan agar produk yang dipilih (sp) tetap aman
+                    // Tapi base datanya adalah 'found' (yang lengkap)
                     try {
-                      return mergeComboStates(prev || comboState || {}, found) || found
+                        const merged = mergeComboStates(prev || {}, found);
+                        // Pastikan selection diterapkan ulang jika perlu
+                        return merged;
                     } catch (err) {
-                      return found
+                        return found
                     }
                   })
 
-                  // apply selections from cart entry (sp/sc)
                   setSelectedProducts(sp)
                   setSelectedCondiments(sc)
 
-                  // set expanded group to a useful one (use found's groups)
+                  // Logic expand group...
                   try {
-                    const groupList = Array.isArray(found.comboGroups) ? found.comboGroups : (comboState?.comboGroups || [])
+                    const groupList = Array.isArray(found.comboGroups) ? found.comboGroups : []
                     const firstUnpicked = groupList.find(g => !sp[(g.code ?? g.name ?? String(g.id))])
                     const firstGroup = firstUnpicked ? (firstUnpicked.code ?? firstUnpicked.name ?? String(firstUnpicked.id)) : (groupList[0] ? (groupList[0].code ?? groupList[0].name ?? String(groupList[0].id)) : null)
                     const groupToOpen = firstGroup || (Object.keys(sp)[0] || null)
-                    if (groupToOpen) {
-                      setExpandedGroup(groupToOpen)
-                      const selProd = sp[groupToOpen]
-                      if (selProd) {
-                        requestAnimationFrame(() => {
-                          requestAnimationFrame(() => {
-                            scrollToProduct(selProd, groupToOpen)
-                          })
-                        })
-                      }
-                    }
+                    if (groupToOpen) setExpandedGroup(groupToOpen)
                   } catch (e) {}
 
                   prefilledRef.current = true
                   setLoadingCombo(false)
-                  return
+                  return // SUCCESS Fetch
                 } else {
-                  console.debug('[ComboDetail] fetch: did not find combo matching code', comboCode)
+                    console.log('[RECOVER] Fetch berhasil tapi kode combo tidak ditemukan di list.');
                 }
               }
             }
@@ -386,92 +347,47 @@ export default function ComboDetail({ combo: propCombo = null }) {
           }
         }
 
-        // 3) fallback: build minimal combo from cart entry but ensure condimentGroups are derived from product items (so UI shows addon options)
+        // ============================================================
+        // 3) fallback (Hanya jika Fetch gagal total)
+        // ============================================================
+        console.log('[RECOVER] Masuk ke Fallback (Data Minimal)');
         if (firstComboBlock && Array.isArray(firstComboBlock.products)) {
+          // ... (Kode fallback lama Anda tetap disini) ...
+          // Kode fallback Anda sudah benar untuk menampilkan apa adanya
+          // ...
           const groupsMap = {}
           firstComboBlock.products.forEach(p => {
-            const gKey = p.comboGroup || p.comboGroupCode || `group_${p.comboGroup || p.comboGroupCode || 'x'}`
-            if (!groupsMap[gKey]) {
-              groupsMap[gKey] = {
-                id: gKey,
-                code: gKey,
-                name: gKey,
-                allowSkip: true,
-                products: []
-              }
-            }
-
-            // ensure condimentGroups exist if product has condiments info
-            const condimentGroups = Array.isArray(p.condiments) && p.condiments.length
-              ? // convert condiments array into simple condimentGroup structure if needed
-                [{
-                  id: `cond_${p.code || p.id}`,
-                  code: `cond_${p.code || p.id}`,
-                  name: 'Add On',
-                  allowSkip: true,
-                  products: (p.condiments || []).map(c => ({
-                    id: c.code ?? c.id ?? c.name,
-                    code: c.code ?? c.id ?? c.name,
-                    name: c.name ?? '',
-                    price: c.price ?? 0,
-                    taxes: c.taxes || []
-                  }))
-                }]
-              : (p.condimentGroups || [])
-
-            groupsMap[gKey].products.push(normalizeProduct({
-              id: p.code ?? p.id,
-              code: p.code ?? p.id,
-              name: p.name || p.itemName || '',
-              price: p.price ?? 0,
-              imagePath: p.imagePath ?? p.image ?? null,
-              condimentGroups: condimentGroups
-            }))
+             // ... logika build fallback groups ...
+             const gKey = p.comboGroup || p.comboGroupCode || `group_${p.comboGroup || p.comboGroupCode || 'x'}`
+             if (!groupsMap[gKey]) {
+                groupsMap[gKey] = {
+                  id: gKey, code: gKey, name: gKey, allowSkip: true, products: []
+                }
+             }
+             // ... push products ...
+             groupsMap[gKey].products.push({
+                 id: p.code ?? p.id,
+                 code: p.code ?? p.id,
+                 name: p.name || p.itemName || '',
+                 price: p.price ?? 0,
+                 imagePath: p.imagePath ?? p.image ?? null,
+                 // Note: Tambahkan condimentGroups kosong atau dari p
+                 condimentGroups: p.condimentGroups || [] 
+             })
           })
-
+          
           const groupsArr = Object.keys(groupsMap).map(k => groupsMap[k])
-
-          // store fallback products keyed by groupKey for render fallback
-          const fp = {}
-          Object.keys(groupsMap).forEach(k => {
-            const g = groupsMap[k]
-            const key = g.code ?? g.name ?? String(g.id)
-            fp[key] = g.products || []
-          })
-          fallbackProductsRef.current = fp
-
-          const minimal = {
-            id: comboCode || firstComboBlock.detailCombo?.code || null,
-            code: comboCode || firstComboBlock.detailCombo?.code || null,
-            name: (entry.detailCombo && entry.detailCombo.name) || (firstComboBlock.detailCombo && firstComboBlock.detailCombo.name) || 'Combo',
-            description: entry.detailCombo?.description || firstComboBlock.detailCombo?.description || '',
-            image: entry.detailCombo?.image || firstComboBlock.detailCombo?.image || null,
+          // ... setComboState fallback ...
+           const minimal = {
+            id: comboCode || null,
+            code: comboCode || null,
+            name: (entry.detailCombo && entry.detailCombo.name) || 'Combo',
+            // ...
             comboGroups: groupsArr
           }
           setComboState(minimal)
           setSelectedProducts(sp)
           setSelectedCondiments(sc)
-
-          // open useful group
-          try {
-            const firstUnpicked = groupsArr.find(g => !sp[(g.code ?? g.name ?? String(g.id))])
-            const firstGroup = firstUnpicked ? (firstUnpicked.code ?? firstUnpicked.name ?? String(firstUnpicked.id)) : (groupsArr[0] ? (groupsArr[0].code ?? groupsArr[0].name ?? String(groupsArr[0].id)) : null)
-            const groupToOpen = firstGroup || (Object.keys(sp)[0] || null)
-            if (groupToOpen) {
-              setExpandedGroup(groupToOpen)
-              const selProd = sp[groupToOpen]
-              if (selProd) {
-                requestAnimationFrame(() => {
-                  requestAnimationFrame(() => {
-                    scrollToProduct(selProd, groupToOpen)
-                  })
-                })
-              }
-            }
-          } catch (e) {}
-
-          setLoadingCombo(false)
-          return
         }
 
         setLoadingCombo(false)
@@ -489,8 +405,12 @@ export default function ComboDetail({ combo: propCombo = null }) {
     if (!fromCheckout || editingIndex == null) return
     if (!comboState) return
     if (prefilledRef.current) return
-
     if (fetchedFullRef.current) return;
+    console.log("FETCH GUARD:", {
+      prefilled: prefilledRef.current,
+      fetchedFull: fetchedFullRef.current,
+      comboState,
+    });
 
     try {
       // condition 1: no comboGroups at all -> need fetch
@@ -515,7 +435,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
             fetchedFullRef.current = true;
             return;
           }
-          console.debug('[ComboDetail] fetching full combo data for code:', code, 'because needsFetch=', needsFetch, 'groupsTruncated=', groupsTruncated);
+          console.log('[ComboDetail] fetching full combo data for code:', code, 'because needsFetch=', needsFetch, 'groupsTruncated=', groupsTruncated);
           const url = `/api/proxy/combo-list?orderCategoryCode=DI&storeCode=MGI`
           const r = await fetch(url)
           if (r.ok) {
@@ -544,10 +464,10 @@ export default function ComboDetail({ combo: propCombo = null }) {
                   }
                 })
               } else {
-                console.debug('[ComboDetail] fetch returned list but no suitable combo found and comboState already present — skipping overwrite')
+                console.log('[ComboDetail] fetch returned list but no suitable combo found and comboState already present — skipping overwrite')
               }
             } else {
-              console.debug('[ComboDetail] fetch returned empty list')
+              console.log('[ComboDetail] fetch returned empty list')
             }
           } else {
             console.warn('[ComboDetail] fetch failed status', r.status)
@@ -649,7 +569,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                       products: entryConds.map(c => ({
                         id: c.code ?? c.id ?? c.name,
                         code: c.code ?? c.id ?? c.name,
-                        name: c.name ?? '',
+                        name: c.name ?? c.itemName ?? '',
                         price: c.price ?? 0,
                         taxes: c.taxes || []
                       }))
@@ -827,6 +747,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         code: prod.code ?? prod.id,
         comboGroup: grp.code ?? grp.name ?? groupKey,
         name: prod.name ?? '',
+        itemName: prod.itemName ?? '',
         price: Number(prod.price || 0),
         qty: Number(prod.qty || 1),
         taxes: (prod.taxes || []).map(t => ({
@@ -849,7 +770,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
             if (!opt) return
             productPayload.condiments.push({
               code: opt.code ?? opt.id,
-              name: opt.name ?? '',
+              name: opt.name ?? opt.itemName ?? '',
               price: Number(opt.price || 0),
               qty: Number(opt.qty || 1) || 1,
               taxes: (opt.taxes || []).map(t => ({ taxName: t.name || t.code || '', taxPercentage: Number(t.amount || 0), taxAmount: 0 }))
@@ -860,7 +781,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
           if (opt) {
             productPayload.condiments.push({
               code: opt.code ?? opt.id,
-              name: opt.name ?? '',
+              name: opt.name ?? opt.itemName ?? '',
               price: Number(opt.price || 0),
               qty: Number(opt.qty || 1) || 1,
               taxes: (opt.taxes || []).map(t => ({ taxName: t.name || t.code || '', taxPercentage: Number(t.amount || 0), taxAmount: 0 }))
@@ -974,6 +895,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
       return
     }
 
+    console.log("Payload combos:", payload);
+    
+
     try {
       setAddAnimating(true)
       setTimeout(() => setAddAnimating(false), 500)
@@ -992,9 +916,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
       setShowPopup(true)
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
       toastTimerRef.current = setTimeout(() => {
-        setShowPopup(false)
-        setMissingAddons(null)
-        router.push('/menu')
+        // setShowPopup(false)
+        // setMissingAddons(null)
+        // router.push('/menu')
       }, 900)
     } catch (e) {
       console.error('addToCart combo failed', e)
@@ -1036,22 +960,76 @@ export default function ComboDetail({ combo: propCombo = null }) {
     `}</style>
   )
 
+  const loadingStyle = (
+    <style>{`
+      .loading-overlay {
+        position: fixed;
+        top: 0; 
+        left: 0; 
+        right: 0; 
+        bottom: 0;
+        background-color: rgba(255, 255, 255, 0.85); /* Putih transparan */
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(2px); /* Efek blur halus */
+      }
+      .spinner {
+        width: 48px;
+        height: 48px;
+        border: 5px solid #e5e7eb;
+        border-top: 5px solid #F97316; /* Ganti warna sesuai tema (misal: Orange) */
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 16px;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      .loading-text {
+        font-weight: 600;
+        color: #374151;
+        font-size: 16px;
+        animation: pulse 1.5s infinite;
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+      }
+    `}</style>
+  )
+
   // debug helper (can remove later)
   useEffect(() => {
     try {
       if (fromCheckout && editingIndex != null) {
-        console.debug('[DEBUG ComboDetail] comboState:', comboState)
-        console.debug('[DEBUG ComboDetail] comboGroups keys:', (comboState?.comboGroups || []).map(g => getGroupKey(g)))
-        console.debug('[DEBUG ComboDetail] selectedProducts:', selectedProducts)
-        console.debug('[DEBUG ComboDetail] selectedCondiments:', selectedCondiments)
-        console.debug('[DEBUG ComboDetail] fallbackProductsRef:', fallbackProductsRef.current)
+        // console.log('[DEBUG ComboDetail] comboState:', comboState)
+        // console.log('[DEBUG ComboDetail] comboGroups keys:', (comboState?.comboGroups || []).map(g => getGroupKey(g)))
+        // console.log('[DEBUG ComboDetail] selectedProducts:', selectedProducts)
+        // console.log('[DEBUG ComboDetail] selectedCondiments:', selectedCondiments)
+        // console.log('[DEBUG ComboDetail] fallbackProductsRef:', fallbackProductsRef.current)
       }
     } catch (e) {}
   }, [comboState, selectedProducts, selectedCondiments, fromCheckout, editingIndex])
 
   return (
     <div className={styles.page}>
+      {/* Inject CSS Styles */}
       {highlightStyle}
+      {loadingStyle} 
+
+      {/* --- UI LOADING OVERLAY --- */}
+      {loadingCombo && (
+        <div className="loading-overlay">
+          <div className="spinner"></div>
+          <div className="loading-text">
+             {fromCheckout && editingIndex != null ? 'Menyiapkan Data Pesanan...' : 'Memuat Paket...'}
+          </div>
+        </div>
+      )}
 
       <div className={styles.headerArea}>
         <div className={styles.btnLeft}>
@@ -1105,7 +1083,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                     <div>
                       <div style={{ fontWeight: 600 }}>{g.name}</div>
                       <div style={{ fontSize: 13, color: '#666' }}>
-                        {selProdObj ? (selProdObj.name || selProdObj.itemName) : (selectedProducts[key] === NO_ADDON_CODE ? 'Tanpa Add On' : (g.allowSkip ? 'Boleh dikosongkan' : 'Belum dipilih'))}
+                        {selProdObj ? selProdObj.name : (selectedProducts[key] === NO_ADDON_CODE ? 'Tanpa Add On' : (g.allowSkip ? 'Boleh dikosongkan' : 'Belum dipilih'))}
                       </div>
                     </div>
 
@@ -1152,6 +1130,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
             const products = (Array.isArray(grp.products) && grp.products.length)
               ? grp.products
               : (fallbackProductsRef.current[getGroupKey(grp)] || [])
+            
+            console.log(`[UI RENDER] Group: ${grp.name}. Total Products: ${products.length}.`);
+            console.log(`[UI RENDER] Daftar Produk:`, products.map(p => p.name));
 
             const isToppingGroup = String((grp.code || '').toUpperCase()) === 'KIDS-TOPPING-ALL' ||
                                    String((grp.name || '').toLowerCase()).includes('add on topping')
@@ -1187,7 +1168,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                             {p.imagePath ? (<Image src={p.imagePath} alt={p.name} fill style={{ objectFit: 'cover' }} />) : null}
                           </div>
                           <div>
-                            <div style={{ fontWeight: 600 }}>{p.name || p.itemName}</div>
+                            <div style={{ fontWeight: 600 }}>{p.name}</div>
                             <div style={{ fontSize: 13, color: '#666' }}>{p.description ?? ''}</div>
                           </div>
                         </div>

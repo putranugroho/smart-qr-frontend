@@ -442,7 +442,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
       detailMenu: {
         code: apiItem.code || item.code || productCode || '',
         name: item.title || apiItem.name || '',
-        itemName: apiItem.itamName || item.itemName || '',
+        itemName: apiItem.itemName || item.itemName || '',
         price: basePrice,
         image: item.image || apiItem.imagePath || '',
       },

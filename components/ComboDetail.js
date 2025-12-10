@@ -916,9 +916,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
       setShowPopup(true)
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
       toastTimerRef.current = setTimeout(() => {
-        // setShowPopup(false)
-        // setMissingAddons(null)
-        // router.push('/menu')
+        setShowPopup(false)
+        setMissingAddons(null)
+        router.push('/menu')
       }, 900)
     } catch (e) {
       console.error('addToCart combo failed', e)

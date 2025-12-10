@@ -602,6 +602,30 @@ export default function OrderStatus() {
   const visibleItems = showAllItems ? items : (itemsCount > 0 ? [items[0]] : [])
   console.log("visibleItems", visibleItems);
   
+  const computeItemTotal = (item) => {
+    const qty = Number(item.qty || 1);
+    let base = Number(item.price || 0);
+    let addonTotal = 0;
+
+    // Kondimen (MENU)
+    if (item.condiments?.length) {
+      addonTotal += item.condiments.reduce(
+        (sum, c) => sum + Number(c.price || 0),
+        0
+      );
+    }
+
+    // ADD ON untuk COMBO (masuk dari products)
+    if (item.type === 'combo') {
+      const products = item.combos?.[0]?.products || [];
+      addonTotal += products.reduce(
+        (sum, p) => sum + Number(p.price || 0),
+        0
+      );
+    }
+
+    return (base + addonTotal) * qty;
+  };
 
   const MERCHANT_PHONE = '+628123456789'
   async function contactMerchant() {
@@ -753,7 +777,7 @@ export default function OrderStatus() {
                         </div>
 
                         <div className={styles.itemPrice}>
-                          {formatRp(Number(it.price || 0) * Number(it.qty || 1))}
+                          {formatRp(computeItemTotal(it))}
                         </div>
                       </div>
                     ))}

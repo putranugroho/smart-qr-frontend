@@ -489,17 +489,25 @@ export default function OrderStatus() {
     async function checkOrder() {
       try {
         const apiResp = await fetchRemoteOrder(orderCodeToPoll)
-        if (!apiResp || !apiResp.data) return
+        if (!apiResp) return
         if (!mounted) return
 
+        // FIX: Cek apakah data ada di dalam properti .data ATAU langsung di root object
+        const realData = apiResp.data || apiResp
+
+        // Validasi sederhana: pastikan ada Combos atau Menus atau Status
+        if (!realData.Combos && !realData.Menus && realData.Status === undefined) {
+             return
+        }
+
         setRemoteOrderRaw(apiResp)
-        setDataOrder(apiResp.data)
+        setDataOrder(realData) // Gunakan realData yang sudah dipastikan isinya
         try { sessionStorage.setItem('do_order_result', JSON.stringify(apiResp)) } catch (e) {}
 
-        const oc = apiResp?.data?.orderCode ?? apiResp?.orderCode ?? null
+        const oc = realData.orderCode ?? realData.OrderCode ?? null // Sesuaikan casing
         if (oc) setDisplayOrderId(String(oc))
 
-        const statusNum = Number(apiResp.data.Status ?? apiResp.data.status ?? 0)
+        const statusNum = Number(realData.Status ?? realData.status ?? 0)
 
         if (statusNum === -1) {
           setCurrentStep(4)

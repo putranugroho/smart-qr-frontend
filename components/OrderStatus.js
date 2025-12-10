@@ -317,6 +317,8 @@ export default function OrderStatus() {
 
     // Menus
     const menus = dataOrder.menus ?? dataOrder.Menus ?? []
+    console.log("menu track order", menus);
+    
     if (Array.isArray(menus) && menus.length > 0) {
       menus.forEach(m => {
         // normalize condiments (accept both Condiments and condiments)
@@ -589,7 +591,7 @@ export default function OrderStatus() {
     if (s.key === 3 && !paymentAccepted) {
       return { ...s, title: 'Pembayaran Pending', desc: 'Silahkan selesesaikan pembayaran kamu' }
     }
-    if (s.key === 1 && !orderFinish) {
+    if (s.key === 2 && !orderFinish) {
       return { ...s, title: 'Makanan Sedang Disiapkan', desc: 'Pesanan kamu sedang disiapkan' }
     }
     return s

@@ -99,7 +99,9 @@ export default function BillPage() {
     } catch {}
 
     try {
-      const raw = localStorage.getItem("do_order_result");
+      let raw = sessionStorage.getItem("do_order_result");
+      if (!raw) raw = localStorage.getItem("do_order_result");
+
       if (raw) {
         const parsed = JSON.parse(raw);
         setDoOrderRaw(parsed.data ?? parsed);

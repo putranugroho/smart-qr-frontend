@@ -448,7 +448,6 @@ export default function OrderStatus() {
 
       const r = await fetch(url, { signal: controller.signal, method: 'GET', headers: { 'Accept': 'application/json' } })
       clearTimeout(timeout)
-
       if (!r.ok) {
         console.warn('[OrderStatus] fetchRemoteOrder HTTP', r.status)
         return null
@@ -502,9 +501,10 @@ export default function OrderStatus() {
         const realData = apiResp.data || apiResp
 
         // Validasi sederhana: pastikan ada Combos atau Menus atau Status
-        if (!realData.Combos && !realData.Menus && realData.Status === undefined) {
+        if (!realData.combos && !realData.menus && realData.status === undefined) {
           return
         }
+
 
         setRemoteOrderRaw(apiResp)
         setDataOrder(realData) // Gunakan realData yang sudah dipastikan isinya

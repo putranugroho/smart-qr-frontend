@@ -495,10 +495,14 @@ export default function OrderStatus() {
       try {
         const apiResp = await fetchRemoteOrder(orderCodeToPoll)
         if (!apiResp) return
+        console.log("API RESP : ", apiResp)
         if (!mounted) return
+        console.log("API MOUNTED : ", mounted)
 
         // FIX: Cek apakah data ada di dalam properti .data ATAU langsung di root object
         const realData = apiResp.data || apiResp
+
+        console.log("realData : ", realData)
 
         // Validasi sederhana: pastikan ada Combos atau Menus atau Status
         if (!realData.combos && !realData.menus && realData.status === undefined) {

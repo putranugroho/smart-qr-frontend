@@ -356,7 +356,7 @@ export default function OrderStatus() {
           code: detailMenu.Code ?? "",
 
           // FIXED IMAGE
-          image: detailMenu.Image ?? m.image ?? null,
+          image: detailMenu.Image ?? detailMenu.image ?? m.image ?? null,
 
           // FIXED ORDER TYPE
           orderType: m.orderType ?? m.OrderType ?? "",
@@ -578,6 +578,12 @@ export default function OrderStatus() {
           setPaymentAccepted(true)
           setOrderFinish(true)
         }
+
+      if (realData?.payment?.toLowerCase()?.includes("gopay")) {
+        setUrlLogo("/images/pay-gopay.png")
+      } else if (realData?.payment?.toLowerCase()?.includes("qris")) {
+        setUrlLogo("/images/pay-qris.png")
+      }
       } catch (err) {
         console.warn('checkOrder error', err)
       }

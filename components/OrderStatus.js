@@ -515,7 +515,7 @@ export default function OrderStatus() {
         try { sessionStorage.setItem('do_order_result', JSON.stringify(apiResp)) } catch (e) { }
         try { localStorage.setItem('do_order_result', JSON.stringify(apiResp)) } catch (e) { }
 
-        const oc = realData.orderCode ?? realData.OrderCode ?? null // Sesuaikan casing
+        const oc = realData.displayOrderId ?? realData.orderCode ?? realData.OrderCode ?? null // Sesuaikan casing
         if (oc) setDisplayOrderId(String(oc))
 
         const statusNum = Number(realData.Status ?? realData.status ?? 0)

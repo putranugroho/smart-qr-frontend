@@ -287,7 +287,7 @@ export default function BillPage() {
               }
 
               /* MENU */
-              const base = Number(it.detailMenu?.Price ?? 0);
+              const base = Number(it.detailMenu?.Price ?? it.detailMenu?.price ?? 0);
               const qty = Number(it.qty || 1);
               const addonTotal = (it.condiments ?? []).reduce(
                 (t, c) => t + Number(c.Price ?? 0),

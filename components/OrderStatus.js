@@ -329,7 +329,7 @@ export default function OrderStatus() {
 
         const conds = rawConds.map(c => ({
           code: c.code ?? c.Code ?? "",
-          name: c.name ?? c.Name ?? c.ItemName ?? c.group ?? "",
+          name: c.name ?? c.Name ?? c.itemName ?? c.ItemName ?? c.group ?? c.Group ?? "",
           qty: Number(c.qty ?? c.Qty ?? 1),
           price: Number(c.price ?? c.Price ?? 0),
           taxes: Array.isArray(c.taxes ?? c.Taxes) ? (c.taxes ?? c.Taxes) : []
@@ -349,8 +349,8 @@ export default function OrderStatus() {
           qty: Number(m.qty ?? m.Qty ?? 1),
 
           // FIXED NAME & TITLE
-          title: detailMenu.ItemName ?? detailMenu.Name ?? "",
-          name: detailMenu.Name ?? detailMenu.ItemName ?? "",
+          title: detailMenu.itemName ?? detailMenu.ItemName ?? detailMenu.name ?? detailMenu.Name ?? "",
+          name: detailMenu.name ?? detailMenu.Name ?? detailMenu.itemName ?? detailMenu.ItemName ?? "",
 
           // FIXED CODE
           code: detailMenu.Code ?? "",

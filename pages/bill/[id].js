@@ -68,7 +68,7 @@ export default function BillPage() {
   const { id } = router.query;
   const printRef = useRef();
 
-  const [urlLogo, setUrlLogo] = useState("/images/pay-gopay.png");
+  const [urlLogo, setUrlLogo] = useState("");
 
   const [paymentFromStorage, setPaymentFromStorage] = useState({
     items: [],
@@ -99,13 +99,14 @@ export default function BillPage() {
     } catch {}
 
     try {
-      const raw = sessionStorage.getItem("do_order_result");
+      const raw = localStorage.getItem("do_order_result");
       if (raw) {
         const parsed = JSON.parse(raw);
         setDoOrderRaw(parsed.data ?? parsed);
-        if (parsed.Payment.toLowerCase().includes("gopay")) {
-            setUrlLogo("/images/pay-gopay.png")
-        } if (parsed.Payment.toLowerCase().includes("qris")) {
+        const pay = parsed.Payment || parsed.payment || "";
+        if (pay.toLowerCase().includes("gopay")) {
+          setUrlLogo("/images/pay-gopay.png");
+        } else if (parsed.Payment.toLowerCase().includes("qris")) {
           setUrlLogo("/images/pay-qris.png")
         } 
       }
@@ -127,7 +128,7 @@ export default function BillPage() {
       });
     });
 
-    (doOrderRaw.Menus ?? []).forEach((m) => {
+    (Array.isArray(doOrderRaw?.Menus) ? doOrderRaw.Menus : []).forEach((m) => {
       arr.push({
         type: "menu",
         qty: m.Qty,
@@ -385,10 +386,14 @@ export default function BillPage() {
         )}
 
         {/* PAYMENT */}
+        {urlLogo != "" ? (
         <div className={styles.paymentBox}>
           <div>Pembayaran Online</div>
           <img src={urlLogo} width={55} />
         </div>
+        ) : (
+          <div className={styles.paymentBox}></div> 
+        )}
 
         {/* TOTAL BOX */}
         <div className={styles.detailBox}>

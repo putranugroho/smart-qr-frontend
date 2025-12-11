@@ -509,6 +509,7 @@ export default function OrderStatus() {
         setRemoteOrderRaw(apiResp)
         setDataOrder(realData) // Gunakan realData yang sudah dipastikan isinya
         try { sessionStorage.setItem('do_order_result', JSON.stringify(apiResp)) } catch (e) { }
+        try { localStorage.setItem('do_order_result', JSON.stringify(apiResp)) } catch (e) { }
 
         const oc = realData.orderCode ?? realData.OrderCode ?? null // Sesuaikan casing
         if (oc) setDisplayOrderId(String(oc))

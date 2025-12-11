@@ -337,7 +337,7 @@ export default function OrderStatus() {
 
         const detailMenu = m.detailMenu ?? m.DetailMenu ?? {}
 
-        const detailPrice = Number(detailMenu.Price ?? 0)
+        const detailPrice = Number(detailMenu.price ?? detailMenu.Price ?? 0)
         const finalPrice = Number(m.price ?? detailPrice)
 
         arr.push({
@@ -511,7 +511,7 @@ export default function OrderStatus() {
 
 
         setRemoteOrderRaw(apiResp)
-        // setDataOrder(realData) // Gunakan realData yang sudah dipastikan isinya
+        setDataOrder(realData) // Gunakan realData yang sudah dipastikan isinya
         try { sessionStorage.setItem('do_order_result', JSON.stringify(apiResp)) } catch (e) { }
         try { localStorage.setItem('do_order_result', JSON.stringify(apiResp)) } catch (e) { }
 

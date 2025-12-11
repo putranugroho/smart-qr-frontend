@@ -1,15 +1,17 @@
 import crypto from "crypto";
+import logger from "../../../../lib/logger";
 
 export default async function handler(req, res) {
     if (req.method !== "POST") {
+        logger.warn("Method not allowed: " + req.method);
         return res.status(405).json({ ok: false, message: "Method not allowed" });
     }
 
     try {
         const body = req.body || {};
 
-        console.log("🔔 MIDTRANS NOTIFICATION RECEIVED");
-        console.log(JSON.stringify(body, null, 2));
+        logger.info("🔔 MIDTRANS NOTIFICATION RECEIVED");
+        logger.info(JSON.stringify(body, null, 2));
 
         const {
             order_id,
@@ -22,6 +24,7 @@ export default async function handler(req, res) {
         } = body;
 
         if (!order_id || !transaction_status) {
+            logger.error("Invalid Midtrans payload");
             return res.status(400).json({ ok: false, message: "Invalid Midtrans payload" });
         }
 
@@ -33,11 +36,11 @@ export default async function handler(req, res) {
             .digest("hex");
 
         if (expectedSignature !== signature_key) {
-            console.error("❌ Invalid Midtrans signature!");
+            logger.error("❌ Invalid Midtrans signature!");
             return res.status(401).json({ ok: false, message: "Invalid signature key" });
         }
 
-        console.log("✔️ Valid Midtrans signature")
+        logger.info("✔️ Valid Midtrans signature");
 
         let PaymentCode = "OTHERS";
 
@@ -46,12 +49,12 @@ export default async function handler(req, res) {
         else if (payment_type.includes("credit_card")) PaymentCode = "CC";
         else PaymentCode = payment_type.toUpperCase();
 
-        console.log("💳 PaymentCode:", PaymentCode);
+        logger.info(`💳 PaymentCode: ${PaymentCode}`);
 
         const paidStatuses = ["capture", "settlement", "success"];
 
         if (paidStatuses.includes(transaction_status.toLowerCase())) {
-            console.log("💰 Payment completed, calling do-payment-trans-id...");
+            logger.info("💰 Payment completed, calling do-payment-trans-id...");
 
             const resp = await fetch(`${process.env.NEXT_PUBLIC_DOMAIN}/api/order/do-payment-trans-id`, {
                 method: "POST",
@@ -65,10 +68,10 @@ export default async function handler(req, res) {
 
             const result = await resp.json().catch(() => null);
 
-            console.log("➡️ do-payment-trans-id result:", result);
+            logger.info("➡️ do-payment-trans-id result: " + JSON.stringify(result));
 
             if (!resp.ok) {
-                console.error("❌ Backend do-payment-trans-id failed:", result);
+                logger.error("❌ Backend failed: " + JSON.stringify(result));
             }
         }
 
@@ -80,7 +83,7 @@ export default async function handler(req, res) {
         });
 
     } catch (err) {
-        console.error("ERROR HANDLING MIDTRANS NOTIF:", err);
+        logger.error("ERROR HANDLING MIDTRANS NOTIF: " + err);
         return res.status(500).json({ ok: false, message: "Internal server error", error: String(err) });
     }
 }

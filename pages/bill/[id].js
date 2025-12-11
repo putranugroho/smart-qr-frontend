@@ -46,7 +46,7 @@ function calculateItemTaxes(it) {
     });
   } else {
     const qty = Number(it.qty || 1);
-    const price = Number(it.price ?? it.detailMenu?.Price ?? 0);
+    const price = Number(it.price ?? it.detailMenu?.price ?? it.detailMenu?.Price ?? 0);
     base = price * qty;
 
     if (Array.isArray(it.taxes)) {
@@ -105,10 +105,9 @@ export default function BillPage() {
       if (raw) {
         const parsed = JSON.parse(raw);
         setDoOrderRaw(parsed.data ?? parsed);
-        const pay = parsed.Payment || parsed.payment || "";
-        if (pay.toLowerCase().includes("gopay")) {
+        if ((parsed.Payment ?? parsed.payment).toLowerCase().includes("gopay")) {
           setUrlLogo("/images/pay-gopay.png");
-        } else if (parsed.Payment.toLowerCase().includes("qris")) {
+        } else if ((parsed.Payment ?? parsed.payment).toLowerCase().includes("qris")) {
           setUrlLogo("/images/pay-qris.png")
         } 
       }
@@ -130,14 +129,14 @@ export default function BillPage() {
       });
     });
 
-    (Array.isArray(doOrderRaw?.Menus) ? doOrderRaw.Menus : []).forEach((m) => {
+    (Array.isArray(doOrderRaw?.Menus ?? doOrderRaw?.menus) ? (doOrderRaw.Menus ?? doOrderRaw?.menus) : []).forEach((m) => {
       arr.push({
         type: "menu",
-        qty: m.Qty,
-        orderType: m.OrderType,
-        detailMenu: m.DetailMenu,
-        condiments: m.Condiments ?? [],
-        taxes: m.Taxes ?? [],
+        qty: m.Qty ?? m.qty,
+        orderType: m.OrderType ?? m.orderType,
+        detailMenu: m.DetailMenu ?? m.detailMenu,
+        condiments: m.Condiments ?? m.condiments ?? [],
+        taxes: m.Taxes ?? m.taxes ?? [],
       });
     });
 
@@ -148,7 +147,7 @@ export default function BillPage() {
     if (!doOrderRaw) return false;
 
     // Cek tax di COMBOS
-    for (const cb of doOrderRaw.Combos ?? []) {
+    for (const cb of (doOrderRaw.combos ?? doOrderRaw.Combos ?? [])) {
       for (const p of cb.products ?? []) {
         for (const tx of p.taxes ?? []) {
           const name = (tx.taxName ?? "").toUpperCase();
@@ -159,8 +158,8 @@ export default function BillPage() {
     }
 
     // Cek tax di MENUS
-    for (const m of doOrderRaw.Menus ?? []) {
-      for (const tx of m.Taxes ?? []) {
+    for (const m of (doOrderRaw.menus ?? doOrderRaw.Menus ?? [])) {
+      for (const tx of (m.taxes ?? m.Taxes ?? [])) {
         const name = (tx.taxName ?? "").toUpperCase();
         const pct = Number(tx.taxPercentage ?? 0);
         if (name.includes("PPN") || pct === 11) return true;
@@ -239,7 +238,7 @@ export default function BillPage() {
         <div className={styles.billNumberRow}>
           <div className={styles.billLabel}>Nomor Bill</div>
           <div className={styles.billValue}>
-            {doOrderRaw?.DisplayOrderId ?? id}
+            {doOrderRaw?.displayOrderId ?? doOrderRaw?.DisplayOrderId ?? id}
           </div>
         </div>
 
@@ -251,7 +250,7 @@ export default function BillPage() {
             <div className={styles.npwpLabel}></div>
           )}
           <div className={styles.npwpLabel}>
-            {doOrderRaw?.TableNumber ? `Table ${doOrderRaw.TableNumber}` : ""}
+            {doOrderRaw?.tableNumber ?? doOrderRaw?.TableNumber ? `Table ${doOrderRaw.TableNumber ?? doOrderRaw.tableNumber}` : ""}
           </div>
         </div>
 
@@ -300,13 +299,13 @@ export default function BillPage() {
                 <div key={i} className={styles.itemRow}>
                   <div className={styles.itemLeft}>
                     <div className={styles.itemTitle}>
-                      {it.detailMenu?.ItemName} ({qty}x)
+                      {it.detailMenu?.ItemName ?? it.detailMenu?.itemName} ({qty}x)
                     </div>
 
                     {it.condiments?.length > 0 ? (
                       it.condiments.map((c, idx) => (
                         <div key={idx} className={styles.itemAddon}>
-                          • {c.Name || c.ItemName || c.name}
+                          • {c.Name || c.ItemName || c.itemName || c.name}
                         </div>
                       ))
                     ) : (
@@ -354,10 +353,10 @@ export default function BillPage() {
               }
 
               /* MENU */
-              const base = Number(it.detailMenu?.Price ?? 0);
+              const base = Number(it.detailMenu?.Price ?? it.detailMenu?.price ?? 0);
               const qty = Number(it.qty || 1);
               const addonTotal = (it.condiments ?? []).reduce(
-                (t, c) => t + Number(c.Price ?? 0),
+                (t, c) => t + Number(c.Price ?? c.price ?? 0),
                 0
               );
               const menuTotal = (base + addonTotal) * qty;
@@ -366,13 +365,13 @@ export default function BillPage() {
                 <div key={i} className={styles.itemRow}>
                   <div className={styles.itemLeft}>
                     <div className={styles.itemTitle}>
-                      {it.detailMenu?.ItemName} ({qty}x)
+                      {it.detailMenu?.ItemName ?? it.detailMenu?.itemName} ({qty}x)
                     </div>
 
                     {it.condiments?.length > 0 ? (
                       it.condiments.map((c, idx) => (
                         <div key={idx} className={styles.itemAddon}>
-                          • {c.Name || c.ItemName || c.name}
+                          • {c.Name || c.ItemName || c.itemName || c.name}
                         </div>
                       ))
                     ) : (

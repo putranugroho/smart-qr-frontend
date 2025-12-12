@@ -55,12 +55,12 @@ export default async function handler(req, res) {
 
         if (paidStatuses.includes(transaction_status.toLowerCase())) {
             logger.info("💰 Payment completed, calling do-payment-trans-id...");
-
-            const resp = await fetch(`${process.env.NEXT_PUBLIC_DOMAIN}/api/order/do-payment-trans-id`, {
+            const resp = await fetch(`${process.env.NEXT_PUBLIC_URL_DEV}/api/order/do-payment-trans-id`, {
+            // const resp = await fetch(`${process.env.NEXT_PUBLIC_DOMAIN}/api/order/do-payment-trans-id`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    transactionId: transaction_id,
+                    transactionId: order_id,
                     payment: PaymentCode,
                     reference: order_id
                 })

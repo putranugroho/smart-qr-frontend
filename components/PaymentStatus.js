@@ -27,8 +27,6 @@ export default function PaymentStatus() {
 
   const [paymentSuccess, setPaymentSuccess] = useState(false)
   const [successOrderId, setSuccessOrderId] = useState(null)
-
-  const [showLeaveModal, setShowLeaveModal] = useState(false)
   const leaveResolveRef = useRef(null)
 
   // NEW: status logs shown in UI
@@ -475,15 +473,7 @@ export default function PaymentStatus() {
   function askConfirmLeave() {
     return new Promise(resolve => {
       leaveResolveRef.current = resolve
-      setShowLeaveModal(true)
     })
-  }
-
-  function handleModalAnswer(answer) {
-    setShowLeaveModal(false)
-    const resolve = leaveResolveRef.current
-    leaveResolveRef.current = null
-    if (typeof resolve === 'function') resolve(Boolean(answer))
   }
 
   async function handleBackButtonClick() {
@@ -733,20 +723,6 @@ export default function PaymentStatus() {
           ))}
         </div>
       </div> */}
-
-      {/* Confirmation Modal */}
-      {showLeaveModal && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modal}>
-            <h3>Konfirmasi</h3>
-            <p>Apakah Anda yakin ingin meninggalkan halaman pembayaran? Pembayaran mungkin belum selesai.</p>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
-              <button className={styles.btnSecondary} onClick={() => handleModalAnswer(false)}>Batal</button>
-              <button className={styles.btnPrimary} onClick={() => handleModalAnswer(true)}>Ya, tinggalkan</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

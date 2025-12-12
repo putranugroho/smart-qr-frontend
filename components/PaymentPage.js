@@ -80,7 +80,8 @@ export default function PaymentPage() {
     const cart = payment.cart || [];
     // pass grossAmount so mapDoOrderPayload can compute rounding if needed
     const payload = mapDoOrderPayload(cart, grossAmountForRounding, selectedMethod, {
-      posId: 'QR',
+      posId: 'POS1',
+      // posId: 'QR',
       orderType: user.orderType || 'DI',
       tableNumber: isTakeAway ? '' : (explicitTableNumber !== null ? explicitTableNumber : tableNumber)
     });
@@ -209,40 +210,40 @@ export default function PaymentPage() {
       // generate orderId that will be used as Midtrans order_id (displayOrderId)
       const orderId = (user.orderType === 'DI' ? 'DI' : (isTakeAway ? 'TA' : 'DI')) + (Math.floor(Math.random() * 9000) + 1000);
 
-      // const payload_midtrans = {
-      //   // transaction_details: {
-      //   //   order_id: orderId,
-      //   //   gross_amount: Number(grossAmount)
-      //   // },
-      //   // item_details: [{}],
-      //   payment_type: selectedMethod === 'gopay' ? 'gopay' : 'qris', // contoh. kamu bisa extend per method
-      //   orderId: orderId,
-      //   grossAmount: Number(grossAmount),
-      //   metadata: payload || undefined,
-      //   customer_details: customer || undefined
-      // };
+      const payload_midtrans = {
+        // transaction_details: {
+        //   order_id: orderId,
+        //   gross_amount: Number(grossAmount)
+        // },
+        // item_details: [{}],  
+        payment_type: selectedMethod === 'gopay' ? 'gopay' : 'qris', // contoh. kamu bisa extend per method
+        orderId: orderId,
+        grossAmount: Number(1),
+        // grossAmount: Number(grossAmount),
+        metadata: payload || undefined,
+        customer_details: customer || undefined
+      };
 
-      // // khusus GoPay: enable deeplink callback (mobile)
-      // if (selectedMethod === 'gopay') {
-      //   payload_midtrans.gopay = {
-      //     enable_callback: true,
-      //     // contoh callback scheme -> bisa berupa myapp://payment-callback
-      //     // atau https://yourdomain.com/payment-callback jika ingin redirect via web
-      //     callback_url: process.env.NEXT_PUBLIC_MIDTRANS_CALLBACK_URL
-      //   };
-      // }
+      // khusus GoPay: enable deeplink callback (mobile)
+      if (selectedMethod === 'gopay') {
+        payload_midtrans.gopay = {
+          enable_callback: true,
+          // callback_url: process.env.MIDTRANS_CALLBACK_URL || "https://order.yoshinoya.co.id/paymentstatus"
+          callback_url: "https://yoshi-smartqr.akasia.id//paymentstatus"
+        };
+      }
 
       // === 1. Create Midtrans Transaction ===
       const resp = await fetch('/api/midtrans/create-transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId,
-          grossAmount,
-          customer,
-          selectedMethod
-        })
-        // body: JSON.stringify(payload_midtrans)
+        // body: JSON.stringify({
+        //   orderId,
+        //   grossAmount,
+        //   customer,
+        //   selectedMethod
+        // })
+        body: JSON.stringify(payload_midtrans)
       });
 
       const data = await resp.json();
@@ -316,7 +317,7 @@ export default function PaymentPage() {
       } catch (e) { /* ignore */ }
 
       // clear client cart (calls clearCart -> localStorage)
-      clearCart();
+      // clearCart();
 
       router.push('/paymentstatus');
 

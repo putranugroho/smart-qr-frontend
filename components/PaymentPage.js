@@ -211,38 +211,18 @@ export default function PaymentPage() {
       const orderId = (user.orderType === 'DI' ? 'DI' : (isTakeAway ? 'TA' : 'DI')) + (Math.floor(Math.random() * 9000) + 1000);
 
       const payload_midtrans = {
-        // transaction_details: {
-        //   order_id: orderId,
-        //   gross_amount: Number(grossAmount)
-        // },
-        // item_details: [{}],  
-        payment_type: selectedMethod === 'gopay' ? 'gopay' : 'qris', // contoh. kamu bisa extend per method
         orderId: orderId,
         grossAmount: Number(1),
         // grossAmount: Number(grossAmount),
+        selectedMethod,
+        customer,
         metadata: payload || undefined,
-        customer_details: customer || undefined
       };
-
-      // khusus GoPay: enable deeplink callback (mobile)
-      if (selectedMethod === 'gopay') {
-        payload_midtrans.gopay = {
-          enable_callback: true,
-          // callback_url: process.env.MIDTRANS_CALLBACK_URL || "https://order.yoshinoya.co.id/paymentstatus"
-          callback_url: "https://yoshi-smartqr.akasia.id//paymentstatus"
-        };
-      }
 
       // === 1. Create Midtrans Transaction ===
       const resp = await fetch('/api/midtrans/create-transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // body: JSON.stringify({
-        //   orderId,
-        //   grossAmount,
-        //   customer,
-        //   selectedMethod
-        // })
         body: JSON.stringify(payload_midtrans)
       });
 

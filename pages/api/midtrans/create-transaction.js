@@ -2,7 +2,7 @@
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { orderId, grossAmount, customer = {}, selectedMethod } = req.body;
+  const { orderId, grossAmount, customer, selectedMethod, metadata } = req.body;
   if (!orderId || !grossAmount) return res.status(400).json({ error: 'orderId & grossAmount required' });
 
   // Production endpoint
@@ -16,19 +16,18 @@ export default async function handler(req, res) {
       order_id: orderId,
       gross_amount: Number(grossAmount)
     },
-    item_details: req.body.item_details || undefined,
+    metadata,
     customer_details: customer || undefined
   };
 
-  // khusus GoPay: enable deeplink callback (mobile)
-  if (selectedMethod === 'gopay') {
-    payload.gopay = {
-      enable_callback: true,
-      // contoh callback scheme -> bisa berupa myapp://payment-callback
-      // atau https://yourdomain.com/payment-callback jika ingin redirect via web
-      callback_url: process.env.GOPAY_CALLBACK_URL || 'myapp://payment-callback'
-    };
-  }
+    // khusus GoPay: enable deeplink callback (mobile)
+    if (selectedMethod === 'gopay') {
+      payload_midtrans.gopay = {
+        enable_callback: true,
+        // callback_url: process.env.MIDTRANS_CALLBACK_URL || "https://order.yoshinoya.co.id/paymentstatus"
+        callback_url: "https://yoshi-smartqr.akasia.id//paymentstatus"
+      };
+    }
 
   try {
     const auth = Buffer.from(`${SERVER_KEY}:`).toString('base64');

@@ -1,5 +1,3 @@
-import crypto from "crypto";
-import logger from "../../../../lib/logger";
 
 export default async function handler(req, res) {
     if (req.method !== "POST") {
@@ -10,8 +8,8 @@ export default async function handler(req, res) {
     try {
         const body = req.body || {};
 
-        logger.info("🔔 MIDTRANS NOTIFICATION RECEIVED");
-        logger.info(JSON.stringify(body, null, 2));
+        console.log("🔔 MIDTRANS NOTIFICATION RECEIVED");
+        console.log(JSON.stringify(body, null, 2));
 
         const {
             order_id,
@@ -24,23 +22,9 @@ export default async function handler(req, res) {
         } = body;
 
         if (!order_id || !transaction_status) {
-            logger.error("Invalid Midtrans payload");
+            console.log("Invalid Midtrans payload");
             return res.status(400).json({ ok: false, message: "Invalid Midtrans payload" });
         }
-
-        const serverKey = process.env.MIDTRANS_SERVER_KEY;
-
-        // const expectedSignature = crypto
-        //     .createHash("sha512")
-        //     .update(order_id + status_code + gross_amount + serverKey)
-        //     .digest("hex");
-
-        // if (expectedSignature !== signature_key) {
-        //     logger.error("❌ Invalid Midtrans signature!");
-        //     return res.status(401).json({ ok: false, message: "Invalid signature key" });
-        // }
-
-        // logger.info("✔️ Valid Midtrans signature");
 
         let PaymentCode = "OTHERS";
 
@@ -49,44 +33,48 @@ export default async function handler(req, res) {
         else if (payment_type.includes("credit_card")) PaymentCode = "CC";
         else PaymentCode = payment_type.toUpperCase();
 
-        logger.info(`💳 PaymentCode: ${PaymentCode}`);
+        console.log(`💳 PaymentCode: ${PaymentCode}`);
 
         const paidStatuses = ["capture", "settlement", "success"];
 
         let order_code
         if (paidStatuses.includes(transaction_status.toLowerCase())) {
-            logger.info("💰 Payment completed, calling do-payment-trans-id...");
-            const resp = await fetch(`${process.env.NEXT_PUBLIC_URL_DEV}/api/order/do-payment-trans-id`, {
-            // const resp = await fetch(`${process.env.NEXT_PUBLIC_DOMAIN}/api/order/do-payment-trans-id`, {
+            console.log("💰 Payment completed, calling do-payment-trans-id...");
+            const payload = {
+                orderCode: String(order_id),
+                payment: String(PaymentCode),
+                reference: String(transaction_id)
+            }
+            console.log("payload", payload);
+            const resp = await fetch(`${process.env.NEXT_PUBLIC_URL_DEV}/smartqr/v1/order/do-payment?storeCode=MGI`, {
+            // const resp = await fetch(`${process.env.NEXT_PUBLIC_DOMAIN}/api/order/do-payment`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    transactionId: order_id,
-                    payment: PaymentCode,
-                    reference: transaction_id
-                })
+                body: JSON.stringify(payload)
             });
 
             const result = await resp.json().catch(() => null);
-
-            logger.info("➡️ do-payment-trans-id result: " + JSON.stringify(result));
+ 
+            console.log("➡️ do-payment-trans-id result: " + JSON.stringify(resp));
             order_code = result.order_code;
 
-            if (!resp.ok) {
-                logger.error("❌ Backend failed: " + JSON.stringify(result));
+            if (resp.ok) {
+                return res.status(200).json({
+                    ok: true,
+                    message: "Notification processed",
+                    orderId: order_id,
+                    transactionId: transaction_id,
+                    order_code: order_code
+                });
+            } else {
+                console.log("❌ Backend failed: " + JSON.stringify(result));
+                return res.status(400).json({ ok: false, message: "Failed to complete do-payment", error: String(err) });
             }
         }
-
-        return res.status(200).json({
-            ok: true,
-            message: "Notification processed",
-            orderId: order_id,
-            transactionId: transaction_id,
-            order_code: order_code
-        });
-
+        
+        return res.status(400).json({ ok: false, message: "Paid status was not completed", error: String(err) });
     } catch (err) {
-        logger.error("ERROR HANDLING MIDTRANS NOTIF: " + err);
+        console.log("ERROR HANDLING MIDTRANS NOTIF: " + err);
         return res.status(500).json({ ok: false, message: "Internal server error", error: String(err) });
     }
 }

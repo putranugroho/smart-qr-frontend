@@ -11,6 +11,27 @@ function formatRp(n) {
   return 'Rp' + new Intl.NumberFormat('id-ID').format(Number(n || 0))
 }
 
+function generateOrderId(user, isTakeAway) {
+  const prefix = user.orderType === 'DI' ? 'DI' : (isTakeAway ? 'TA' : 'DI')
+
+  const now = new Date()
+
+  const pad = (n) => n.toString().padStart(2, '0')
+
+  const hh = pad(now.getHours())
+  const mm = pad(now.getMinutes())
+  const ss = pad(now.getSeconds())
+  const dd = pad(now.getDate())
+  const MM = pad(now.getMonth() + 1)
+  const yy = now.getFullYear().toString().slice(-2)
+
+  // random number 100 (0–99 atau 1–100, pilih salah satu)
+  const random100 = Math.floor(Math.random() * 100) // 0–99
+  // const random100 = Math.floor(Math.random() * 100) + 1 // 1–100
+
+  return `${prefix}${hh}${mm}${ss}${dd}${MM}${yy}${random100}`
+}
+
 export default function PaymentPage() {
   const router = useRouter();
   const [payment, setPayment] = useState({});
@@ -208,10 +229,50 @@ export default function PaymentPage() {
       const grossAmount = payload.grandTotal || 1;
 
       // generate orderId that will be used as Midtrans order_id (displayOrderId)
-      const orderId = (user.orderType === 'DI' ? 'DI' : (isTakeAway ? 'TA' : 'DI')) + (Math.floor(Math.random() * 9000) + 1000);
+      const orderId = generateOrderId(user, isTakeAway)
+
+      if (selectedMethod.includes("gopay")) {
+        payload.payment = "GOPAY"
+      } if (selectedMethod.includes("qris")) {
+        payload.payment = "QRISOTHERS"
+      } 
+
+      payload.customerName = customer.first_name || "";
+      payload.customerPhoneNumber = "0" + (customer.phone || "");
+      // ensure payload.tableNumber is the formatted one
+      payload.tableNumber = finalTableForPayload;
+      payload.table_number = finalTableForPayload;
+      
+      // CHANGED: attach displayOrderId (Midtrans order_id we generated)
+      payload.displayOrderId = orderId;
+
+      console.log("payload (do-order) :", payload);
+
+      // === 1. DO-ORDER ===
+      const doOrderResp = await fetch('/api/order/do-order', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          storeCode: "MGI",
+          // storeCode: user.storeCode,
+          payload
+        })
+      });
+
+      const doOrderData = await doOrderResp.json();
+      if (!doOrderResp.ok) throw new Error(doOrderData.error || 'Gagal do-order');
+
+      console.log("doOrderData", doOrderData);
+
+      // persist do-order result (orderCode and backend data)
+      sessionStorage.setItem('do_order_result', JSON.stringify(doOrderData));
+      // also persist payload so PaymentStatus can read formatted table number
+      try {
+        sessionStorage.setItem('do_order_payload', JSON.stringify(payload));
+      } catch (e) { /* ignore */ }
 
       const payload_midtrans = {
-        orderId: orderId,
+        orderId: doOrderData.data.orderCode,
         grossAmount: Number(1),
         // grossAmount: Number(grossAmount),
         selectedMethod,
@@ -219,7 +280,7 @@ export default function PaymentPage() {
         metadata: payload || undefined,
       };
 
-      // === 1. Create Midtrans Transaction ===
+      // === 2. Create Midtrans Transaction ===
       const resp = await fetch('/api/midtrans/create-transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -251,53 +312,13 @@ export default function PaymentPage() {
         payload.selfPaymentRefId = String(data.transaction_details.order_id);
       }
 
-      // CHANGED: attach displayOrderId (Midtrans order_id we generated)
-      payload.displayOrderId = orderId;
-
       // CHANGED: attach paymentLink to payload if available
       if (paymentLink) {
         payload.paymentLink = paymentLink;
       }
 
-      if (selectedMethod.includes("gopay")) {
-        payload.payment = "GOPAY"
-      } if (selectedMethod.includes("qris")) {
-        payload.payment = "QRISOTHERS"
-      } 
-
-      payload.customerName = customer.first_name || "";
-      payload.customerPhoneNumber = "0" + (customer.phone || "");
-      // ensure payload.tableNumber is the formatted one
-      payload.tableNumber = finalTableForPayload;
-      payload.table_number = finalTableForPayload;
-
-      console.log("payload (do-order) :", payload);
-
-      // === 2. DO-ORDER ===
-      const doOrderResp = await fetch('/api/order/do-order', {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          storeCode: "MGI",
-          // storeCode: user.storeCode,
-          payload
-        })
-      });
-
-      const doOrderData = await doOrderResp.json();
-      if (!doOrderResp.ok) throw new Error(doOrderData.error || 'Gagal do-order');
-
-      console.log("doOrderData", doOrderData);
-
-      // persist do-order result (orderCode and backend data)
-      sessionStorage.setItem('do_order_result', JSON.stringify(doOrderData));
-      // also persist payload so PaymentStatus can read formatted table number
-      try {
-        sessionStorage.setItem('do_order_payload', JSON.stringify(payload));
-      } catch (e) { /* ignore */ }
-
       // clear client cart (calls clearCart -> localStorage)
-      // clearCart();
+      clearCart();
 
       router.push('/paymentstatus');
 

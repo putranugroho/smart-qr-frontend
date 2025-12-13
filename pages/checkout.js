@@ -1,8 +1,23 @@
 // pages/checkout.js
-import { useRouter } from 'next/router'
-import Checkout from '../components/Checkout'
+import { useOrderGuard } from "../hooks/useOrderGuard";
+import Checkout from "../components/Checkout";
 
 export default function CheckoutPage() {
-  const router = useRouter()
-  return <Checkout />
+  const { allowed, checking } = useOrderGuard({
+    requireStore: true,
+    requireTable: true,
+    redirectTo: "/", // atau "/menu"
+  });
+
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Loading checkout...
+      </div>
+    );
+  }
+
+  if (!allowed) return null;
+
+  return <Checkout />;
 }

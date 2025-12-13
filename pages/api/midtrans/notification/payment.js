@@ -53,6 +53,7 @@ export default async function handler(req, res) {
 
         const paidStatuses = ["capture", "settlement", "success"];
 
+        let order_code
         if (paidStatuses.includes(transaction_status.toLowerCase())) {
             logger.info("💰 Payment completed, calling do-payment-trans-id...");
             const resp = await fetch(`${process.env.NEXT_PUBLIC_URL_DEV}/api/order/do-payment-trans-id`, {
@@ -69,6 +70,7 @@ export default async function handler(req, res) {
             const result = await resp.json().catch(() => null);
 
             logger.info("➡️ do-payment-trans-id result: " + JSON.stringify(result));
+            order_code = result.order_code;
 
             if (!resp.ok) {
                 logger.error("❌ Backend failed: " + JSON.stringify(result));
@@ -80,7 +82,7 @@ export default async function handler(req, res) {
             message: "Notification processed",
             orderId: order_id,
             transactionId: transaction_id,
-            order_code: resp
+            order_code: order_code
         });
 
     } catch (err) {

@@ -22,10 +22,10 @@ export default async function handler(req, res) {
 
     // khusus GoPay: enable deeplink callback (mobile)
     if (selectedMethod === 'gopay') {
-      payload_midtrans.gopay = {
+      payload.gopay = {
         enable_callback: true,
         // callback_url: process.env.MIDTRANS_CALLBACK_URL || "https://order.yoshinoya.co.id/paymentstatus"
-        callback_url: "https://yoshi-smartqr.akasia.id//paymentstatus"
+        callback_url: "https://yoshi-smartqr.akasia.id/paymentstatus"
       };
     }
 

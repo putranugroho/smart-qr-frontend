@@ -37,7 +37,6 @@ export default async function handler(req, res) {
 
         const paidStatuses = ["capture", "settlement", "success"];
 
-        let order_code
         if (paidStatuses.includes(transaction_status.toLowerCase())) {
             console.log("💰 Payment completed, calling do-payment-trans-id...");
             const payload = {
@@ -56,7 +55,6 @@ export default async function handler(req, res) {
             const result = await resp.json().catch(() => null);
  
             console.log("➡️ do-payment-trans-id result: " + JSON.stringify(resp));
-            order_code = result.order_code;
 
             if (resp.ok) {
                 return res.status(200).json({
@@ -64,7 +62,6 @@ export default async function handler(req, res) {
                     message: "Notification processed",
                     orderId: order_id,
                     transactionId: transaction_id,
-                    order_code: order_code
                 });
             } else {
                 console.log("❌ Backend failed: " + JSON.stringify(result));

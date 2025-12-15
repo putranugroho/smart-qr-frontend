@@ -36,11 +36,9 @@ export default function Home() {
         // ===== MAINTENANCE VIEW =====
         <main className="flex items-center justify-center min-h-[calc(100vh-64px)] px-4">
           <div className="text-center max-w-md">
-            <Image
+            <img
               src="/images/image-maintenance.jpg" // letakkan di /public/images
               alt="Maintenance"
-              width={240}
-              height={240}
               priority
               className="mx-auto mb-6"
             />

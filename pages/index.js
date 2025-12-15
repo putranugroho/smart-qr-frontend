@@ -39,6 +39,7 @@ export default function Home() {
             <img
               src="/images/image-maintenance.jpg" // letakkan di /public/images
               alt="Maintenance"
+              width={300} 
               priority
               className="mx-auto mb-6"
             />

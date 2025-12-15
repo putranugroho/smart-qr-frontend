@@ -1,4 +1,5 @@
 // pages/index.js
+import Image from "next/image";
 import Header from "../components/Header";
 import HeroLocation from "../components/HeroLocation";
 import PaymentBar from "../components/PaymentBar";
@@ -22,24 +23,36 @@ export default function Home() {
   return (
     <div className="min-h-screen">
       <Header />
-      <main>
-        {allowed ? (
-            <main>
-              <HeroLocation />
-              {/* place InfoBox just after hero/options */}
-              <div className="mt-2 mb-2">
-                <InfoBox />
-              </div>
-              <PaymentBar />
-            </main>
-        ) : (
-          <div className="max-w-md mx-auto mt-20 text-center bg-white p-6 rounded-lg shadow">
-            <h2 className="text-lg font-semibold mb-2">
-              Mohon maaf sistem sedang dalam maintenance, silakan order di kasir / kiosk
+
+      {allowed ? (
+        <main>
+          <HeroLocation />
+          <div className="mt-2 mb-2">
+            <InfoBox />
+          </div>
+          <PaymentBar />
+        </main>
+      ) : (
+        // ===== MAINTENANCE VIEW =====
+        <main className="flex items-center justify-center min-h-[calc(100vh-64px)] px-4">
+          <div className="text-center max-w-md">
+            <Image
+              src="/images/image-maintenance.jpg" // letakkan di /public/images
+              alt="Maintenance"
+              width={240}
+              height={240}
+              priority
+              className="mx-auto mb-6"
+            />
+
+            <h2 className="text-lg font-semibold text-gray-800">
+              <b>Mohon maaf sistem sedang dalam maintenance
+              <br />
+              silakan order di kasir / kiosk</b>
             </h2>
           </div>
-        )}
-      </main>
+        </main>
+      )}
     </div>
   );
 }

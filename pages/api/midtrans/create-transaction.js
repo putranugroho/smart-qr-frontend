@@ -24,8 +24,7 @@ export default async function handler(req, res) {
     if (selectedMethod === 'gopay') {
       payload.gopay = {
         enable_callback: true,
-        // callback_url: process.env.MIDTRANS_CALLBACK_URL || "https://order.yoshinoya.co.id/paymentstatus"
-        callback_url: "https://yoshi-smartqr.akasia.id/paymentstatus"
+        callback_url: process.env.MIDTRANS_CALLBACK_URL || "https://order.yoshinoya.co.id/paymentstatus"
       };
     }
 

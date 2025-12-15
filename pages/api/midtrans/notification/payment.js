@@ -45,8 +45,7 @@ export default async function handler(req, res) {
                 reference: String(transaction_id)
             }
             console.log("payload", payload);
-            const resp = await fetch(`${process.env.NEXT_PUBLIC_URL_DEV}/smartqr/v1/order/do-payment?storeCode=MGI`, {
-            // const resp = await fetch(`${process.env.NEXT_PUBLIC_DOMAIN}/api/order/do-payment`, {
+            const resp = await fetch(`${process.env.NEXT_PUBLIC_URL_UAT}/smartqr/v1/order/do-payment?storeCode=MGI`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)

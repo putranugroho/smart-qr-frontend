@@ -423,15 +423,15 @@ export default function PaymentStatus() {
 
       if (['capture','settlement','success'].includes(txStatus)) {
         const resolvedMidtransOrderId = j.order_id || j.orderId || tx.order_id
-        try {
-          console.log("callDoPayment 1", PaymentCode);
-          const result = await callDoPayment(orderCode || (orderMeta?.orderId ?? null), PaymentCode, resolvedMidtransOrderId)
-          console.log('do-payment result', result)
-          pushLog({ type: 'do-payment', ok: true, result: (result && JSON.stringify(result).slice(0,1000)) || null })
-        } catch (e) {
-          console.error('call failed', e)
-          pushLog({ type: 'do-payment', ok: false, error: String(e) })
-        }
+        // try {
+        //   console.log("callDoPayment 1", PaymentCode);
+        //   const result = await callDoPayment(orderCode || (orderMeta?.orderId ?? null), PaymentCode, resolvedMidtransOrderId)
+        //   console.log('do-payment result', result)
+        //   pushLog({ type: 'do-payment', ok: true, result: (result && JSON.stringify(result).slice(0,1000)) || null })
+        // } catch (e) {
+        //   console.error('call failed', e)
+        //   pushLog({ type: 'do-payment', ok: false, error: String(e) })
+        // }
         setPaymentSuccess(true)
         setSuccessOrderId(resolvedMidtransOrderId)
 

@@ -101,8 +101,7 @@ export default function PaymentPage() {
     const cart = payment.cart || [];
     // pass grossAmount so mapDoOrderPayload can compute rounding if needed
     const payload = mapDoOrderPayload(cart, grossAmountForRounding, selectedMethod, {
-      posId: 'POS1',
-      // posId: 'QR',
+      posId: 'QR',
       orderType: user.orderType || 'DI',
       tableNumber: isTakeAway ? '' : (explicitTableNumber !== null ? explicitTableNumber : tableNumber)
     });
@@ -226,7 +225,7 @@ export default function PaymentPage() {
         console.warn('failed to persist do_order_payload tableNumber', e);
       }
 
-      const grossAmount = payload.grandTotal || 1;
+      const grossAmount = payload.grandTotal;
 
       // generate orderId that will be used as Midtrans order_id (displayOrderId)
       const orderId = generateOrderId(user, isTakeAway)
@@ -273,8 +272,7 @@ export default function PaymentPage() {
 
       const payload_midtrans = {
         orderId: doOrderData.data.orderCode,
-        grossAmount: Number(1),
-        // grossAmount: Number(grossAmount),
+        grossAmount: Number(grossAmount),
         selectedMethod,
         customer,
         metadata: payload || undefined,

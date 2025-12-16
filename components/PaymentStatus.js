@@ -440,7 +440,7 @@ export default function PaymentStatus() {
           try {
             router.push(`/order/${targetOrderCode}`)
           } catch (e) { /* ignore */ }
-        }, 1200)
+        }, 600)
       } else {
         alert('Status: ' + (j.transaction_status || j.status || 'unknown'))
       }

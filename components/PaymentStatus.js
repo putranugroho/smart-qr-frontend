@@ -193,6 +193,8 @@ export default function PaymentStatus() {
 
         if (['capture','settlement','success'].includes(txStatus)) {
           // stop poll and redirect to order page
+          const resolvedMidtransOrderId = j.order_id || j.orderId || tx.order_id
+          stopPolling()
           let PaymentCode 
           
           if (j.payment_type.includes("gopay")) {
@@ -218,8 +220,10 @@ export default function PaymentStatus() {
               targetOrderCode = parsed?.data?.orderCode ?? parsed?.orderCode ?? null
             }
           } catch (e) { /* ignore */ }
+          setPaymentSuccess(true)
+          setSuccessOrderId(resolvedMidtransOrderId)
 
-          const resolvedTarget = j?.order_id || targetOrderCode
+          const resolvedTarget = resolvedMidtransOrderId || targetOrderCode
           setTimeout(() => {
             router.push(`/order/${resolvedTarget}`)
           }, 600)

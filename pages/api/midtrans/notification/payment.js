@@ -45,7 +45,7 @@ export default async function handler(req, res) {
                 reference: String(transaction_id)
             }
             console.log("payload", payload);
-            const resp = await fetch(`${process.env.NEXT_PUBLIC_URL_UAT}/smartqr/v1/order/do-payment?storeCode=MGI`, {
+            const resp = await fetch(`${process.env.NEXT_PUBLIC_URL_API}/smartqr/v1/order/do-payment?storeCode=MGI`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
@@ -64,11 +64,11 @@ export default async function handler(req, res) {
                 });
             } else {
                 console.log("❌ Backend failed: " + JSON.stringify(result));
-                return res.status(400).json({ ok: false, message: "Failed to complete do-payment", error: JSON.stringify(resp) });
+                return res.status(402).json({ ok: false, message: "Failed to complete do-payment", error: JSON.stringify(resp) });
             }
         }
         
-        return res.status(400).json({ ok: false, message: "Paid status was not completed", error: String(err) });
+        return res.status(401).json({ ok: false, message: "Paid status was not completed", error: String(err) });
     } catch (err) {
         console.log("ERROR HANDLING MIDTRANS NOTIF: " + err);
         return res.status(500).json({ ok: false, message: "Internal server error", error: String(err) });

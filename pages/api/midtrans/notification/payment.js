@@ -64,7 +64,7 @@ export default async function handler(req, res) {
                 });
             } else {
                 console.log("❌ Backend failed: " + JSON.stringify(result));
-                return res.status(400).json({ ok: false, message: "Failed to complete do-payment", error: String(result) });
+                return res.status(400).json({ ok: false, message: "Failed to complete do-payment", error: JSON.stringify(resp) });
             }
         }
         

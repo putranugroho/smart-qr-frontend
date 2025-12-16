@@ -473,7 +473,15 @@ export default function PaymentStatus() {
   function askConfirmLeave() {
     return new Promise(resolve => {
       leaveResolveRef.current = resolve
+      handleModalAnswer(true)
     })
+  }
+
+  function handleModalAnswer(answer) {
+    setShowLeaveModal(false)
+    const resolve = leaveResolveRef.current
+    leaveResolveRef.current = null
+    if (typeof resolve === 'function') resolve(Boolean(answer))
   }
 
   async function handleBackButtonClick() {

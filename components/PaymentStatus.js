@@ -478,7 +478,6 @@ export default function PaymentStatus() {
   }
 
   function handleModalAnswer(answer) {
-    setShowLeaveModal(false)
     const resolve = leaveResolveRef.current
     leaveResolveRef.current = null
     if (typeof resolve === 'function') resolve(Boolean(answer))

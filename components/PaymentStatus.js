@@ -393,7 +393,13 @@ export default function PaymentStatus() {
 
   // --- Manual check triggered by button
   async function checkStatus() {
-    const orderId = tx?.order_id || tx?.orderId
+    let targetOrderCode = null
+    const doOrderRaw = sessionStorage.getItem('do_order_result')
+    if (doOrderRaw) {
+      const parsed = JSON.parse(doOrderRaw)
+      targetOrderCode = parsed?.data?.orderCode ?? parsed?.orderCode ?? null
+    }
+    const orderId = tx?.order_id || tx?.orderId || targetOrderCode
     if (!orderId) return alert('Order ID tidak ditemukan')
     setChecking(true)
     try {
@@ -434,8 +440,6 @@ export default function PaymentStatus() {
         // }
         setPaymentSuccess(true)
         setSuccessOrderId(resolvedMidtransOrderId)
-
-        const targetOrderCode = orderCode || (JSON.parse(sessionStorage.getItem('do_order_result')||'{}')?.data?.orderCode) || null
         setTimeout(() => {
           try {
             router.push(`/order/${targetOrderCode}`)

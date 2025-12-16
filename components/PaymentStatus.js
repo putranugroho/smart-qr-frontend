@@ -201,14 +201,14 @@ export default function PaymentStatus() {
             PaymentCode = "QRISOTHERS"
           } 
 
-          try {
-            const result = await callDoPayment(orderCode, PaymentCode, j?.order_id)
-            console.log('do-payment result', result)
-            pushLog({ type: 'do-payment', ok: true, result: (result && JSON.stringify(result).slice(0,1000)) || null })
-          } catch (e) {
-            console.error('call failed', e)
-            pushLog({ type: 'do-payment', ok: false, error: String(e) })
-          }
+          // try {
+          //   const result = await callDoPayment(orderCode, PaymentCode, j?.order_id)
+          //   console.log('do-payment result', result)
+          //   pushLog({ type: 'do-payment', ok: true, result: (result && JSON.stringify(result).slice(0,1000)) || null })
+          // } catch (e) {
+          //   console.error('call failed', e)
+          //   pushLog({ type: 'do-payment', ok: false, error: String(e) })
+          // }
 
           let targetOrderCode = null
           try {
@@ -219,7 +219,7 @@ export default function PaymentStatus() {
             }
           } catch (e) { /* ignore */ }
 
-          const resolvedTarget = targetOrderCode || j?.order_id || orderId
+          const resolvedTarget = j?.order_id || targetOrderCode
           setTimeout(() => {
             router.push(`/order/${resolvedTarget}`)
           }, 600)

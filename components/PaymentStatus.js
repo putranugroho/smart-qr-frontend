@@ -26,13 +26,10 @@ export default function PaymentStatus() {
   const pollRef = useRef(null)
 
   const [paymentSuccess, setPaymentSuccess] = useState(false)
-  const [successOrderId, setSuccessOrderId] = useState(null)
   const leaveResolveRef = useRef(null)
 
-  // NEW: status logs shown in UI
-  const [statusLogs, setStatusLogs] = useState([]) // newest first, capped at 50
+  const [statusLogs, setStatusLogs] = useState([])
 
-  // --- Load tx & meta from sessionStorage
   useEffect(() => {
     const s = sessionStorage.getItem('midtrans_tx')
     const meta = sessionStorage.getItem('order_meta')
@@ -56,36 +53,15 @@ export default function PaymentStatus() {
     setIsMounted(true)
   }, [])
 
-  // --- Countdown
   useEffect(() => {
     const i = setInterval(() => setTimeLeft(t => Math.max(0, t - 1)), 1000)
     return () => clearInterval(i)
   }, [])
 
-  // helper: determine normalized payment method (lowercase)
   function getNormalizedMethod(txObj) {
     if (!txObj) return ''
     const raw = (txObj.method || txObj.payment_type || txObj.core_response?.payment_type || '').toString()
     return raw.toLowerCase()
-  }
-
-  async function callDoPayment(orderCodeParam, PaymentCode, reference) {
-    const resp = await fetch('/api/order/do-payment', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        orderCode: orderCodeParam,
-        payment: PaymentCode.toString().toUpperCase(),
-        reference
-      })
-    })
-
-    const j = await resp.json().catch(() => null)
-    if (!resp.ok) {
-      console.error('do-payment proxy failed', resp.status, j)
-      throw new Error(j?.message || `Status ${resp.status}`)
-    }
-    return j
   }
 
   function findAction(actions = [], names = []) {
@@ -143,7 +119,6 @@ export default function PaymentStatus() {
     }
   }
 
-  // helper to push log (ke UI dan console). newest first, cap 50
   function pushLog(entry) {
     const ts = new Date().toISOString()
     const full = { ts, ...entry }
@@ -154,105 +129,35 @@ export default function PaymentStatus() {
     })
   }
 
-  // --- Polling: check status immediately and then every 5s
   useEffect(() => {
     async function check() {
       const orderId = tx?.order_id || tx?.orderId || orderMeta?.orderId || tx?.raw?.order_id
-      if (!orderId) {
-        pushLog({ type: 'check-skip', reason: 'no-orderId', info: { txPresent: !!tx, orderMetaPresent: !!orderMeta } })
-        return
-      }
-
-      pushLog({ type: 'check-start', orderCode })
+      if (!orderId) return
 
       try {
         const r = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(orderId)}`)
-        const statusCode = r.status
-        let j = null
-        try { j = await r.json() } catch (e) { j = null }
-        const jStr = j ? JSON.stringify(j) : null
-        // store small summary (prevent super long logs) but keep full truncated JSON
-        const txStatus = (j?.transaction_status || j?.status || '').toString().toLowerCase()
-        const summary = {
-          orderId: j?.order_id || orderId,
-          txStatus,
-          payment_type: j?.payment_type || j?.paymentType || null
-        }
+        const j = await r.json()
+        const txStatus = (j?.transaction_status || j?.status || '').toLowerCase()
 
-        // push to UI log
-        pushLog({
-          type: 'check-result',
-          orderId,
-          httpStatus: statusCode,
-          summary,
-          rawJson: jStr ? (jStr.length > 1000 ? jStr.slice(0, 1000) + '... (truncated)' : jStr) : null
-        })
-
-        // existing behaviour: update status message
-        setStatusMessage(JSON.stringify(j, null, 2))
-
-        if (['capture','settlement','success'].includes(txStatus)) {
-          // stop poll and redirect to order page
-          const resolvedMidtransOrderId = j.order_id || j.orderId || tx.order_id
-          stopPolling()
-          let PaymentCode 
-          
-          if (j.payment_type.includes("gopay")) {
-            PaymentCode = "GOPAY"
-          } if (j.payment_type.includes("qris")) {
-            PaymentCode = "QRISOTHERS"
-          } 
-
-          // try {
-          //   const result = await callDoPayment(orderCode, PaymentCode, j?.order_id)
-          //   console.log('do-payment result', result)
-          //   pushLog({ type: 'do-payment', ok: true, result: (result && JSON.stringify(result).slice(0,1000)) || null })
-          // } catch (e) {
-          //   console.error('call failed', e)
-          //   pushLog({ type: 'do-payment', ok: false, error: String(e) })
-          // }
-
-          let targetOrderCode = null
-          try {
-            const doOrderRaw = sessionStorage.getItem('do_order_result')
-            if (doOrderRaw) {
-              const parsed = JSON.parse(doOrderRaw)
-              targetOrderCode = parsed?.data?.orderCode ?? parsed?.orderCode ?? null
-            }
-          } catch (e) { /* ignore */ }
+        if (['capture', 'settlement', 'success'].includes(txStatus)) {
+          if (pollRef.current) {
+            clearInterval(pollRef.current)
+            pollRef.current = null
+          }
           setPaymentSuccess(true)
-          setSuccessOrderId(resolvedMidtransOrderId)
-
-          const resolvedTarget = resolvedMidtransOrderId || targetOrderCode
           setTimeout(() => {
-            router.push(`/order/${resolvedTarget}`)
+            router.push(`/order/${orderCode || orderId}`)
           }, 600)
         }
       } catch (err) {
         console.warn('status check failed', err)
-        pushLog({ type: 'check-error', error: String(err) })
       }
     }
 
-    function startPolling() {
-      if (pollRef.current) return
-      // immediate check
+    if (tx || orderMeta) {
       check()
       pollRef.current = setInterval(check, 5000)
-      pushLog({ type: 'polling-start', intervalMs: 5000 })
     }
-
-    function stopPolling() {
-      if (pollRef.current) {
-        clearInterval(pollRef.current)
-        pollRef.current = null
-        pushLog({ type: 'polling-stopped' })
-      }
-    }
-
-    // Start polling if we have a tx.order_id OR orderMeta.orderId
-    const hasOrderId = !!(tx?.order_id || tx?.orderId || orderMeta?.orderId || tx?.raw?.order_id)
-    if (hasOrderId) startPolling()
 
     return () => {
       if (pollRef.current) {
@@ -262,44 +167,33 @@ export default function PaymentStatus() {
     }
   }, [tx, orderMeta, orderCode, router])
 
-  // --- Auto deeplink: only attempt ONCE per order (first visit)
-  useEffect(() => {
-    if (!tx) return
-    const method = getNormalizedMethod(tx)
-    if (!(method === 'gopay' || method === 'ovo' || method === 'shopeepay')) return
+  /* ===================== PATCH START =======================
+     Backend order-status polling (after e-wallet / QR return)
+     ======================================================== */
+  const backendPollRef = useRef(null)
 
-    const actions = tx.actions || tx.core_response?.actions || []
-    const deeplinkAction = findAction(actions, ['deeplink-redirect', 'deeplink'])
-    const urlAction = findAction(actions, ['mobile_deeplink_web', 'mobile_web_checkout_url', 'url'])
-    const deeplinkUrl = deeplinkAction?.url || urlAction?.url || tx.deeplink_url || tx.core_response?.deeplink_url || null
-
-    if (!deeplinkUrl) return
-
-    const orderId = orderMeta?.orderId || tx.order_id || tx.orderId || tx.raw?.order_id
-    if (!orderId) return
-
-    const flagKey = `midtrans_deeplink_attempted:${orderId}`
-    const alreadyAttempted = sessionStorage.getItem(flagKey)
-    if (alreadyAttempted) return
-
-    const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent || '')
-    if (!isMobile) return
-
-    try { sessionStorage.setItem(flagKey, 'true') } catch (e) { /* ignore */ }
-
-    setRedirecting(true)
-    setTimeout(() => {
-      try {
-        window.location.href = deeplinkUrl
-      } catch (err) {
-        console.warn('deeplink redirect failed', err)
-      } finally {
-        setTimeout(() => setRedirecting(false), 1000)
+  async function checkBackendOrderStatus() {
+    if (!orderCode) return
+    try {
+      const resp = await fetch(
+        `${process.env.NEXT_PUBLIC_URL_API}/smartqr/v1/order/${orderCode}`
+      )
+      const j = await resp.json()
+      if (j?.success && j?.data?.status === 0) {
+        if (backendPollRef.current) {
+          clearInterval(backendPollRef.current)
+          backendPollRef.current = null
+        }
+        setPaymentSuccess(true)
+        setTimeout(() => {
+          router.push(`/order/${orderCode}`)
+        }, 500)
       }
-    }, 600)
-  }, [tx, orderMeta])
+    } catch (e) {
+      console.warn('[paymentstatus] backend polling error', e)
+    }
+  }
 
-  // --- Fetch QR as data URI via local convert API (only for QRIS)
   useEffect(() => {
     let mounted = true
 
@@ -395,72 +289,6 @@ export default function PaymentStatus() {
     return () => { mounted = false }
   }, [tx])
 
-  // --- Manual check triggered by button
-  async function checkStatus() {
-    let targetOrderCode = null
-    const doOrderRaw = sessionStorage.getItem('do_order_result')
-    if (doOrderRaw) {
-      const parsed = JSON.parse(doOrderRaw)
-      targetOrderCode = parsed?.data?.orderCode ?? parsed?.orderCode ?? null
-    }
-    const orderId = tx?.order_id || tx?.orderId || targetOrderCode
-    if (!orderId) return alert('Order ID tidak ditemukan')
-    setChecking(true)
-    try {
-      const r = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(orderId)}`)
-      const j = await r.json()
-      setStatusMessage(JSON.stringify(j, null, 2))
-      const txStatus = (j.transaction_status || j.status || '').toString().toLowerCase()
-      pushLog({
-        type: 'manual-check-result',
-        orderId,
-        httpStatus: r.status,
-        summary: {
-          orderId: j.order_id || orderId,
-          txStatus,
-          payment_type: j.payment_type || j.paymentType || null
-        },
-        rawJson: JSON.stringify(j).slice(0, 1000)
-      })
-
-      let PaymentCode 
-      
-      if (j.payment_type.includes("gopay")) {
-        PaymentCode = "GOPAY"
-      } if (j.payment_type.includes("qris")) {
-        PaymentCode = "QRISOTHERS"
-      } 
-
-      if (['capture','settlement','success'].includes(txStatus)) {
-        const resolvedMidtransOrderId = j.order_id || j.orderId || tx.order_id
-        // try {
-        //   console.log("callDoPayment 1", PaymentCode);
-        //   const result = await callDoPayment(orderCode || (orderMeta?.orderId ?? null), PaymentCode, resolvedMidtransOrderId)
-        //   console.log('do-payment result', result)
-        //   pushLog({ type: 'do-payment', ok: true, result: (result && JSON.stringify(result).slice(0,1000)) || null })
-        // } catch (e) {
-        //   console.error('call failed', e)
-        //   pushLog({ type: 'do-payment', ok: false, error: String(e) })
-        // }
-        setPaymentSuccess(true)
-        setSuccessOrderId(resolvedMidtransOrderId)
-        setTimeout(() => {
-          try {
-            router.push(`/order/${targetOrderCode}`)
-          } catch (e) { /* ignore */ }
-        }, 600)
-      } else {
-        alert('Status: ' + (j.transaction_status || j.status || 'unknown'))
-      }
-    } catch (err) {
-      console.error(err)
-      pushLog({ type: 'manual-check-error', error: String(err) })
-      alert('Gagal cek status: ' + (err.message || err))
-    } finally {
-      setChecking(false)
-    }
-  }
-
   function openDeeplinkManually() {
     if (!tx) return
     const actions = tx.actions || tx.core_response?.actions || []
@@ -499,52 +327,22 @@ export default function PaymentStatus() {
   }
 
   useEffect(() => {
-    try {
-      router.beforePopState(() => true)
-    } catch (e) {}
-    return () => {
-      try { router.beforePopState(() => true) } catch (e) {}
+    if (!orderCode) return
+
+    checkBackendOrderStatus()
+
+    if (!backendPollRef.current) {
+      backendPollRef.current = setInterval(checkBackendOrderStatus, 3000)
     }
-  }, [router])
-
-  useEffect(() => {
-    const pushDummy = () => {
-      try { history.pushState({ paymentStatusGuard: true }, '') } catch (e) {}
-    }
-    pushDummy()
-
-    let handling = false
-    const onPopState = (e) => {
-      if (handling) return
-      handling = true
-
-      askConfirmLeave().then(ok => {
-        if (ok) {
-          router.back()
-        } else {
-          pushDummy()
-        }
-        handling = false
-      }).catch(() => {
-        pushDummy()
-        handling = false
-      })
-    }
-
-    window.addEventListener('popstate', onPopState)
-
-    const onBeforeUnload = (e) => {
-      e.preventDefault()
-      e.returnValue = ''
-      return ''
-    }
-    window.addEventListener('beforeunload', onBeforeUnload)
 
     return () => {
-      window.removeEventListener('popstate', onPopState)
-      window.removeEventListener('beforeunload', onBeforeUnload)
+      if (backendPollRef.current) {
+        clearInterval(backendPollRef.current)
+        backendPollRef.current = null
+      }
     }
-  }, [router])
+  }, [orderCode])
+  /* ====================== PATCH END ======================= */
 
   const minutes = String(Math.floor(timeLeft / 60)).padStart(2, '0')
   const seconds = String(timeLeft % 60).padStart(2, '0')
@@ -704,12 +502,6 @@ export default function PaymentStatus() {
       </div>
 
       <div className={styles.instruction}>Silahkan lakukan pembayaran menggunakan aplikasi pembayaran pilihan kamu</div>
-
-      <div className={styles.sticky}>
-        <button className={styles.checkBtn} onClick={checkStatus} disabled={checking}>
-          {checking ? 'Memeriksa...' : 'Check Status Pembayaran'}
-        </button>
-      </div>
 
       {/* -----------------------
           LOGS PANEL (NEW)

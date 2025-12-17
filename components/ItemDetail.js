@@ -372,6 +372,8 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         if (g.rawProducts) {
           rawOpt = g.rawProducts.find(r => String(r.code ?? r.id) === String(optId));
         }
+        console.log(rawOpt);
+        
 
         // prefer rawOpt.taxes, else opt.taxes, else legacySourceForTaxes.taxes
         const optTaxSource = (rawOpt && Array.isArray(rawOpt.taxes) && rawOpt.taxes.length) ? rawOpt.taxes

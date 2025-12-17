@@ -77,7 +77,8 @@ export default function Menu() {
   const [showBackTop, setShowBackTop] = useState(false);
   const [showFullMenu, setShowFullMenu] = useState(false);
   const [filterForCategory, setFilterForCategory] = useState(null);
-
+  const comboCacheRef = { current: null };
+  const comboLoadingRef = { current: false };
   const [orderMode, setOrderMode] = useState({ type: "", location: "" });
 
   const sectionRefs = useRef({});
@@ -330,23 +331,52 @@ export default function Menu() {
     return () => clearTimeout(t);
   }, [categories]);
 
+  async function getCombosOnce() {
+    if (comboCacheRef.current) return comboCacheRef.current;
+    if (comboLoadingRef.current) return [];
+
+    comboLoadingRef.current = true;
+
+    try {
+      const url = `/api/proxy/combo-list?storeCode=${getUser().storeLocation}&orderCategoryCode=${getUser().orderType}`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+
+      const raw = Array.isArray(j?.data) ? j.data : [];
+      const combos = raw.map((c, idx) => {
+        const parsed = parseComboToMenuItem ? parseComboToMenuItem(c) : c;
+        return {
+          ...parsed,
+          id: ensureUniqueIdForCombo(parsed),
+          code: parsed.code ?? parsed.id,
+          image: parsed.image ?? parsed.imagePath ?? "/images/no-image-available.jpg",
+          price: parsed.price ?? parsed.totalPrice ?? 0
+        };
+      });
+
+      comboCacheRef.current = uniqBy(combos, x => x.id);
+      return comboCacheRef.current;
+    } catch (e) {
+      console.warn('combo fetch failed', e);
+      comboCacheRef.current = [];
+      return [];
+    } finally {
+      comboLoadingRef.current = false;
+    }
+  }
+
   // ---------- NEW: per-category check using menu-list ----------
   useEffect(() => {
     if (!Array.isArray(categories) || categories.length === 0) return;
 
-    categories.forEach(cat => {
-      // skip if already checked or synthetic with items preset
+    categories.forEach(async cat => {
       if (cat.checked) return;
+      if (loadingItemsRef.current[String(cat.id)]) return;
 
-      // if it's a synthetic combo-kids already populated, mark checked
-      if (String(cat.id).startsWith('combo-') && Array.isArray(cat.items) && cat.items.length > 0) {
-        setCategories(prev => prev.map(p => p.id === cat.id ? { ...p, checked: true } : p));
-        return;
-      }
+      loadingItemsRef.current[String(cat.id)] = true;
 
-      // mark as loading and fetch items via menu-list for this category
-      if (!loadingItemsRef.current[String(cat.id)]) {
-        loadingItemsRef.current[String(cat.id)] = true;
+      try {
         const qs = new URLSearchParams({
           menuCategoryId: String(cat.id),
           storeCode: orderMode.location,
@@ -354,158 +384,88 @@ export default function Menu() {
           pageSize: '200'
         }).toString();
 
-        fetch(`/api/proxy/menu-list?${qs}`)
-          .then(r => {
-            if (!r.ok) throw new Error(`HTTP ${r.status}`);
-            return r.json();
-          })
-          .then(json => {
-            const rawItems = Array.isArray(json?.data) ? json.data : (Array.isArray(json?.items) ? json.items : []);
-            const mappedItems = (Array.isArray(rawItems) ? rawItems : []).map((it, idx) => {
-              const code = it.code ?? it.id ?? it.productCode ?? `unknown_${idx}`;
-              return {
-                id: ensureUniqueIdForMenu(it, cat.id, idx),
-                code,
-                name: it.name,
-                itemName: it.itemName,
-                price: it.price,
-                image: it.imagePath ?? it.imageUrl ?? "/images/no-image-available.jpg",
-                category: cat.name,
-              };
-            });
+        // ⬇️ PARALLEL fetch
+        const [menuRes, combos] = await Promise.all([
+          fetch(`/api/proxy/menu-list?${qs}`).then(r => r.json()),
+          getCombosOnce()
+        ]);
 
-            const isKids = String(cat.name || '').toLowerCase().includes('kids') || String(cat.name || '').toLowerCase().includes('anak');
-            const combined = isKids ? [...mappedItems, ...comboItems] : mappedItems;
-            const finalItems = uniqBy(combined, x => x.id);
+        const rawMenu = Array.isArray(menuRes?.data) ? menuRes.data : [];
+        const menuItems = rawMenu.map((it, idx) => ({
+          id: ensureUniqueIdForMenu(it, cat.id, idx),
+          code: it.code ?? it.id,
+          name: it.name,
+          itemName: it.itemName,
+          price: it.price,
+          image: it.imagePath ?? it.imageUrl ?? "/images/no-image-available.jpg",
+          category: cat.name
+        }));
 
-            if (finalItems.length > 0) {
-              setCategories(prev => prev.map(p => {
-                if (String(p.id) === String(cat.id) || p.name === cat.name) {
-                  return { ...p, items: finalItems, totalItems: finalItems.length, checked: true };
+        // 🔑 FILTER combo PER CATEGORY (LOGIC DI SINI)
+        const comboForCategory = combos.filter(c =>
+          String(c.categoryId ?? c.menuCategoryId ?? '').toString() === String(cat.id)
+        );
+
+        const finalItems = uniqBy(
+          [...menuItems, ...comboForCategory],
+          x => x.id
+        );
+
+        setCategories(prev =>
+          prev.map(p =>
+            p.id === cat.id
+              ? {
+                  ...p,
+                  items: finalItems,
+                  totalItems: finalItems.length,
+                  checked: true
                 }
-                return p;
-              }));
-            } else {
-              setCategories(prev => prev.map(p => {
-                if (String(p.id) === String(cat.id) || p.name === cat.name) {
-                  return { ...p, items: [], checked: true };
-                }
-                return p;
-              }));
-            }
-          })
-          .catch(err => {
-            console.warn('category menu-list failed, fallback to menu-category payload if present', err);
-            // fallback attempts omitted here for brevity — mark checked empty
-            setCategories(prev => prev.map(p => {
-              if (String(p.id) === String(cat.id) || p.name === cat.name) {
-                return { ...p, items: [], checked: true };
-              }
-              return p;
-            }));
-          })
-          .finally(() => {
-            setTimeout(() => { loadingItemsRef.current[String(cat.id)] = false; }, 300);
-          });
+              : p
+          )
+        );
+      } catch (e) {
+        console.warn('menu/combo fetch failed', e);
+        setCategories(prev =>
+          prev.map(p =>
+            p.id === cat.id ? { ...p, items: [], checked: true } : p
+          )
+        );
+      } finally {
+        loadingItemsRef.current[String(cat.id)] = false;
       }
     });
-  }, [categories, comboItems]);
+  }, [categories, orderMode]);
 
   // Intersection observer to lazy-load items for categories when scrolled into view
   useEffect(() => {
-    if (typeof window === 'undefined') return;
     if (!('IntersectionObserver' in window)) return;
 
-    if (observerRef.current) {
-      observerRef.current.disconnect();
-      observerRef.current = null;
-    }
+    if (observerRef.current) observerRef.current.disconnect();
 
-    observerRef.current = new IntersectionObserver((entries) => {
+    observerRef.current = new IntersectionObserver(entries => {
       entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          const catName = entry.target.datasetCat || entry.target.getAttribute('data-cat');
-          if (!catName) return;
-          const catObj = categories.find(c => c.name === catName);
-          if (!catObj) return;
+        if (!entry.isIntersecting) return;
 
-          if (!catObj.checked && !loadingItemsRef.current[String(catObj.id)]) {
-            loadingItemsRef.current[String(catObj.id)] = true;
-            const qs = new URLSearchParams({
-              menuCategoryId: String(catObj.id),
-              storeCode: orderMode.location,
-              orderCategoryCode: orderMode.type,
-              pageSize: '200'
-            }).toString();
+        const catName = entry.target.getAttribute('data-cat');
+        const cat = categories.find(c => c.name === catName);
+        if (!cat || cat.checked) return;
 
-            fetch(`/api/proxy/menu-list?${qs}`)
-              .then(r => {
-                if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                return r.json();
-              })
-              .then(json => {
-                const rawItems = Array.isArray(json?.data) ? json.data : (Array.isArray(json?.items) ? json.items : []);
-                const mappedItems = (Array.isArray(rawItems) ? rawItems : []).map((it, idx) => {
-                  const code = it.code ?? it.id ?? it.productCode ?? `unknown_${idx}`;
-                  return {
-                    id: ensureUniqueIdForMenu(it, catObj.id, idx),
-                    code,
-                    name: it.name,
-                    itemName: it.itemName,
-                    price: it.price,
-                    image: it.imagePath ?? it.imageUrl ?? "/images/no-image-available.jpg",
-                    category: catObj.name
-                  };
-                });
-
-                const isKids = String(catObj.name || '').toLowerCase().includes('kids') || String(catObj.name || '').toLowerCase().includes('anak');
-                const combined = isKids ? [...mappedItems, ...comboItems] : mappedItems;
-                const finalItems = uniqBy(combined, x => x.id);
-
-                if (finalItems.length > 0) {
-                  setCategories(prev => prev.map(c => {
-                    if (c.name === catObj.name) return { ...c, items: finalItems, totalItems: finalItems.length, checked: true };
-                    return c;
-                  }));
-                } else {
-                  setCategories(prev => prev.map(c => {
-                    if (c.name === catObj.name) return { ...c, items: [], checked: true };
-                    return c;
-                  }));
-                }
-              })
-              .catch(err => {
-                console.warn('observer menu-list fallback', err);
-                setCategories(prev => prev.map(c => {
-                  if (c.name === catObj.name) return { ...c, items: [], checked: true };
-                  return c;
-                }));
-              })
-              .finally(() => {
-                setTimeout(() => { loadingItemsRef.current[String(catObj.id)] = false; }, 300);
-              });
-          }
-        }
+        // trigger effect fetch
+        setCategories(prev =>
+          prev.map(p => (p.id === cat.id ? { ...p } : p))
+        );
       });
     }, {
-      root: null,
       rootMargin: '0px 0px 260px 0px',
       threshold: 0.01
     });
 
-    Object.values(sectionRefs.current).forEach((el) => {
-      if (el && observerRef.current) {
-        if (!el.datasetCat && el.getAttribute('data-cat')) {
-          el.datasetCat = el.getAttribute('data-cat');
-        }
-        observerRef.current.observe(el);
-      }
+    Object.values(sectionRefs.current).forEach(el => {
+      if (el) observerRef.current.observe(el);
     });
 
-    return () => {
-      if (observerRef.current) observerRef.current.disconnect();
-    };
-  }, [categories, comboItems]);
+    return () => observerRef.current.disconnect();
+  }, [categories]);
 
   // Scroll to category
   function scrollToCategory(cat) {

@@ -1156,22 +1156,92 @@ export default function ComboDetail({ combo: propCombo = null }) {
                       <div
                         key={pCode}
                         ref={el => { if (el) productRefs.current[String(pCode)] = el }}
-                        data-product-code={pCode}
-                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 8, borderRadius: 8, background: checked ? '#fff' : '#fff', border: '1px solid #f0f0f0' }}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '64px 1fr auto',
+                          alignItems: 'center',
+                          gap: 12,
+                          padding: 10,
+                          minHeight: 84,
+                          borderRadius: 8,
+                          background: '#fff',
+                          border: checked ? '1.5px solid #f97316' : '1px solid #e5e7eb'
+                        }}
                       >
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <div style={{ width: 64, height: 64, position: 'relative', borderRadius: 8, overflow: 'hidden', background: '#f7f7f7' }}>
-                            {p.imagePath ? (<Image src={p.imagePath} alt={p.name} fill style={{ objectFit: 'cover' }} />) : null}
+                          <div
+                            style={{
+                              width: 64,
+                              height: 64,
+                              position: 'relative',
+                              borderRadius: 8,
+                              overflow: 'hidden',
+                              background: '#f3f4f6',
+                              flexShrink: 0
+                            }}
+                          >
+                            {p.imagePath && (
+                              <Image
+                                src={p.imagePath}
+                                alt={p.name}
+                                fill
+                                style={{ objectFit: 'contain' }}
+                              />
+                            )}
                           </div>
-                          <div>
-                            <div style={{ fontWeight: 600 }}>{p.name}</div>
-                            <div style={{ fontSize: 13, color: '#666' }}>{p.description ?? ''}</div>
+                          <div style={{ overflow: 'hidden' }}>
+                            <div
+                              style={{
+                                fontWeight: 600,
+                                fontSize: 14,
+                                lineHeight: '18px',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden'
+                              }}
+                            >
+                              {p.name}
+                            </div>
+
+                            {p.description && (
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  color: '#6b7280',
+                                  lineHeight: '16px',
+                                  marginTop: 2,
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden'
+                                }}
+                              >
+                                {p.description}
+                              </div>
+                            )}
                           </div>
                         </div>
 
-                        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                          <div style={{ minWidth: 96, textAlign: 'right', color: '#111' }}>{formatRp(p.price)}</div>
-                          <input type="radio" name={`prod-${getGroupKey(grp)}`} checked={checked} onChange={() => handleSelectProduct(getGroupKey(grp), pCode)} />
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12,
+                            minWidth: 110,
+                            justifyContent: 'flex-end'
+                          }}
+                        >
+                          <div style={{ fontWeight: 600, fontSize: 13 }}>
+                            {formatRp(p.price)}
+                          </div>
+
+                          <input
+                            type="radio"
+                            name={`prod-${getGroupKey(grp)}`}
+                            checked={checked}
+                            onChange={() => handleSelectProduct(getGroupKey(grp), pCode)}
+                          />
                         </div>
                       </div>
                     )

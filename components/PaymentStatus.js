@@ -198,9 +198,7 @@ export default function PaymentStatus() {
       return
     }
     try {
-      const resp = await fetch(
-        `${process.env.NEXT_PUBLIC_URL_API}/smartqr/v1/order/${orderCode}`
-      )
+      const resp = await fetch(`/api/order/check-status?orderCode=${encodeURIComponent(orderCode)}`)
       const j = await resp.json()
       if (j?.success && j?.data?.status === 0) {
         if (backendPollRef.current) {
@@ -365,6 +363,53 @@ export default function PaymentStatus() {
       }
     }
   }, [orderCode])
+
+  useEffect(() => {
+    if (!tx) return
+
+    const method = getNormalizedMethod(tx)
+    if (!['gopay', 'ovo', 'shopeepay'].includes(method)) return
+
+    const actions = tx.actions || tx.core_response?.actions || []
+    const deeplinkAction = findAction(actions, ['deeplink-redirect', 'deeplink'])
+    const urlAction = findAction(actions, ['mobile_deeplink_web', 'mobile_web_checkout_url', 'url'])
+    const deeplinkUrl =
+      deeplinkAction?.url ||
+      urlAction?.url ||
+      tx.deeplink_url ||
+      tx.core_response?.deeplink_url ||
+      null
+
+    if (!deeplinkUrl) return
+
+    const orderId =
+      orderMeta?.orderId ||
+      tx.order_id ||
+      tx.orderId ||
+      tx.raw?.order_id
+
+    if (!orderId) return
+
+    const flagKey = `midtrans_deeplink_attempted:${orderId}`
+    const alreadyAttempted = sessionStorage.getItem(flagKey)
+
+    if (alreadyAttempted) return
+
+    try {
+      sessionStorage.setItem(flagKey, 'true')
+    } catch (e) {}
+
+    console.warn('[paymentstatus] auto deeplink redirect →', method)
+
+    setRedirecting(true)
+
+    // slight delay to ensure UI render complete
+    const t = setTimeout(() => {
+      window.location.href = deeplinkUrl
+    }, 300)
+
+    return () => clearTimeout(t)
+  }, [tx, orderMeta])
   /* ====================== PATCH END ======================= */
 
   const minutes = String(Math.floor(timeLeft / 60)).padStart(2, '0')

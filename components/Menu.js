@@ -162,46 +162,6 @@ export default function Menu() {
     loadCombos();
   }, []);
 
-  // When comboItems change, attempt to merge them into the Kids category (if present & already checked),
-  // or create a synthetic Kids category placeholder so it will be checked/filled like others.
-  useEffect(() => {
-    if (!Array.isArray(comboItems) || comboItems.length === 0) return;
-
-    setCategories(prev => {
-      const lowerNames = prev.map(c => String(c.name || '').toLowerCase());
-      const kidIdx = lowerNames.findIndex(n => n.includes('kids') || n.includes('kids meal') || n.includes('anak'));
-
-      if (kidIdx >= 0) {
-        const existing = prev[kidIdx];
-        const existingItems = Array.isArray(existing.items) ? existing.items : null;
-        // merge only if items already loaded, else leave to menu-list check to combine later
-        return prev.map((c, idx) => {
-          if (idx === kidIdx) {
-            const merged = existingItems ? uniqBy([...existingItems, ...comboItems], x => x.id) : existingItems;
-            return {
-              ...c,
-              items: merged,
-              totalItems: (merged ? merged.length : (existing.totalItems || 0) + comboItems.length)
-            };
-          }
-          return c;
-        });
-      } else {
-        // add synthetic kids category which will be considered checked and contains combos
-        return [
-          ...prev,
-          {
-            id: `combo-kids`,
-            name: 'Kids Meal',
-            totalItems: comboItems.length,
-            items: uniqBy([...comboItems], x => x.id),
-            checked: true
-          }
-        ];
-      }
-    });
-  }, [comboItems]);
-
   // read user
   useEffect(() => {
     try {
@@ -331,40 +291,35 @@ export default function Menu() {
     return () => clearTimeout(t);
   }, [categories]);
 
-  async function getCombosOnce() {
-    if (comboCacheRef.current) return comboCacheRef.current;
-    if (comboLoadingRef.current) return [];
+  async function getCombosByCategory(menuCategoryId) {
+  try {
+    const qs = new URLSearchParams({
+      storeCode: getUser().storeLocation,
+      orderCategoryCode: getUser().orderType,
+      menuCategoryId: String(menuCategoryId)
+    }).toString();
 
-    comboLoadingRef.current = true;
+    const r = await fetch(`/api/proxy/combo-list?${qs}`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const j = await r.json();
 
-    try {
-      const url = `/api/proxy/combo-list?storeCode=${getUser().storeLocation}&orderCategoryCode=${getUser().orderType}`;
-      const r = await fetch(url);
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const j = await r.json();
+    const raw = Array.isArray(j?.data) ? j.data : [];
 
-      const raw = Array.isArray(j?.data) ? j.data : [];
-      const combos = raw.map((c, idx) => {
-        const parsed = parseComboToMenuItem ? parseComboToMenuItem(c) : c;
-        return {
-          ...parsed,
-          id: ensureUniqueIdForCombo(parsed),
-          code: parsed.code ?? parsed.id,
-          image: parsed.image ?? parsed.imagePath ?? "/images/no-image-available.jpg",
-          price: parsed.price ?? parsed.totalPrice ?? 0
-        };
-      });
-
-      comboCacheRef.current = uniqBy(combos, x => x.id);
-      return comboCacheRef.current;
-    } catch (e) {
-      console.warn('combo fetch failed', e);
-      comboCacheRef.current = [];
-      return [];
-    } finally {
-      comboLoadingRef.current = false;
-    }
+    return raw.map((c, idx) => {
+      const parsed = parseComboToMenuItem ? parseComboToMenuItem(c) : c;
+      return {
+        ...parsed,
+        id: ensureUniqueIdForCombo(parsed),
+        code: parsed.code ?? parsed.id,
+        image: parsed.image ?? parsed.imagePath ?? "/images/no-image-available.jpg",
+        price: parsed.price ?? parsed.totalPrice ?? 0
+      };
+    });
+  } catch (e) {
+    console.warn('combo fetch failed', e);
+    return [];
   }
+}
 
   // ---------- NEW: per-category check using menu-list ----------
   useEffect(() => {
@@ -387,7 +342,7 @@ export default function Menu() {
         // ⬇️ PARALLEL fetch
         const [menuRes, combos] = await Promise.all([
           fetch(`/api/proxy/menu-list?${qs}`).then(r => r.json()),
-          getCombosOnce()
+          getCombosByCategory(cat.id)
         ]);
 
         const rawMenu = Array.isArray(menuRes?.data) ? menuRes.data : [];
@@ -407,7 +362,7 @@ export default function Menu() {
         );
 
         const finalItems = uniqBy(
-          [...menuItems, ...comboForCategory],
+          [...menuItems, ...combos],
           x => x.id
         );
 
@@ -739,9 +694,11 @@ export default function Menu() {
               }
             })
 
-            const isKids = (categories.find(c => String(c.id) === String(menuCategoryId))?.name || '').toLowerCase().includes('kids') || (categories.find(c => String(c.id) === String(menuCategoryId))?.name || '').toLowerCase().includes('anak');
-            const combined = isKids ? [...mappedItems, ...comboItems] : mappedItems;
-            const finalItems = uniqBy(combined, x => x.id);
+            const combos = await getCombosByCategory(menuCategoryId);
+            const finalItems = uniqBy(
+              [...mappedItems, ...combos],
+              x => x.id
+            );
 
             setCategories(prev => prev.map(c => {
               if (String(c.id) === String(menuCategoryId)) {

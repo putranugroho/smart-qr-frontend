@@ -76,6 +76,12 @@
   line-height: 110%;
   text-transform: uppercase;
 }
+.paymentNumber {
+  font-size: 10px;
+  font-weight: 700;
+  height: 19px;
+  text-transform: uppercase;
+}
 
 /* TRACK */
 .section {

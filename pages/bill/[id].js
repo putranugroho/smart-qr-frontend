@@ -104,12 +104,19 @@ export default function BillPage() {
 
       if (raw) {
         const parsed = JSON.parse(raw);
-        setDoOrderRaw(parsed.data ?? parsed);
-        if ((parsed.Payment ?? parsed.payment).toLowerCase().includes("gopay")) {
+        const data = parsed.data ?? parsed;
+
+        setDoOrderRaw(data);
+
+        const paymentMethod = (data.payment ?? data.Payment ?? "").toLowerCase();
+
+        if (paymentMethod.includes("gopay")) {
           setUrlLogo("/images/pay-gopay.png");
-        } else if ((parsed.Payment ?? parsed.payment).toLowerCase().includes("qris")) {
-          setUrlLogo("/images/pay-qris.png")
-        } 
+        } else if (paymentMethod.includes("qris")) {
+          setUrlLogo("/images/pay-qris.png");
+        } else {
+          setUrlLogo("");
+        }
       }
     } catch {}
   }, []);
@@ -119,24 +126,30 @@ export default function BillPage() {
     if (!doOrderRaw) return [];
     const arr = [];
 
-    (doOrderRaw.Combos ?? []).forEach((cb) => {
+    (doOrderRaw.combos ?? doOrderRaw.Combos ?? []).forEach((cb) => {
       arr.push({
         type: "combo",
-        qty: cb.qty,
+        qty: cb.qty ?? 1,
         orderType: cb.orderType,
         detailCombo: cb.detailCombo,
-        combos: [{ orderType: cb.orderType, products: cb.products }],
+        combos: [
+          {
+            orderType: cb.orderType,
+            products: cb.products ?? [],
+          },
+        ],
       });
     });
 
-    (Array.isArray(doOrderRaw?.Menus ?? doOrderRaw?.menus) ? (doOrderRaw.Menus ?? doOrderRaw?.menus) : []).forEach((m) => {
+    // ✅ MENUS
+    (doOrderRaw.menus ?? doOrderRaw.Menus ?? []).forEach((m) => {
       arr.push({
         type: "menu",
-        qty: m.Qty ?? m.qty,
-        orderType: m.OrderType ?? m.orderType,
-        detailMenu: m.DetailMenu ?? m.detailMenu,
-        condiments: m.Condiments ?? m.condiments ?? [],
-        taxes: m.Taxes ?? m.taxes ?? [],
+        qty: m.qty ?? m.Qty ?? 1,
+        orderType: m.orderType ?? m.OrderType,
+        detailMenu: m.detailMenu ?? m.DetailMenu,
+        condiments: m.condiments ?? m.Condiments ?? [],
+        taxes: m.taxes ?? m.Taxes ?? [],
       });
     });
 
@@ -238,7 +251,7 @@ export default function BillPage() {
         <div className={styles.billNumberRow}>
           <div className={styles.billLabel}>Nomor Bill</div>
           <div className={styles.billValue}>
-            {doOrderRaw?.displayOrderId ?? doOrderRaw?.DisplayOrderId ?? id}
+            {id}
           </div>
         </div>
 
@@ -262,16 +275,13 @@ export default function BillPage() {
             {dineInItems.map((it, i) => {
               if (it.type === "combo") {
                 const products = it.combos[0].products ?? [];
-                const total = products.reduce(
-                  (t, p) => t + p.price * p.qty,
-                  0
-                );
+                const total = products.reduce((t, p) => t + p.price * p.qty, 0) * it.qty;
 
                 return (
                   <div key={i} className={styles.itemRow}>
                     <div className={styles.itemLeft}>
                       <div className={styles.itemTitle}>
-                        {it.detailCombo.name} ({it.qty}x)
+                        {it.detailCombo?.name ?? it.detailCombo?.itemName ?? "-"} ({it.qty}x)
                       </div>
 
                       {products.map((p, idx) => (

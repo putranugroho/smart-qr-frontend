@@ -844,7 +844,7 @@ export default function OrderStatus() {
             <img src={urlLogo} alt="logo" width={55} height={14} className={styles.iconImg} />
           </div>
           <div className={styles.paymentItemRight}>
-            <div className={styles.orderNumber}>{displayMtId ? displayMtId : ""}</div>
+            <div className={styles.paymentNumber}>{displayMtId ? displayMtId : ""}</div>
           </div>
         </div>
       </div>

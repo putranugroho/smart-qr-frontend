@@ -518,7 +518,8 @@ export default function OrderStatus() {
         const oc = realData.orderCode ?? realData.OrderCode ?? null // Sesuaikan casing
         if (oc) setDisplayOrderId(String(oc))
 
-        setDisplayMtId(realData.displayOrderId ?? "")
+        const [paymentMethod, referenceId] = realData.referenceCode.split(',')
+        setDisplayMtId(referenceId)
         const statusNum = Number(realData.Status ?? realData.status ?? 0)
 
         if (statusNum === -1) {

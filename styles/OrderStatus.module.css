@@ -226,7 +226,7 @@
 }
 .itemImage {
   border-radius: 6px;
-  object-fit: cover;
+  object-fit: contain;
 }
 .itemInfo {
   flex: 1;

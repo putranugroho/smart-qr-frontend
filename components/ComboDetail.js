@@ -1168,61 +1168,62 @@ export default function ComboDetail({ combo: propCombo = null }) {
                           border: checked ? '1.5px solid #f97316' : '1px solid #e5e7eb'
                         }}
                       >
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        {/* IMAGE COLUMN */}
+                        <div
+                          style={{
+                            width: 64,
+                            height: 64,
+                            position: 'relative',
+                            borderRadius: 8,
+                            overflow: 'hidden',
+                            background: 'transparant'
+                          }}
+                        >
+                          {p.imagePath && (
+                            <Image
+                              src={p.imagePath}
+                              alt={p.name}
+                              fill
+                              style={{ objectFit: 'contain' }}
+                            />
+                          )}
+                        </div>
+
+                        {/* TEXT COLUMN */}
+                        <div style={{ overflow: 'hidden' }}>
                           <div
                             style={{
-                              width: 64,
-                              height: 64,
-                              position: 'relative',
-                              borderRadius: 8,
-                              overflow: 'hidden',
-                              background: '#f3f4f6',
-                              flexShrink: 0
+                              fontWeight: 600,
+                              fontSize: 14,
+                              lineHeight: '18px',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden'
                             }}
                           >
-                            {p.imagePath && (
-                              <Image
-                                src={p.imagePath}
-                                alt={p.name}
-                                fill
-                                style={{ objectFit: 'contain' }}
-                              />
-                            )}
+                            {p.name}
                           </div>
-                          <div style={{ overflow: 'hidden' }}>
+
+                          {p.description && (
                             <div
                               style={{
-                                fontWeight: 600,
-                                fontSize: 14,
-                                lineHeight: '18px',
+                                fontSize: 12,
+                                color: '#6b7280',
+                                lineHeight: '16px',
+                                marginTop: 2,
                                 display: '-webkit-box',
                                 WebkitLineClamp: 2,
                                 WebkitBoxOrient: 'vertical',
                                 overflow: 'hidden'
                               }}
                             >
-                              {p.name}
+                              {p.description}
                             </div>
-
-                            {p.description && (
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  color: '#6b7280',
-                                  lineHeight: '16px',
-                                  marginTop: 2,
-                                  display: '-webkit-box',
-                                  WebkitLineClamp: 2,
-                                  WebkitBoxOrient: 'vertical',
-                                  overflow: 'hidden'
-                                }}
-                              >
-                                {p.description}
-                              </div>
-                            )}
-                          </div>
+                          )}
                         </div>
 
+                        {/* PRICE + RADIO COLUMN */}
                         <div
                           style={{
                             display: 'flex',

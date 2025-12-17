@@ -19,12 +19,12 @@ export default async function handler(req, res) {
     metadata,
     customer_details: customer || undefined
   };
-
+    const URLCallback = process.env.MIDTRANS_CALLBACK_URL
     // khusus GoPay: enable deeplink callback (mobile)
     if (selectedMethod === 'gopay') {
       payload.gopay = {
         enable_callback: true,
-        callback_url: process.env.MIDTRANS_CALLBACK_URL || "https://order.yoshinoya.co.id/paymentstatus"
+        callback_url: `${URLCallback}/?orderCode=${orderId}`
       };
     }
 

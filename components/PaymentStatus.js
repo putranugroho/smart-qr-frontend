@@ -12,6 +12,11 @@ function formatRp(n) {
 
 export default function PaymentStatus() {
   const router = useRouter()
+  // ===== PATCH: orderCode fallback from URL (GoPay / deeplink safe) =====
+  const {
+    orderCode: queryOrderCode,
+    order_id: queryOrderId,
+  } = router.query
   const [tx, setTx] = useState(null)
   const [orderMeta, setOrderMeta] = useState(null)
   const [timeLeft, setTimeLeft] = useState(15 * 60)
@@ -52,6 +57,21 @@ export default function PaymentStatus() {
 
     setIsMounted(true)
   }, [])
+
+  // ===== PATCH: restore orderCode from URL when sessionStorage is lost =====
+  useEffect(() => {
+    if (orderCode) return
+
+    const fallback =
+      queryOrderCode ||
+      queryOrderId ||
+      null
+
+    if (fallback) {
+      console.warn('[paymentstatus] orderCode restored from URL:', fallback)
+      setOrderCode(String(fallback))
+    }
+  }, [queryOrderCode, queryOrderId, orderCode])
 
   useEffect(() => {
     const i = setInterval(() => setTimeLeft(t => Math.max(0, t - 1)), 1000)
@@ -173,7 +193,10 @@ export default function PaymentStatus() {
   const backendPollRef = useRef(null)
 
   async function checkBackendOrderStatus() {
-    if (!orderCode) return
+     if (!orderCode) {
+      console.warn('[paymentstatus] orderCode missing → backend polling skipped')
+      return
+    }
     try {
       const resp = await fetch(
         `${process.env.NEXT_PUBLIC_URL_API}/smartqr/v1/order/${orderCode}`

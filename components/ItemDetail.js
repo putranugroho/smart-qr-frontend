@@ -190,6 +190,15 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     return extractIdFromValue(raw, group)
   }
 
+  function dedupeTaxes(taxes = []) {
+    const map = new Map()
+    taxes.forEach(t => {
+      const key = `${t.taxName}-${t.taxPercentage}`
+      if (!map.has(key)) map.set(key, t)
+    })
+    return [...map.values()]
+  }
+
   useEffect(() => {
     if (!productCode) return
     setLoading(true)
@@ -216,6 +225,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
         const groups = Array.isArray(product.condimentGroups) ? product.condimentGroups.map(g => {
           const groupKey = g.code || g.name || String(g.id)
+          const rawProducts = Array.isArray(g.products) ? g.products : []
           const options = Array.isArray(g.products) ? g.products.map(p => ({
             id: p.code ?? String(p.id),
             rawId: p.id,
@@ -223,6 +233,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
             itemName: p.itemName ?? p.itemName ?? '',
             price: Number(p.price || 0),
             image: p.imagePath || '',
+            taxes: Array.isArray(p.taxes) ? p.taxes : [],
             description: p.description || ''
           })) : []
 
@@ -233,7 +244,8 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
             name: g.name,
             max: g.max ?? 1,
             allowSkip: !!g.allowSkip,
-            options
+            options,
+            rawProducts
           }
         }) : []
 
@@ -372,27 +384,13 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         if (g.rawProducts) {
           rawOpt = g.rawProducts.find(r => String(r.code ?? r.id) === String(optId));
         }
-        console.log(rawOpt);
         
-
-        // prefer rawOpt.taxes, else opt.taxes, else legacySourceForTaxes.taxes
-        const optTaxSource = (rawOpt && Array.isArray(rawOpt.taxes) && rawOpt.taxes.length) ? rawOpt.taxes
-                           : (Array.isArray(opt?.taxes) && opt.taxes.length ? opt.taxes : null);
-
-        if (Array.isArray(optTaxSource) && optTaxSource.length) {
-          taxes = optTaxSource.map(t => {
-            const taxName = (t.name || t.taxName || t.name || '').toString();
-            const taxPercentage = Number(t.amount ?? t.taxPercentage ?? 0);
-            const taxAmount = Math.round((taxPercentage / 100) * price);
-            return { taxName, taxPercentage, taxAmount };
-          });
-        } else if (Array.isArray(legacySourceForTaxes.taxes) && legacySourceForTaxes.taxes.length) {
-          taxes = legacySourceForTaxes.taxes.map(t => {
-            const taxName = (t.taxName || t.name || '').toString();
-            const taxPercentage = Number(t.taxPercentage || t.amount || 0);
-            const taxAmount = Math.round((taxPercentage / 100) * price);
-            return { taxName, taxPercentage, taxAmount };
-          });
+        if (Array.isArray(opt?.taxes) && opt.taxes.length) {
+          taxes = opt.taxes.map(t => ({
+            taxName: t.taxName || t.name || 'PB1',
+            taxPercentage: Number(t.taxPercentage ?? t.amount ?? 0),
+            taxAmount: Math.round((Number(t.taxPercentage ?? t.amount ?? 0) / 100) * price)
+          }))
         }
 
         return {
@@ -417,13 +415,8 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
       ? legacySourceForTaxes.taxes
       : (Array.isArray(apiItem.taxes) ? apiItem.taxes : []);
       
-      if (Array.isArray(sourceTaxes) && sourceTaxes.length) {
-        menuTaxes = sourceTaxes.map(t => {
-          const taxName = 'PB1';
-          const taxPercentage = 10;
-          const taxAmount = Math.round((taxPercentage / 100) * menuBasePrice);
-          return { taxName, taxPercentage, taxAmount };
-        });
+    if (fromCheckout && legacySourceForTaxes?.menus?.[0]?.taxes) {
+      menuTaxes = legacySourceForTaxes.menus[0].taxes
     } else {
       menuTaxes = [{
           taxName: 'PB1',
@@ -463,10 +456,10 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     const unitPrice = basePrice + condiments.reduce((s, c) => s + c.price, 0);
 
     // Aggregate top-level taxes: menuTaxes + all condiments taxes (flatten)
-    const aggregatedTaxes = [
+    const aggregatedTaxes = dedupeTaxes([
       ...menuTaxes,
-      ...condiments.flatMap(c => Array.isArray(c.taxes) ? c.taxes : [])
-    ];
+      ...condiments.flatMap(c => c.taxes || [])
+    ])
 
     // Optionally, you might want to combine same taxName into single entries.
     // For simplicity we keep individual entries (server-side can also sum if needed).

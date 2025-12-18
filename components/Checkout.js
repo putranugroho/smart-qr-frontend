@@ -158,7 +158,7 @@ export default function CheckoutPage() {
   function handleQty(index, action) {
     setCart(prev => {
       const next = [...prev]
-      const item = { ...next[index] }
+      const item = JSON.parse(JSON.stringify(next[index])) // deep clone aman
 
       const currentQty = Number(item.qty || 1)
       let newQty = currentQty
@@ -171,19 +171,24 @@ export default function CheckoutPage() {
 
       // ===== NORMALIZE COMBO =====
       if (item.type === 'combo' && Array.isArray(item.combos)) {
-        item.combos = item.combos.map(cb => ({
-          ...cb,
-          products: cb.products.map(p => ({
-            ...p,
-            taxes: p.taxes?.map(t => ({
-              ...t,
-              taxAmount: 0 // reset legacy value saja
-            })),
-            condiments: Array.isArray(p.condiments)
-              ? p.condiments.map(c => ({ ...c }))
+        item.combos = item.combos.map(cb => {
+          return {
+            ...cb,
+            qty: newQty, // qty combo ikut user
+            products: Array.isArray(cb.products)
+              ? cb.products.map(p => ({
+                  ...p,
+                  qty: newQty, // 🔑 PRODUCT QTY IKUT USER
+                  condiments: Array.isArray(p.condiments)
+                    ? p.condiments.map(c => ({
+                        ...c,
+                        qty: newQty // 🔑 CONDIMENT IKUT
+                      }))
+                    : []
+                }))
               : []
-          }))
-        }))
+          }
+        })
       }
 
       // ===== MENU BIASA (LEGACY) =====

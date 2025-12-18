@@ -744,7 +744,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         name: prod.name ?? '',
         itemName: prod.itemName ?? '',
         price: Number(prod.price || 0),
-        qty: Number(prod.qty || 1),
+        qty: Number(qty || 1),
         taxes: (prod.taxes || []).map(t => ({
           taxName: t.name || t.code || '',
           taxPercentage: Number(t.amount || 0),
@@ -767,7 +767,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
               code: opt.code ?? opt.id,
               name: opt.name ?? opt.itemName ?? '',
               price: Number(opt.price || 0),
-              qty: Number(opt.qty || 1) || 1,
+              qty: Number(qty || 1) || 1,
               taxes: (opt.taxes || []).map(t => ({ taxName: t.name || t.code || '', taxPercentage: Number(t.amount || 0), taxAmount: 0 }))
             })
           })
@@ -778,7 +778,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
               code: opt.code ?? opt.id,
               name: opt.name ?? opt.itemName ?? '',
               price: Number(opt.price || 0),
-              qty: Number(opt.qty || 1) || 1,
+              qty: Number(qty || 1) || 1,
               taxes: (opt.taxes || []).map(t => ({ taxName: t.name || t.code || '', taxPercentage: Number(t.amount || 0), taxAmount: 0 }))
             })
           }

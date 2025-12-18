@@ -443,31 +443,25 @@ export default function CheckoutPage() {
   // render single item — now receives original cart index
   function renderItem(it, cartIndex) {
     // compute line price (same logic)
-    let linePrice = 0;
-    if (it && it.type === 'combo') {
-      if (Array.isArray(it.combos)) {
-        it.combos.forEach(cb => {
-          const cbQty = Number(cb.qty || 1) || 1;
-          if (Array.isArray(cb.products)) {
-            cb.products.forEach(p => {
-              const pQty = Number(p.qty || 1) || 1;
-              const base = Number(p.price || 0);
-              let condTotal = 0;
+    let linePrice = 0
 
-              if (Array.isArray(p.condiments)) {
-                p.condiments.forEach(c => {
-                  condTotal += Number(c.price || 0) * (Number(c.qty || 1) || 1);
-                });
-              }
+    if (it?.type === 'combo') {
+      const itemQty = Number(it.qty || 1)
 
-              linePrice += (base + condTotal);
-            });
-          }
-        });
-      }
-      linePrice = linePrice * (Number(it.qty || 1) || 1);
+      it.combos?.forEach(cb => {
+        cb.products?.forEach(p => {
+          const base = Number(p.price || 0)
+          let condTotal = 0
+
+          p.condiments?.forEach(c => {
+            condTotal += Number(c.price || 0) * (Number(c.qty || 1))
+          })
+
+          linePrice += (base + condTotal) * itemQty
+        })
+      })
     } else {
-      linePrice = Number(it.price || 0) * (Number(it.qty || 1) || 1);
+      linePrice = Number(it.price || 0) * Number(it.qty || 1)
     }
 
     // image logic

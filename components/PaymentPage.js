@@ -50,36 +50,41 @@ export default function PaymentPage() {
     tableNumber: ''
   });
 
+  function getLatestCart() {
+    try {
+      const raw = localStorage.getItem("yoshi_cart_v1");
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
   useEffect(() => {
-    const pay = getPayment() || {};
+    const latestCart = getLatestCart();
+    const totals = calculateTotals(latestCart);
 
-    // fallback jika getPayment() kosong
-    const sessionCart  = JSON.parse(sessionStorage.getItem("yoshi_cart_payment") || "[]");
-    const sessionTotal = Number(sessionStorage.getItem("yoshi_cart_total") || 0);
     const sessionStore = sessionStorage.getItem("yoshi_store_code") || "";
-
-    const merged = {
-      cart: pay.cart && pay.cart.length > 0 ? pay.cart : sessionCart,
-      paymentTotal: pay.paymentTotal || sessionTotal,
-      storeCode: pay.storeCode || sessionStore,
-      tableNumber
-    };
-
     const dataUser = getUser?.() || {};
     setUser(dataUser)
 
-    if (dataUser.orderType == "DI") {
+    if (dataUser.orderType === "DI") {
       setTable(`Table ${dataUser.tableNumber} • Dine In`)
     } else {
       setTable(`Table ${dataUser.tableNumber} • Take Away`)
     }
 
-    // initialize tableNumber from user if available
     if (dataUser.tableNumber && String(dataUser.tableNumber).trim() !== '' && String(dataUser.tableNumber).trim() !== '000') {
       setTableNumber(String(dataUser.tableNumber).trim().toUpperCase());
     }
 
-    setPayment(merged);
+    setPayment({
+      cart: latestCart,
+      paymentTotal: totals.total, // 🔐 SINGLE SOURCE
+      storeCode: sessionStore,
+      tableNumber: dataUser.tableNumber
+    });
+
     setIsMounted(true);
   }, []);
 

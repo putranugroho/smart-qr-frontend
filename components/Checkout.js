@@ -213,10 +213,13 @@ export default function CheckoutPage() {
 
   function confirmPayment(totalAmt) {
     try {
-      sessionStorage.setItem("yoshi_cart_payment", JSON.stringify(cart));
+      // 🔑 SINGLE SOURCE OF TRUTH
+      const latestCart = JSON.parse(localStorage.getItem("yoshi_cart_v1") || "[]");
+
+      sessionStorage.setItem("yoshi_cart_payment", JSON.stringify(latestCart));
       sessionStorage.setItem("yoshi_cart_total", totalAmt);
 
-      savePayment(cart, totalAmt, {
+      savePayment(latestCart, totalAmt, {
         storeCode: user.storeCode || "",
         orderType: user.orderType || "",
         tableNumber: user.tableNumber || ""

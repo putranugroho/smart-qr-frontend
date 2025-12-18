@@ -1,9 +1,10 @@
+import crypto from "crypto";
 
 export default async function handler(req, res) {
     if (req.method !== "POST") {
         logger.warn("Method not allowed: " + req.method);
         return res.status(405).json({ ok: false, message: "Method not allowed" });
-    }
+    }   
 
     try {
         const body = req.body || {};
@@ -20,6 +21,39 @@ export default async function handler(req, res) {
             signature_key,
             payment_type
         } = body;
+
+        // ==============================
+        // 1. VALIDASI SIGNATURE MIDTRANS
+        // ==============================
+        const serverKey = process.env.MIDTRANS_SERVER_KEY_PRODUCTION;
+
+        const rawSignature =
+        order_id +
+        status_code +
+        gross_amount +
+        serverKey;
+
+        const expectedSignature = crypto
+        .createHash("sha512")
+        .update(rawSignature)
+        .digest("hex");
+
+        if (expectedSignature !== signature_key) {
+        console.error("❌ INVALID MIDTRANS SIGNATURE");
+        console.error("Expected:", expectedSignature);
+        console.error("Received:", signature_key);
+
+        return res.status(401).json({
+            ok: false,
+            message: "Invalid signature key"
+        });
+        }
+
+        console.log("✅ Midtrans signature verified");
+
+        // ==============================
+        // 2. LANJUTKAN PROSES PEMBAYARAN
+        // ==============================
 
         if (!order_id || !transaction_status) {
             console.log("Invalid Midtrans payload");

@@ -774,7 +774,7 @@ export default function OrderStatus() {
 
                         <div className={styles.itemInfo}>
                           <div className={styles.itemTitle}>
-                            {it.detailCombo?.name ?? it.title ?? it.name}
+                            {it.detailCombo?.name ?? it.detailMenu?.name ?? it.name ?? it.title}
                           </div>
 
                           <div className={styles.itemAddon}>

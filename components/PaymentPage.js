@@ -62,7 +62,17 @@ export default function PaymentPage() {
 
   useEffect(() => {
     const latestCart = getLatestCart();
-    const totals = calculateTotals(latestCart);
+    // 🔐 SINGLE SOURCE OF TRUTH
+    const payloadPreview = mapDoOrderPayload(
+      latestCart,
+      null,
+      selectedMethod,
+      {
+        posId: 'QR',
+        orderType: (getUser?.()?.orderType) || 'DI',
+        tableNumber: ''
+      }
+    );
 
     const sessionStore = sessionStorage.getItem("yoshi_store_code") || "";
     const dataUser = getUser?.() || {};
@@ -80,7 +90,7 @@ export default function PaymentPage() {
 
     setPayment({
       cart: latestCart,
-      paymentTotal: totals.total, // 🔐 SINGLE SOURCE
+      paymentTotal: payloadPreview.grandTotal || 0, // ✅ SAME AS MIDTRANS
       storeCode: sessionStore,
       tableNumber: dataUser.tableNumber
     });

@@ -96,9 +96,18 @@ export default function PaymentPage() {
   const mustFillTableNumber =
     !isTakeAway && !hasPresetTable;
 
+  function getLatestCart() {
+    try {
+      const ls = localStorage.getItem("yoshi_cart_v1");
+      return Array.isArray(JSON.parse(ls)) ? JSON.parse(ls) : [];
+    } catch {
+      return [];
+    }
+  }
+
   // compute payload from cart and use it as source of truth for totals
   function buildPayload(grossAmountForRounding = null, explicitTableNumber = null) {
-    const cart = payment.cart || [];
+    const cart = getLatestCart();
     // pass grossAmount so mapDoOrderPayload can compute rounding if needed
     const payload = mapDoOrderPayload(cart, grossAmountForRounding, selectedMethod, {
       posId: 'QR',
@@ -107,6 +116,16 @@ export default function PaymentPage() {
     });
     return payload;
   }
+
+  useEffect(() => {
+    const latestCart = getLatestCart();
+    if (latestCart.length) {
+      setPayment(prev => ({
+        ...prev,
+        cart: latestCart
+      }));
+    }
+  }, []);
 
   // Validate fields, set errors state, return boolean
   function validateAll(showErrors = true) {

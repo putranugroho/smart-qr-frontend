@@ -185,15 +185,30 @@ export default function CheckoutPage() {
 
   // qty update
   function handleQty(index, type) {
-    const item = cart[index]
-    if (!item) return
+    setCart(prevCart => {
+      if (!prevCart[index]) return prevCart;
 
-    let newQty = item.qty
-    if (type === 'minus') newQty = Math.max(1, item.qty - 1)
-    else if (type === 'plus') newQty = item.qty + 1
+      const next = [...prevCart];
+      const current = next[index];
 
-    const updated = updateCart(index, { qty: newQty })
-    setCart([...updated])
+      let newQty = Number(current.qty || 1);
+      if (type === 'minus') newQty = Math.max(1, newQty - 1);
+      if (type === 'plus') newQty = newQty + 1;
+
+      next[index] = {
+        ...current,
+        qty: newQty
+      };
+
+      // 🔑 sync to localStorage
+      try {
+        localStorage.setItem("yoshi_cart_v1", JSON.stringify(next));
+      } catch (e) {
+        console.error("Failed to sync cart qty", e);
+      }
+
+      return next;
+    });
   }
 
   function confirmPayment(totalAmt) {

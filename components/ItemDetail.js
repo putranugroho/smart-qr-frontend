@@ -398,7 +398,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
           name: opt?.name || '',
           itemName: opt?.itemName || '',
           price,
-          qty: 1,
+          qty: qtyNum,
           taxes
         };
       };
@@ -448,7 +448,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
       group: '',
       groupName: '',
       code: c.code,
-      qty: c.qty,
+      qty: qtyNum,
       price: c.price,
       itemName: c.itemName
     }));

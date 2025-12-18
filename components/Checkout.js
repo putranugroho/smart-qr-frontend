@@ -184,31 +184,45 @@ export default function CheckoutPage() {
   }, [cart])
 
   // qty update
-  function handleQty(index, type) {
-    setCart(prevCart => {
-      if (!prevCart[index]) return prevCart;
+  function handleQty(index, newQty) {
+    setCart(prev => {
+      const next = [...prev]
+      const item = { ...next[index] }
 
-      const next = [...prevCart];
-      const current = next[index];
+      // 1️⃣ update qty utama
+      item.qty = newQty
 
-      let newQty = Number(current.qty || 1);
-      if (type === 'minus') newQty = Math.max(1, newQty - 1);
-      if (type === 'plus') newQty = newQty + 1;
+      // 2️⃣ SYNC menus.qty
+      if (Array.isArray(item.menus)) {
+        item.menus = item.menus.map(m => ({
+          ...m,
+          qty: newQty,
 
-      next[index] = {
-        ...current,
-        qty: newQty
-      };
-
-      // 🔑 sync to localStorage
-      try {
-        localStorage.setItem("yoshi_cart_v1", JSON.stringify(next));
-      } catch (e) {
-        console.error("Failed to sync cart qty", e);
+          // 3️⃣ SYNC addons / condiments qty
+          condiments: Array.isArray(m.condiments)
+            ? m.condiments.map(c => ({
+                ...c,
+                qty: newQty
+              }))
+            : []
+        }))
       }
 
-      return next;
-    });
+      // 4️⃣ SYNC legacy addons (jaga-jaga)
+      if (Array.isArray(item.addons)) {
+        item.addons = item.addons.map(a => ({
+          ...a,
+          qty: newQty
+        }))
+      }
+
+      next[index] = item
+
+      // 5️⃣ SIMPAN CART TERBARU
+      localStorage.setItem("yoshi_cart_v1", JSON.stringify(next))
+
+      return next
+    })
   }
 
   function confirmPayment(totalAmt) {

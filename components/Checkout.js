@@ -173,18 +173,15 @@ export default function CheckoutPage() {
       if (item.type === 'combo' && Array.isArray(item.combos)) {
         item.combos = item.combos.map(cb => ({
           ...cb,
-          qty: 1,
           products: cb.products.map(p => ({
             ...p,
-            qty: 1,
             taxes: p.taxes?.map(t => ({
               ...t,
-              taxAmount: 0 // 🔥 HAPUS legacy taxAmount
+              taxAmount: 0 // reset legacy value saja
             })),
-            condiments: p.condiments?.map(c => ({
-              ...c,
-              qty: Number(c.qty || 1)
-            })) || []
+            condiments: Array.isArray(p.condiments)
+              ? p.condiments.map(c => ({ ...c }))
+              : []
           }))
         }))
       }

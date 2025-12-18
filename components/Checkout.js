@@ -197,10 +197,30 @@ export default function CheckoutPage() {
       if (action === 'minus') newQty = Math.max(1, currentQty - 1)
       if (action === 'plus') newQty = currentQty + 1
 
-      // 1️⃣ update qty utama
+      // ===== SET QTY UTAMA =====
       item.qty = newQty
 
-      // 2️⃣ SYNC menus.qty
+      // ===== NORMALIZE COMBO =====
+      if (item.type === 'combo' && Array.isArray(item.combos)) {
+        item.combos = item.combos.map(cb => ({
+          ...cb,
+          qty: 1, // 🔑 combo qty HARUS 1
+          products: Array.isArray(cb.products)
+            ? cb.products.map(p => ({
+                ...p,
+                qty: 1, // 🔑 product qty HARUS 1
+                condiments: Array.isArray(p.condiments)
+                  ? p.condiments.map(c => ({
+                      ...c,
+                      qty: Number(c.qty || 1) // condiment boleh punya qty sendiri
+                    }))
+                  : []
+              }))
+            : []
+        }))
+      }
+
+      // ===== MENU BIASA (LEGACY) =====
       if (Array.isArray(item.menus)) {
         item.menus = item.menus.map(m => ({
           ...m,
@@ -214,7 +234,7 @@ export default function CheckoutPage() {
         }))
       }
 
-      // 3️⃣ SYNC legacy addons
+      // ===== ADDONS =====
       if (Array.isArray(item.addons)) {
         item.addons = item.addons.map(a => ({
           ...a,
@@ -223,7 +243,6 @@ export default function CheckoutPage() {
       }
 
       next[index] = item
-
       localStorage.setItem("yoshi_cart_v1", JSON.stringify(next))
       return next
     })
@@ -379,24 +398,44 @@ export default function CheckoutPage() {
       <div style={{ marginTop: 8 }}>
         {item.combos.map((cb, cbIdx) => (
           <div key={cbIdx} style={{ marginBottom: 8 }}>
-            {Array.isArray(cb.products) && cb.products.length > 0 ? cb.products.map((p, pi) => (
-              <div key={`${p.code ?? p.id ?? pi}-${pi}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px dashed #eee' }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600 }}>{p.name}</div>
-                    <div style={{ marginTop: 4 }}>
-                      {Array.isArray(p.condiments) && p.condiments.map((c, ci) => (
-                        <div key={ci} className={styles.addonLine}>- {c.name}{c.qty && c.qty > 1 ? ` x${c.qty}` : ''}</div>
-                      ))}
-                    </div>
-                </div>
+            {Array.isArray(cb.products) && cb.products.length > 0
+              ? cb.products.map((p, pi) => (
+                  <div
+                    key={`${p.code ?? pi}`}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      padding: '6px 0',
+                      borderBottom: '1px dashed #eee'
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600 }}>{p.name}</div>
 
-                <div style={{ textAlign: 'right', minWidth: 90 }}>
-                  <div style={{ fontSize: 12, color: '#666' }}>x{p.qty ?? 1}</div>
+                      <div style={{ marginTop: 4 }}>
+                        {Array.isArray(p.condiments) &&
+                          p.condiments.map((c, ci) => (
+                            <div key={ci} className={styles.addonLine}>
+                              - {c.name}
+                              {c.qty > 1 ? ` x${c.qty}` : ''}
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: 'right', minWidth: 90 }}>
+                      {/* 🔑 PAKAI item.qty */}
+                      <div style={{ fontSize: 12, color: '#666' }}>
+                        x{item.qty}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              : (
+                <div className={styles.addonLine} style={{ color: '#666', fontStyle: 'italic' }}>
+                  Tidak ada produk pada combo
                 </div>
-              </div>
-            )) : (
-              <div className={styles.addonLine} style={{ color: '#666', fontStyle: 'italic' }}>Tidak ada produk pada combo</div>
-            )}
+              )}
           </div>
         ))}
       </div>

@@ -67,18 +67,20 @@ export default function BillPage() {
   const router = useRouter();
   const { id } = router.query;
   const printRef = useRef();
-
-  const [urlLogo, setUrlLogo] = useState("");
-
+  const [doOrderRaw, setDoOrderRaw] = useState(null);
+  const [dateString, setDateString] = useState("");
   const [paymentFromStorage, setPaymentFromStorage] = useState({
     items: [],
     paymentTotal: 0,
   });
 
-  const [doOrderRaw, setDoOrderRaw] = useState(null);
-
-  // SIMPAN DATE SAAT HALAMAN DIBUKA
-  const [dateString, setDateString] = useState("");
+  const urlLogo = useMemo(() => {
+    return resolvePaymentLogo(doOrderRaw);
+  }, [doOrderRaw]);
+  
+  const referenceCode = useMemo(() => {
+    return resolveReferenceCode(doOrderRaw);
+  }, [doOrderRaw]);
 
   useEffect(() => {
     const now = new Date();
@@ -107,19 +109,35 @@ export default function BillPage() {
         const data = parsed.data ?? parsed;
 
         setDoOrderRaw(data);
-
-        const paymentMethod = (data.payment ?? data.Payment ?? "").toLowerCase();
-
-        if (paymentMethod.includes("gopay")) {
-          setUrlLogo("/images/pay-gopay.png");
-        } else if (paymentMethod.includes("qris")) {
-          setUrlLogo("/images/pay-qris.png");
-        } else {
-          setUrlLogo("");
-        }
       }
     } catch {}
   }, []);
+
+  function resolvePaymentLogo(data) {
+    if (!data) return "";
+
+    const source =
+      data.payment ||
+      data.Payment ||
+      data.referenceCode ||
+      "";
+
+    const s = String(source).toLowerCase();
+
+    if (s.includes("gopay")) return "/images/pay-gopay.png";
+    if (s.includes("qris")) return "/images/pay-qris.png";
+
+    return "";
+  }
+
+  function resolveReferenceCode(data) {
+    if (!data?.referenceCode) return "";
+
+    // contoh: "Gopay,cb516e29-690c-4b85-9f93-89b6e642a652"
+    const parts = String(data.referenceCode).split(",");
+
+    return parts[1] ? parts[1].trim() : "";
+  }
 
   // Normalisasi item
   const itemsFromPayload = useMemo(() => {
@@ -211,16 +229,39 @@ export default function BillPage() {
 
   /* DOWNLOAD PDF */
   const downloadPDF = async () => {
-    const canvas = await html2canvas(printRef.current, { scale: 2 });
-    const img = canvas.toDataURL("image/png");
+    const canvas = await html2canvas(printRef.current, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+    });
+
+    const imgData = canvas.toDataURL("image/png");
 
     const pdf = new jsPDF("p", "mm", "a4");
-    const width = pdf.internal.pageSize.getWidth();
-    const height = (canvas.height * width) / canvas.width;
 
-    pdf.addImage(img, "PNG", 0, 0, width, height);
-    pdf.save(`bill-${id}.pdf`);
-  };
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+  let heightLeft = imgHeight;
+  let position = 0;
+
+  // halaman pertama
+  pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+  heightLeft -= pageHeight;
+
+  // halaman selanjutnya
+  while (heightLeft > 0) {
+    position -= pageHeight;
+    pdf.addPage();
+    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+  }
+
+  pdf.save(`bill-${id}.pdf`);
+};
 
   return (
     <div className={styles.page}>
@@ -397,13 +438,26 @@ export default function BillPage() {
         )}
 
         {/* PAYMENT */}
-        {urlLogo != "" ? (
-        <div className={styles.paymentBox}>
-          <div>Pembayaran Online</div>
-          <img src={urlLogo} width={55} />
-        </div>
-        ) : (
-          <div className={styles.paymentBox}></div> 
+        {urlLogo && (
+          <div className={styles.paymentBox}>
+            <div className={styles.paymentLabel}>Pembayaran Online</div>
+
+            <div className={styles.paymentRow}>
+              <img
+                src={urlLogo}
+                alt="payment logo"
+                width={55}
+                height={14}
+                style={{ objectFit: "contain" }}
+              />
+
+              {referenceCode && (
+                <div className={styles.paymentRef}>
+                  {referenceCode}
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {/* TOTAL BOX */}

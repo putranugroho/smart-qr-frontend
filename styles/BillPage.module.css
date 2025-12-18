@@ -203,3 +203,16 @@
 .outletAddr {
   margin-top: 5px;
 }
+
+.paymentRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.paymentRef {
+  font-size: 11px;
+  color: #555;
+  word-break: break-all;
+}

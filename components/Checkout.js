@@ -21,99 +21,68 @@ function calcCartTotals(cart) {
   let taxPB1 = 0
   let taxPPN = 0
 
-  if (!Array.isArray(cart)) return { subtotal: 0, taxPB1: 0, taxPPN: 0, total: 0 }
+  if (!Array.isArray(cart)) {
+    return { subtotal: 0, taxPB1: 0, taxPPN: 0, total: 0 }
+  }
 
   cart.forEach(it => {
-    // menu item (legacy)
-    if (!it || it.type !== 'combo') {
+    /* =========================
+       MENU BIASA (LEGACY)
+    ========================= */
+    if (it.type !== 'combo') {
       const price = Number(it.price || 0)
-      const qty = Number(it.qty || 0) || 0
+      const qty = Number(it.qty || 1)
       const line = price * qty
       subtotal += line
 
-      // if item has taxes array (preferred)
-      if (Array.isArray(it.taxes) && it.taxes.length) {
+      if (Array.isArray(it.taxes)) {
         it.taxes.forEach(t => {
-          const pct = Number(t.amount ?? t.taxPercentage ?? 0)
-          const amount = Math.round((price * qty) * (pct / 100))
-          if ((String(t.code || t.taxName || '').toUpperCase()).includes('PB') || String(t.name || t.taxName || '').toUpperCase().includes('PB1')) {
-            taxPB1 += amount
-          } else if ((String(t.code || t.taxName || '').toUpperCase()).includes('PPN') || String(t.name || t.taxName || '').toUpperCase().includes('PPN')) {
-            taxPPN += amount
-          }
+          const pct = Number(t.taxPercentage || t.amount || 0)
+          const amt = Math.round(line * (pct / 100))
+          const name = String(t.taxName || t.name || '').toUpperCase()
+
+          if (name.includes('PB1')) taxPB1 += amt
+          if (name.includes('PPN')) taxPPN += amt
         })
       } else {
-        // fallback to legacy pb1Percent / ppnPercent
-        const pb1Pct = Number(it.pb1Percent ?? it.taxPercent ?? 0)
-        const ppnPct = Number(it.ppnPercent ?? 0)
-        if (pb1Pct > 0) taxPB1 += Math.round((price * qty) * (pb1Pct / 100))
-        if (ppnPct > 0) taxPPN += Math.round((price * qty) * (ppnPct / 100))
+        const pb1 = Number(it.pb1Percent || 0)
+        const ppn = Number(it.ppnPercent || 0)
+        if (pb1) taxPB1 += Math.round(line * pb1 / 100)
+        if (ppn) taxPPN += Math.round(line * ppn / 100)
       }
-
       return
     }
 
-    // combo item
-    const itemQty = Number(it.qty || 1) || 1
+    /* =========================
+       COMBO (FIXED)
+    ========================= */
+    const itemQty = Number(it.qty || 1)
 
-    if (!Array.isArray(it.combos) || it.combos.length === 0) return
+    it.combos?.forEach(cb => {
+      cb.products?.forEach(p => {
+        const base = Number(p.price || 0)
 
-    it.combos.forEach(comboBlock => {
-      const comboQty = 1
-      if (!Array.isArray(comboBlock.products)) return
-
-      comboBlock.products.forEach(prod => {
-        const prodQty = 1
-        const basePrice = Number(prod.price || 0)
+        // condiments
         let condTotal = 0
-        if (Array.isArray(prod.condiments)) {
-          prod.condiments.forEach(c => {
-            const cQty = Number(c.qty || 1) || 1
-            condTotal += Number(c.price || 0) * cQty
-          })
-        }
+        p.condiments?.forEach(c => {
+          condTotal += Number(c.price || 0) * Number(c.qty || 1)
+        })
 
-        const lineUnit = basePrice + condTotal
-        const lineTotal =
-          lineUnit *
-          itemQty;
+        const unitPrice = base + condTotal
+        const lineTotal = unitPrice * itemQty
         subtotal += lineTotal
 
-        if (Array.isArray(prod.taxes) && prod.taxes.length) {
-          prod.taxes.forEach(t => {
-            const taxAmtPerUnit = Number(t.taxAmount ?? 0)
-            const taxPct = Number(t.taxPercentage ?? t.amount ?? 0)
-            if (taxAmtPerUnit > 0) {
-              const amt = taxAmtPerUnit * prodQty * comboQty * itemQty
-              if ((String(t.taxName || t.name || '').toUpperCase()).includes('PB1')) taxPB1 += amt
-              else if ((String(t.taxName || t.name || '').toUpperCase()).includes('PPN')) taxPPN += amt
-            } else if (taxPct > 0) {
-              const amt = Math.round((basePrice * prodQty * comboQty * itemQty) * (taxPct / 100))
-              if ((String(t.taxName || t.name || '').toUpperCase()).includes('PB1')) taxPB1 += amt
-              else if ((String(t.taxName || t.name || '').toUpperCase()).includes('PPN')) taxPPN += amt
-            }
-          })
-        } else {
-          if (Array.isArray(prod.condiments) && prod.condiments.length) {
-            prod.condiments.forEach(c => {
-              if (Array.isArray(c.taxes) && c.taxes.length) {
-                c.taxes.forEach(t => {
-                  const taxAmtPerUnit = Number(t.taxAmount ?? 0)
-                  const taxPct = Number(t.taxPercentage ?? t.amount ?? 0)
-                  if (taxAmtPerUnit > 0) {
-                    const amt = taxAmtPerUnit * (Number(c.qty || 1) || 1) * comboQty * itemQty
-                    if ((String(t.taxName || t.name || '').toUpperCase()).includes('PB1')) taxPB1 += amt
-                    else if ((String(t.taxName || t.name || '').toUpperCase()).includes('PPN')) taxPPN += amt
-                  } else if (taxPct > 0) {
-                    const amt = Math.round((Number(c.price || 0) * (Number(c.qty || 1) || 1) * comboQty * itemQty) * (taxPct / 100))
-                    if ((String(t.taxName || t.name || '').toUpperCase()).includes('PB1')) taxPB1 += amt
-                    else if ((String(t.taxName || t.name || '').toUpperCase()).includes('PPN')) taxPPN += amt
-                  }
-                })
-              }
-            })
-          }
-        }
+        /* === TAX: ONLY % × item.qty === */
+        p.taxes?.forEach(t => {
+          const pct = Number(t.taxPercentage || 0)
+          if (!pct) return
+
+          const taxAmt = Math.round(unitPrice * itemQty * pct / 100)
+          const name = String(t.taxName || t.name || '').toUpperCase()
+
+          if (name.includes('PB1')) taxPB1 += taxAmt
+          if (name.includes('PPN')) taxPPN += taxAmt
+        })
       })
     })
   })
@@ -204,19 +173,19 @@ export default function CheckoutPage() {
       if (item.type === 'combo' && Array.isArray(item.combos)) {
         item.combos = item.combos.map(cb => ({
           ...cb,
-          qty: 1, // 🔑 combo qty HARUS 1
-          products: Array.isArray(cb.products)
-            ? cb.products.map(p => ({
-                ...p,
-                qty: 1, // 🔑 product qty HARUS 1
-                condiments: Array.isArray(p.condiments)
-                  ? p.condiments.map(c => ({
-                      ...c,
-                      qty: Number(c.qty || 1) // condiment boleh punya qty sendiri
-                    }))
-                  : []
-              }))
-            : []
+          qty: 1,
+          products: cb.products.map(p => ({
+            ...p,
+            qty: 1,
+            taxes: p.taxes?.map(t => ({
+              ...t,
+              taxAmount: 0 // 🔥 HAPUS legacy taxAmount
+            })),
+            condiments: p.condiments?.map(c => ({
+              ...c,
+              qty: Number(c.qty || 1)
+            })) || []
+          }))
         }))
       }
 

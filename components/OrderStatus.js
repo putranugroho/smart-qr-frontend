@@ -1,3 +1,4 @@
+// components/AddPopup.js
 import { useRouter } from 'next/router'
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
@@ -199,13 +200,27 @@ export default function OrderStatus() {
           if (mt_id) setDisplayMtId(String(mt_id))
         }
 
-        if (d.Payment.toLowerCase().includes("gopay")) {
-          setUrlLogo("/images/pay-gopay.png")
-        } if (d.Payment.toLowerCase().includes("qris")) {
-          setUrlLogo("/images/pay-qris.png")
-        }
+        const logo = resolvePaymentLogo(d)
+        setUrlLogo(logo)
       }
     } catch (e) { /* ignore */ }
+
+    function resolvePaymentLogo(data) {
+      if (!data) return ""
+
+      const source =
+        data.payment ||
+        data.Payment ||
+        data.referenceCode ||
+        ""
+
+      const s = String(source).toLowerCase()
+
+      if (s.includes("gopay")) return "/images/pay-gopay.png"
+      if (s.includes("qris")) return "/images/pay-qris.png"
+
+      return ""
+    }
 
     try {
       const s = sessionStorage.getItem('midtrans_tx')
@@ -841,7 +856,17 @@ export default function OrderStatus() {
 
         <div className={styles.paymentItem}>
           <div className={styles.paymentItemLeft}>
-            <img src={urlLogo} alt="logo" width={55} height={14} className={styles.iconImg} />
+            {urlLogo ? (
+              <img
+                src={urlLogo}
+                alt="payment logo"
+                width={55}
+                height={14}
+                className={styles.iconImg}
+              />
+            ) : (
+              <div style={{ width: 55, height: 14 }} />
+            )}
           </div>
           <div className={styles.paymentItemRight}>
             <div className={styles.paymentNumber}>{displayMtId ? displayMtId : ""}</div>

@@ -389,51 +389,52 @@ export default function OrderStatus() {
   const items = itemsFromRemote.length > 0 ? itemsFromRemote : (clientPayment.items || [])
   const itemsCount = items.length
 
-  // compute totals using calculateItemTaxes but prefer dataOrder.taxes (payload totals) when available
-  let computedSubtotal = 0
+  // ================================
+  // FINAL TOTALS (BACKEND IS SOURCE OF TRUTH)
+  // ================================
+
+  const hasBackendTotals =
+    dataOrder &&
+    typeof dataOrder.subTotal === 'number' &&
+    typeof dataOrder.grandTotal === 'number'
+
+  // SUBTOTAL
+  const computedSubtotal = hasBackendTotals
+    ? Number(dataOrder.subTotal || 0)
+    : items.reduce((s, it) => s + calculateItemTaxes(it).base, 0)
+
+  // TAXES
   let computedPB1 = 0
   let computedPPN = 0
 
-  items.forEach((it) => {
-    const t = calculateItemTaxes(it)
+  if (hasBackendTotals && Array.isArray(dataOrder.taxes)) {
+    dataOrder.taxes.forEach(tx => {
+      const name = String(tx.taxName || '').toUpperCase()
+      const amt = Number(tx.taxAmount || 0)
 
-    computedSubtotal += t.base
-    computedPB1 += t.pb1
-    computedPPN += t.ppn
-  })
+      if (name.includes('PB')) computedPB1 += amt
+      if (name.includes('PPN')) computedPPN += amt
+    })
+  } else {
+    items.forEach(it => {
+      const t = calculateItemTaxes(it)
+      computedPB1 += t.pb1
+      computedPPN += t.ppn
+    })
+  }
 
-  computedSubtotal = Math.round(computedSubtotal)
   computedPB1 = Math.round(computedPB1)
   computedPPN = Math.round(computedPPN)
 
-  // If dataOrder contains top-level taxes (do_order_result), prefer those exact amounts
-  if (dataOrder && Array.isArray(dataOrder.taxes) && dataOrder.taxes.length > 0) {
-    const topTaxes = dataOrder.taxes.reduce((acc, tx) => {
-      const name = (tx.taxName ?? tx.TaxName ?? '').toString().toUpperCase()
-      const amt = Number(tx.taxAmount ?? tx.TaxAmount ?? 0)
-      if (name.includes('PB')) acc.pb1 += amt
-      else if (name.includes('PPN')) acc.ppn += amt
-      return acc
-    }, { pb1: 0, ppn: 0 })
+  // ROUNDING
+  const roundingAmount = hasBackendTotals
+    ? Number(dataOrder.rounding || 0)
+    : 0
 
-    if (topTaxes.pb1 || topTaxes.ppn) {
-      computedPB1 = Math.round(topTaxes.pb1)
-      computedPPN = Math.round(topTaxes.ppn)
-    }
-  }
-
-  const unroundedTotal = computedSubtotal + computedPB1 + computedPPN
-
-  // Rounding rules: if subtotal < 50 -> rounding 0 (per request)
-  let roundingAmount = 0
-  if (computedSubtotal < 50) {
-    roundingAmount = 0
-  } else {
-    const roundedTotal = Math.round(unroundedTotal / 100) * 100
-    roundingAmount = roundedTotal - unroundedTotal
-  }
-
-  const total = unroundedTotal + roundingAmount
+  // TOTAL
+  const total = hasBackendTotals
+    ? Number(dataOrder.grandTotal || 0)
+    : Math.round(computedSubtotal + computedPB1 + computedPPN + roundingAmount)
 
   function handleToggleShowAll() {
     setShowAllItems(prev => !prev)
@@ -641,29 +642,21 @@ export default function OrderStatus() {
   console.log("visibleItems", visibleItems);
 
   const computeItemTotal = (item) => {
-    const qty = Number(item.qty || 1);
-    let base = Number(item.price || 0);
-    let addonTotal = 0;
-
-    // Kondimen (MENU)
-    if (item.condiments?.length) {
-      addonTotal += item.condiments.reduce(
-        (sum, c) => sum + Number(c.price || 0),
-        0
-      );
-    }
-
-    // ADD ON untuk COMBO (masuk dari products)
+    // COMBO → subtotal dari backend
     if (item.type === 'combo') {
-      const products = item.combos?.[0]?.products || [];
-      addonTotal += products.reduce(
-        (sum, p) => sum + Number(p.price || 0),
-        0
-      );
+      const cb = item.combos?.[0]
+      if (!cb) return 0
+
+      const products = cb.products || []
+
+      return products.reduce((sum, p) => {
+        return sum + (Number(p.price) * Number(p.qty || 1))
+      }, 0) * Number(cb.qty || 1)
     }
 
-    return (base + addonTotal) * qty;
-  };
+    // MENU → price × qty
+    return Number(item.price || 0) * Number(item.qty || 1)
+  }
 
   const MERCHANT_PHONE = '+628123456789'
   async function contactMerchant() {

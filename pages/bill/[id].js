@@ -144,30 +144,40 @@ export default function BillPage() {
     if (!doOrderRaw) return [];
     const arr = [];
 
-    (doOrderRaw.combos ?? doOrderRaw.Combos ?? []).forEach((cb) => {
+    (doOrderRaw.combos ?? []).forEach((cb) => {
       arr.push({
         type: "combo",
         qty: cb.qty ?? 1,
         orderType: cb.orderType,
         detailCombo: cb.detailCombo,
+        finalAmount: Number(
+          cb.totalAmount ??
+          cb.amount ??
+          cb.grandTotal ??
+          0
+        ),
         combos: [
           {
-            orderType: cb.orderType,
             products: cb.products ?? [],
           },
         ],
       });
     });
 
-    // ✅ MENUS
-    (doOrderRaw.menus ?? doOrderRaw.Menus ?? []).forEach((m) => {
+    // ✅ MENUS 
+    (doOrderRaw.menus ?? []).forEach((m) => {
       arr.push({
         type: "menu",
-        qty: m.qty ?? m.Qty ?? 1,
-        orderType: m.orderType ?? m.OrderType,
-        detailMenu: m.detailMenu ?? m.DetailMenu,
-        condiments: m.condiments ?? m.Condiments ?? [],
-        taxes: m.taxes ?? m.Taxes ?? [],
+        qty: m.qty ?? 1,
+        orderType: m.orderType,
+        detailMenu: m.detailMenu,
+        finalAmount: Number(
+          m.totalAmount ??
+          m.amount ??
+          m.priceAmount ??
+          0
+        ),
+        condiments: m.condiments ?? [],
       });
     });
 
@@ -207,25 +217,33 @@ export default function BillPage() {
   const dineInItems = items.filter((it) => it.orderType === "DI");
   const takeAwayItems = items.filter((it) => it.orderType === "TA");
 
-  /* HITUNG TOTAL & TAX */
-  let computedSubtotal = 0;
-  let computedPB1 = 0;
-  let computedPPN = 0;
+  // ================================
+  // FINAL TOTALS — BACKEND ONLY
+  // ================================
 
-  items.forEach((it) => {
-    const t = calculateItemTaxes(it);
-    computedSubtotal += t.base;
-    computedPB1 += t.pb1;
-    computedPPN += t.ppn;
-  });
+  const hasBackendTotals =
+    doOrderRaw &&
+    typeof doOrderRaw.subTotal === "number" &&
+    typeof doOrderRaw.grandTotal === "number";
 
-  const unroundedTotal = computedSubtotal + computedPB1 + computedPPN;
-  let roundedTotal = Math.round(unroundedTotal / 100) * 100;
+  const computedSubtotal = hasBackendTotals
+    ? Number(doOrderRaw.subTotal)
+    : 0;
 
-  if (Math.abs(unroundedTotal) < 20) roundedTotal = unroundedTotal;
+  const computedPB1 = hasBackendTotals
+    ? (doOrderRaw.taxes || []).reduce(
+        (t, tx) => t + Number(tx.taxAmount || 0),
+        0
+      )
+    : 0;
 
-  let roundingAmount = roundedTotal - unroundedTotal;
-  if (Math.abs(unroundedTotal) < 20) roundingAmount = 0;
+  const roundingAmount = hasBackendTotals
+    ? Number(doOrderRaw.rounding || 0)
+    : 0;
+
+  const roundedTotal = hasBackendTotals
+    ? Number(doOrderRaw.grandTotal)
+    : 0;
 
   /* DOWNLOAD PDF */
   const downloadPDF = async () => {
@@ -316,7 +334,7 @@ export default function BillPage() {
             {dineInItems.map((it, i) => {
               if (it.type === "combo") {
                 const products = it.combos[0].products ?? [];
-                const total = products.reduce((t, p) => t + p.price * p.qty, 0) * it.qty;
+                const total  = products.reduce((t, p) => t + Number(p.price || 0) * Number(p.qty || 1), 0);
 
                 return (
                   <div key={i} className={styles.itemRow}>
@@ -338,13 +356,19 @@ export default function BillPage() {
               }
 
               /* MENU */
-              const base = Number(it.detailMenu?.Price ?? it.detailMenu?.price ?? 0);
+              const base = Number(it.detailMenu?.price || 0) * Number(it.qty || 1);
               const qty = Number(it.qty || 1);
               const addonTotal = (it.condiments ?? []).reduce(
                 (t, c) => t + Number(c.Price ?? 0),
                 0
               );
-              const menuTotal = (base + addonTotal) * qty;
+
+              const taxTotal = (it.taxes || []).reduce(
+                (t, tx) => t + Number(tx.taxAmount || 0),
+                0
+              );
+
+              const menuTotal = base + taxTotal;
 
               return (
                 <div key={i} className={styles.itemRow}>
@@ -380,7 +404,7 @@ export default function BillPage() {
               if (it.type === "combo") {
                 const products = it.combos[0].products ?? [];
                 const total = products.reduce(
-                  (t, p) => t + p.price * p.qty,
+                  (t, p) => t + Number(p.price || 0) * Number(p.qty || 1),
                   0
                 );
 
@@ -404,13 +428,19 @@ export default function BillPage() {
               }
 
               /* MENU */
-              const base = Number(it.detailMenu?.Price ?? it.detailMenu?.price ?? 0);
+              const base = Number(it.detailMenu?.price || 0) * Number(it.qty || 1);
               const qty = Number(it.qty || 1);
               const addonTotal = (it.condiments ?? []).reduce(
                 (t, c) => t + Number(c.Price ?? c.price ?? 0),
                 0
               );
-              const menuTotal = (base + addonTotal) * qty;
+
+              const taxTotal = (it.taxes || []).reduce(
+                (t, tx) => t + Number(tx.taxAmount || 0),
+                0
+              );
+
+              const menuTotal = base + taxTotal;
 
               return (
                 <div key={i} className={styles.itemRow}>

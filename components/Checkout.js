@@ -59,11 +59,11 @@ function calcCartTotals(cart) {
     if (!Array.isArray(it.combos) || it.combos.length === 0) return
 
     it.combos.forEach(comboBlock => {
-      const comboQty = Number(comboBlock.qty || 1) || 1
+      const comboQty = 1
       if (!Array.isArray(comboBlock.products)) return
 
       comboBlock.products.forEach(prod => {
-        const prodQty = Number(prod.qty || 1) || 1
+        const prodQty = 1
         const basePrice = Number(prod.price || 0)
         let condTotal = 0
         if (Array.isArray(prod.condiments)) {
@@ -74,7 +74,9 @@ function calcCartTotals(cart) {
         }
 
         const lineUnit = basePrice + condTotal
-        const lineTotal = lineUnit * prodQty * comboQty * itemQty
+        const lineTotal =
+          lineUnit *
+          itemQty;
         subtotal += lineTotal
 
         if (Array.isArray(prod.taxes) && prod.taxes.length) {
@@ -184,10 +186,16 @@ export default function CheckoutPage() {
   }, [cart])
 
   // qty update
-  function handleQty(index, newQty) {
+  function handleQty(index, action) {
     setCart(prev => {
       const next = [...prev]
       const item = { ...next[index] }
+
+      const currentQty = Number(item.qty || 1)
+      let newQty = currentQty
+
+      if (action === 'minus') newQty = Math.max(1, currentQty - 1)
+      if (action === 'plus') newQty = currentQty + 1
 
       // 1️⃣ update qty utama
       item.qty = newQty
@@ -197,8 +205,6 @@ export default function CheckoutPage() {
         item.menus = item.menus.map(m => ({
           ...m,
           qty: newQty,
-
-          // 3️⃣ SYNC addons / condiments qty
           condiments: Array.isArray(m.condiments)
             ? m.condiments.map(c => ({
                 ...c,
@@ -208,7 +214,7 @@ export default function CheckoutPage() {
         }))
       }
 
-      // 4️⃣ SYNC legacy addons (jaga-jaga)
+      // 3️⃣ SYNC legacy addons
       if (Array.isArray(item.addons)) {
         item.addons = item.addons.map(a => ({
           ...a,
@@ -218,9 +224,7 @@ export default function CheckoutPage() {
 
       next[index] = item
 
-      // 5️⃣ SIMPAN CART TERBARU
       localStorage.setItem("yoshi_cart_v1", JSON.stringify(next))
-
       return next
     })
   }
@@ -456,7 +460,7 @@ export default function CheckoutPage() {
                 });
               }
 
-              linePrice += (base + condTotal) * pQty * cbQty;
+              linePrice += (base + condTotal);
             });
           }
         });

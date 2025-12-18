@@ -256,30 +256,24 @@ export default function BillPage() {
     const imgData = canvas.toDataURL("image/png");
 
     const pdf = new jsPDF("p", "mm", "a4");
-
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
 
-    const imgWidth = pageWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    // scaling: sesuaikan tinggi canvas ke A4
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
 
-  let heightLeft = imgHeight;
-  let position = 0;
+    const ratio = Math.min(pageWidth / canvasWidth, pageHeight / canvasHeight);
 
-  // halaman pertama
-  pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-  heightLeft -= pageHeight;
+    const imgWidth = canvasWidth * ratio;
+    const imgHeight = canvasHeight * ratio;
 
-  // halaman selanjutnya
-  while (heightLeft > 0) {
-    position -= pageHeight;
-    pdf.addPage();
-    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
-  }
+    // center horizontal
+    const xOffset = (pageWidth - imgWidth) / 2;
+    pdf.addImage(imgData, "PNG", xOffset, 0, imgWidth, imgHeight);
 
-  pdf.save(`bill-${id}.pdf`);
-};
+    pdf.save(`bill-${id}.pdf`);
+  };
 
   return (
     <div className={styles.page}>
@@ -374,13 +368,13 @@ export default function BillPage() {
                 <div key={i} className={styles.itemRow}>
                   <div className={styles.itemLeft}>
                     <div className={styles.itemTitle}>
-                      {it.detailMenu?.ItemName ?? it.detailMenu?.itemName} ({qty}x)
+                      {it.detailMenu?.name ?? it.detailMenu?.Name} ({qty}x)
                     </div>
 
                     {it.condiments?.length > 0 ? (
                       it.condiments.map((c, idx) => (
                         <div key={idx} className={styles.itemAddon}>
-                          • {c.Name || c.ItemName || c.itemName || c.name}
+                          • {c.Name || c.name}
                         </div>
                       ))
                     ) : (
@@ -470,9 +464,8 @@ export default function BillPage() {
         {/* PAYMENT */}
         {urlLogo && (
           <div className={styles.paymentBox}>
-            <div className={styles.paymentLabel}>Pembayaran Online</div>
-
-            <div className={styles.paymentRow}>
+            <div className={styles.paymentBoxLeft}>Pembayaran Online</div>
+            <div className={styles.paymentBoxLeft}>
               <img
                 src={urlLogo}
                 alt="payment logo"
@@ -480,12 +473,13 @@ export default function BillPage() {
                 height={14}
                 style={{ objectFit: "contain" }}
               />
-
+            <div className={styles.paymentBoxRight}>
               {referenceCode && (
                 <div className={styles.paymentRef}>
                   {referenceCode}
                 </div>
               )}
+            </div>
             </div>
           </div>
         )}

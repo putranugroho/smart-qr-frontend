@@ -114,22 +114,27 @@
 
 /* =============== PEMBAYARAN ONLINE BOX =============== */
 .paymentBox {
-  width: auto;
+  width: 100%;
   padding: 20px 0;
   border-bottom: 6px solid #f0f0f0;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  row-gap: 15px;
+  flex-direction: column; /* ganti ke column supaya baris 1 & 2 */
 }
 
 .paymentBoxLeft {
   font-size: 14px;
   font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .paymentBoxRight {
   display: flex;
-  align-items: center;
+  justify-content: flex-end; /* reference code tetap di kanan */
+  margin-top: 4px;
 }
 
 /* =============== DETAIL PEMBAYARAN BOX =============== */
@@ -215,4 +220,5 @@
   font-size: 11px;
   color: #555;
   word-break: break-all;
+  margin-left: 8px; /* sedikit spasi dari logo */
 }

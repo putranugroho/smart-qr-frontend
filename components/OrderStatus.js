@@ -654,19 +654,20 @@ export default function OrderStatus() {
       }, 0)
     }
 
-    // if (item.type === 'menus') {
-    //   const mn = item.menus?.[0]
-    //   if (!mn) return 0
+    const mn = item.menus?.[0]
+    if (!mn) return 0
 
-    //   const condiments = mn.condiments || []
+    const qty = Number(mn.qty || item.qty || 1)
+    const basePrice = Number(mn.detailMenu?.price || 0)
 
-    //   return condiments.reduce((sum, c) => {
-    //     return sum + (Number(c.price) * Number(c.qty || 1))
-    //   }, 0) * Number(mn.qty || 1)
-    // }
+    let addonTotal = 0
+    if (Array.isArray(mn.condiments)) {
+      addonTotal = mn.condiments.reduce((sum, c) => {
+        return sum + Number(c.price || 0) * Number(c.qty || 1)
+      }, 0)
+    }
 
-    // MENU → price × qty
-    return Number(item.price || 0) * Number(item.qty || 1)
+    return (basePrice * qty) + addonTotal
   }
 
   const MERCHANT_PHONE = '+628123456789'

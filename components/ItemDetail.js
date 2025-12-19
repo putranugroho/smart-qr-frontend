@@ -410,19 +410,30 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     // Prefer explicit taxes from legacySourceForTaxes (e.g. editing existing cart) otherwise
     // fall back to apiItem.taxes if present. We compute taxAmount against the menu base price.
     const menuBasePrice = Number(basePrice || 0);
+    // ======== Taxes for Menu only =========
     let menuTaxes = [];
-    const sourceTaxes = Array.isArray(legacySourceForTaxes.taxes) && legacySourceForTaxes.taxes.length
-      ? legacySourceForTaxes.taxes
-      : (Array.isArray(apiItem.taxes) ? apiItem.taxes : []);
-      
-    if (fromCheckout && legacySourceForTaxes?.menus?.[0]?.taxes) {
-      menuTaxes = legacySourceForTaxes.menus[0].taxes
+
+    if (Array.isArray(legacySourceForTaxes.taxes) && legacySourceForTaxes.taxes.length) {
+      // Gunakan taxes dari item di cart (edit case)
+      menuTaxes = legacySourceForTaxes.taxes.map(t => ({
+        taxName: t.taxName || t.name || 'PB1',
+        taxPercentage: Number(t.taxPercentage ?? t.amount ?? 0),
+        taxAmount: Math.round((Number(t.taxPercentage ?? t.amount ?? 0) / 100) * menuBasePrice)
+      }));
+    } else if (Array.isArray(apiItem.taxes) && apiItem.taxes.length) {
+      // Gunakan taxes dari API untuk item baru
+      menuTaxes = apiItem.taxes.map(t => ({
+        taxName: t.taxName || t.name || 'PB1',
+        taxPercentage: Number(t.taxPercentage ?? t.amount ?? 0),
+        taxAmount: Math.round((Number(t.taxPercentage ?? t.amount ?? 0) / 100) * menuBasePrice)
+      }));
     } else {
+      // fallback default PB1 10%
       menuTaxes = [{
-          taxName: 'PB1',
-          taxPercentage: 10,
-          taxAmount: 0.1 * menuBasePrice,
-        }];
+        taxName: 'PB1',
+        taxPercentage: 10,
+        taxAmount: Math.round(0.1 * menuBasePrice)
+      }];
     }
 
     // ======== menus[] payload =========

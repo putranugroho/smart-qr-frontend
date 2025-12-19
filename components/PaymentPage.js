@@ -73,18 +73,21 @@ export default function PaymentPage() {
         const condimentsTaxes = (menu.condiments ?? []).reduce((cSum, c) => cSum + (c.taxes?.[0]?.taxAmount || 0), 0);
         console.log("menusum", menuSum + (detailPrice + condimentsPrice + menuTaxes + condimentsTaxes) * (menu.qty || 1));
         return menuSum + (detailPrice + condimentsPrice + menuTaxes + condimentsTaxes) * (menu.qty || 1);
-        
       }, 0);
 
       // ===== 2. hitung combo =====
       if (item.type === 'combo') {
         menuTotal += (item.combos ?? []).reduce((comboSum, combo) => {
           const productsTotal = (combo.products ?? []).reduce((pSum, p) => {
-            const price = p.price * p.qty || 0;
+            const price = (p.price || 0) * (p.qty || 1);
             const taxes = (p.taxes ?? []).reduce((tSum, t) => tSum + (t.taxAmount || 0), 0);
+            if (taxes === 0 && price === 0) {
+              return pSum;
+            }
+            
             return pSum + (price + taxes);
           }, 0);
-          return comboSum + productsTotal; // kalikan qty combo
+          return comboSum + productsTotal;
         }, 0);
       }
 

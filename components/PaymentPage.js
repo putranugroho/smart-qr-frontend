@@ -62,35 +62,37 @@ export default function PaymentPage() {
 
   useEffect(() => {
     const latestCart = getLatestCart();
-    const paymentTotal = latestCart.reduce((sum, item) => {
-      // iterasi setiap menu di item
-      const menuTotal = (item.menus ?? []).reduce((menuSum, menu) => {
-        // harga detailMenu
+    let paymentTotal = latestCart.reduce((sum, item) => {
+      let menuTotal = 0;
+
+      // ===== 1. hitung menus =====
+      menuTotal += (item.menus ?? []).reduce((menuSum, menu) => {
         const detailPrice = menu.detailMenu?.price || 0;
-
-        // harga condiment
-        const condimentsPrice = (menu.condiments ?? []).reduce((cSum, c) => {
-          return cSum + (c.price || 0)
-        }, 0);
-
-        // total price per menu
-        const basePrice = detailPrice + condimentsPrice;
-
-        // taxes menu
+        const condimentsPrice = (menu.condiments ?? []).reduce((cSum, c) => cSum + (c.price || 0), 0);
         const menuTaxes = (menu.taxes ?? []).reduce((tSum, t) => tSum + (t.taxAmount || 0), 0);
-
-        // taxes condiments
-        const condimentsTaxes = (menu.condiments ?? []).reduce((cSum, c) => {
-          return cSum + (c.taxes?.[0]?.taxAmount || 0);
-        }, 0);
-
-        const totalPerMenu = (basePrice + menuTaxes + condimentsTaxes) * (menu.qty || 1);
-
-        return menuSum + totalPerMenu;
+        const condimentsTaxes = (menu.condiments ?? []).reduce((cSum, c) => cSum + (c.taxes?.[0]?.taxAmount || 0), 0);
+        console.log("menusum", menuSum + (detailPrice + condimentsPrice + menuTaxes + condimentsTaxes) * (menu.qty || 1));
+        return menuSum + (detailPrice + condimentsPrice + menuTaxes + condimentsTaxes) * (menu.qty || 1);
+        
       }, 0);
+
+      // ===== 2. hitung combo =====
+      if (item.type === 'combo') {
+        menuTotal += (item.combos ?? []).reduce((comboSum, combo) => {
+          const productsTotal = (combo.products ?? []).reduce((pSum, p) => {
+            const price = p.price * p.qty || 0;
+            const taxes = (p.taxes ?? []).reduce((tSum, t) => tSum + (t.taxAmount || 0), 0);
+            return pSum + (price + taxes);
+          }, 0);
+          return comboSum + productsTotal; // kalikan qty combo
+        }, 0);
+      }
 
       return sum + menuTotal;
     }, 0);
+
+    // ===== Rounding ke ratusan terdekat =====
+    paymentTotal = Math.round(paymentTotal / 100) * 100;
 
     const sessionStore = sessionStorage.getItem("yoshi_store_code") || "";
     const dataUser = getUser?.() || {};

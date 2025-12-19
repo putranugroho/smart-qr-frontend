@@ -655,24 +655,26 @@ export default function OrderStatus() {
     }
 
     // MENUS
-    const mn = item.menus?.[0]
-    if (!mn) return 0
-
-    const qty = Number(mn.qty || item.qty || 1)
-    const basePrice = Number(mn.detailMenu?.price || 0)
-
-    let addonTotal = 0
-    if (Array.isArray(mn.condiments)) {
-      addonTotal = mn.condiments.reduce((sum, c) => {
-        return sum + Number(c.price || 0) * Number(c.qty || 1)
-      }, 0)
-    }
-
-    console.log("qty", qty);
-    console.log("basePrice", basePrice);
-    console.log("addonTotal", addonTotal);
+    if (item.type === 'menus') {
+      const mn = item.menus?.[0]
+      if (!mn) return 0
   
-    return (basePrice * qty) + addonTotal
+      const qty = Number(mn.qty || item.qty || 1)
+      const basePrice = Number(mn.detailMenu?.price || 0)
+      console.log("qty", qty);
+      console.log("basePrice", basePrice);
+  
+      let addonTotal = 0
+      if (Array.isArray(mn.condiments)) {
+        addonTotal = mn.condiments.reduce((sum, c) => {
+          console.log("addonTotal", addonTotal);
+          return sum + Number(c.price || 0) * Number(c.qty || 1)
+        }, 0)
+      }
+  
+    
+      return (basePrice * qty) + addonTotal
+    }
   }
 
   const MERCHANT_PHONE = '+628123456789'

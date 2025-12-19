@@ -129,6 +129,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
   const [selectedProducts, setSelectedProducts] = useState({})
   const [selectedCondiments, setSelectedCondiments] = useState({})
   const [expandedGroup, setExpandedGroup] = useState(null)
+  const [fullscreenImg, setFullscreenImg] = useState(null)
 
   const [qty, setQty] = useState(1)
   const [note, setNote] = useState('')
@@ -1042,7 +1043,44 @@ export default function ComboDetail({ combo: propCombo = null }) {
         </div>
 
         <div className={styles.btnRight}>
-          <button title="Fullscreen" className={styles.iconBtn} onClick={() => window.open(comboState.imagePath || comboState.image || '/images/no-image-available.jpg')}>⤢</button>
+          <button
+            title="Fullscreen"
+            className={styles.iconBtn}
+            onClick={() => {
+              // Ambil image asli
+              const imgPath = comboState.imagePath || comboState.image || '/images/no-image-available.jpg';
+              // Ubah jadi URL proxy
+              const proxyUrl = `/api/image?url=${encodeURIComponent(imgPath.replace(/^https?:\/\/[^/]+\//, ''))}`;
+              setFullscreenImg(proxyUrl);
+            }}
+          >
+            ⤢
+          </button>
+
+          {fullscreenImg && (
+            <div
+              onClick={() => setFullscreenImg(null)}
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0,0,0,0.9)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 10000,
+                cursor: 'zoom-out'
+              }}
+            >
+              <img
+                src={fullscreenImg}
+                alt={comboState.name}
+                style={{ maxWidth: '95%', maxHeight: '95%', borderRadius: 8 }}
+              />
+            </div>
+          )}
         </div>
 
         <div className={styles.imageWrapper}>
@@ -1255,6 +1293,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
       </div>
 
       {/* Sticky Cart Bar */}
+      {!fullscreenImg && (
       <div className={styles.stickyOuter}>
         <div className={styles.stickyInner}>
           <StickyCartBar
@@ -1268,6 +1307,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
           />
         </div>
       </div>
+      )}
 
       {/* Popup modal */}
       {showPopup && (

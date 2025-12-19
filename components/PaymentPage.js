@@ -62,17 +62,35 @@ export default function PaymentPage() {
 
   useEffect(() => {
     const latestCart = getLatestCart();
-    // 🔐 SINGLE SOURCE OF TRUTH
-    const payloadPreview = mapDoOrderPayload(
-      latestCart,
-      null,
-      selectedMethod,
-      {
-        posId: 'QR',
-        orderType: (getUser?.()?.orderType) || 'DI',
-        tableNumber: ''
-      }
-    );
+    const paymentTotal = latestCart.reduce((sum, item) => {
+      // iterasi setiap menu di item
+      const menuTotal = (item.menus ?? []).reduce((menuSum, menu) => {
+        // harga detailMenu
+        const detailPrice = menu.detailMenu?.price || 0;
+
+        // harga condiment
+        const condimentsPrice = (menu.condiments ?? []).reduce((cSum, c) => {
+          return cSum + (c.price || 0)
+        }, 0);
+
+        // total price per menu
+        const basePrice = detailPrice + condimentsPrice;
+
+        // taxes menu
+        const menuTaxes = (menu.taxes ?? []).reduce((tSum, t) => tSum + (t.taxAmount || 0), 0);
+
+        // taxes condiments
+        const condimentsTaxes = (menu.condiments ?? []).reduce((cSum, c) => {
+          return cSum + (c.taxes?.[0]?.taxAmount || 0);
+        }, 0);
+
+        const totalPerMenu = (basePrice + menuTaxes + condimentsTaxes) * (menu.qty || 1);
+
+        return menuSum + totalPerMenu;
+      }, 0);
+
+      return sum + menuTotal;
+    }, 0);
 
     const sessionStore = sessionStorage.getItem("yoshi_store_code") || "";
     const dataUser = getUser?.() || {};
@@ -90,7 +108,7 @@ export default function PaymentPage() {
 
     setPayment({
       cart: latestCart,
-      paymentTotal: payloadPreview.grandTotal || 0, // ✅ SAME AS MIDTRANS
+      paymentTotal,
       storeCode: sessionStore,
       tableNumber: dataUser.tableNumber
     });

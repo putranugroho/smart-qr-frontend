@@ -643,6 +643,8 @@ export default function OrderStatus() {
 
   const computeItemTotal = (item) => {
     // COMBO → subtotal dari backend
+    console.log("item total", item);
+    
     if (item.type === 'combo') {
       const cb = item.combos?.[0]
       if (!cb) return 0

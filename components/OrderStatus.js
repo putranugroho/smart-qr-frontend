@@ -1,4 +1,4 @@
-// components/AddPopup.js
+// components/orderStatus.js
 import { useRouter } from 'next/router'
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
@@ -642,20 +642,65 @@ export default function OrderStatus() {
   console.log("visibleItems", visibleItems);
 
   const computeItemTotal = (item) => {
-    // COMBO → subtotal dari backend
+    // =====================
+    // COMBO
+    // =====================
     if (item.type === 'combo') {
       const cb = item.combos?.[0]
       if (!cb) return 0
 
-      const products = cb.products || []
+      let base = 0
+      let tax = 0
 
-      return products.reduce((sum, p) => {
-        return sum + (Number(p.price) * Number(p.qty || 1))
-      }, 0) * Number(cb.qty || 1)
+      cb.products.forEach(p => {
+        const pQty = Number(p.qty || 1)
+        const pPrice = Number(p.price || 0)
+
+        base += pPrice * pQty
+
+        if (Array.isArray(p.taxes)) {
+          p.taxes.forEach(tx => {
+            tax += Number(tx.taxAmount || 0)
+          })
+        }
+      })
+
+      // combo qty dikali SEKALI saja
+      return Math.round((base + tax) * Number(cb.qty || 1))
     }
 
-    // MENU → price × qty
-    return Number(item.price || 0) * Number(item.qty || 1)
+    // =====================
+    // MENU
+    // =====================
+    const qty = Number(item.qty || 1)
+    const base = Number(item.price || 0) * qty
+
+    let condTotal = 0
+    let condTax = 0
+
+    if (Array.isArray(item.condiments)) {
+      item.condiments.forEach(c => {
+        const cQty = Number(c.qty || 1)
+        const cPrice = Number(c.price || 0)
+
+        condTotal += cPrice * cQty * qty
+
+        if (Array.isArray(c.taxes)) {
+          c.taxes.forEach(tx => {
+            condTax += Number(tx.taxAmount || 0)
+          })
+        }
+      })
+    }
+
+    let itemTax = 0
+    if (Array.isArray(item.taxes)) {
+      item.taxes.forEach(tx => {
+        itemTax += Number(tx.taxAmount || 0)
+      })
+    }
+
+    return Math.round(base + condTotal + itemTax + condTax)
   }
 
   const MERCHANT_PHONE = '+628123456789'

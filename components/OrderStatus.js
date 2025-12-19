@@ -654,6 +654,7 @@ export default function OrderStatus() {
       }, 0)
     }
 
+    // MENUS
     const mn = item.menus?.[0]
     if (!mn) return 0
 
@@ -667,6 +668,10 @@ export default function OrderStatus() {
       }, 0)
     }
 
+    console.log("qty", qty);
+    console.log("basePrice", basePrice);
+    console.log("addonTotal", addonTotal);
+  
     return (basePrice * qty) + addonTotal
   }
 

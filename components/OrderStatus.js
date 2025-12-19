@@ -657,8 +657,8 @@ export default function OrderStatus() {
     }
 
     // MENUS
-    if (item.type === 'menus') {
-      const mn = item.menus?.[0]
+    if (item.type === 'menu') {
+      const mn = item.menu?.[0]
       if (!mn) return 0
   
       const qty = Number(mn.qty || item.qty || 1)

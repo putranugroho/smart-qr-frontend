@@ -71,6 +71,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   const [err, setErr] = useState(null)
   const [noCondiments, setNoCondiments] = useState(false)
   const [missingAddons, setMissingAddons] = useState(null)
+  const [fullscreenImg, setFullscreenImg] = useState(null)
 
   const fromCheckout = String(router.query?.from || '') === 'checkout'
   const editIndexQuery = router.query?.index != null ? Number(router.query.index) : null
@@ -414,16 +415,14 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     let menuTaxes = [];
 
     if (Array.isArray(legacySourceForTaxes.taxes) && legacySourceForTaxes.taxes.length) {
-      // Gunakan taxes dari item di cart (edit case)
       menuTaxes = legacySourceForTaxes.taxes.map(t => ({
-        taxName: t.taxName || t.name || 'PB1',
+        taxName: t.taxName || t.name || 'UNKNOWN',
         taxPercentage: Number(t.taxPercentage ?? t.amount ?? 0),
         taxAmount: Math.round((Number(t.taxPercentage ?? t.amount ?? 0) / 100) * menuBasePrice)
       }));
     } else if (Array.isArray(apiItem.taxes) && apiItem.taxes.length) {
-      // Gunakan taxes dari API untuk item baru
       menuTaxes = apiItem.taxes.map(t => ({
-        taxName: t.taxName || t.name || 'PB1',
+        taxName: t.taxName || t.name || 'UNKNOWN',
         taxPercentage: Number(t.taxPercentage ?? t.amount ?? 0),
         taxAmount: Math.round((Number(t.taxPercentage ?? t.amount ?? 0) / 100) * menuBasePrice)
       }));
@@ -646,7 +645,20 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         </div>
 
         <div className={styles.btnRight}>
-          <button title="Fullscreen" className={styles.iconBtn} onClick={() => window.open(item.image || '/images/no-image-available.jpg')}>
+          <button
+            title="Fullscreen"
+            className={styles.iconBtn}
+            onClick={() => {
+              const imgPath =
+                item.image || '/images/no-image-available.jpg';
+
+              const proxyUrl = `/api/image?url=${encodeURIComponent(
+                imgPath.replace(/^https?:\/\/[^/]+\//, '')
+              )}`;
+
+              setFullscreenImg(proxyUrl);
+            }}
+          >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
               <path d="M9 3H5a2 2 0 0 0-2 2v4M15 3h4a2 2 0 0 1 2 2v4M9 21H5a2 2 0 0 1-2-2v-4M15 21h4a2 2 0 0 0 2-2v-4" stroke="#111827" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -790,6 +802,31 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
           />
         </div>
       </div>
+
+      {fullscreenImg && (
+        <div
+          onClick={() => setFullscreenImg(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.9)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            cursor: 'zoom-out'
+          }}
+        >
+          <img
+            src={fullscreenImg}
+            alt={item.title}
+            style={{ maxWidth: '95%', maxHeight: '95%', borderRadius: 8 }}
+          />
+        </div>
+      )}
 
       {showPopup && (
         <>

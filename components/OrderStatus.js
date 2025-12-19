@@ -658,11 +658,11 @@ export default function OrderStatus() {
 
     // MENUS
     if (item.type === 'menu') {
-      const mn = item.menu?.[0]
+      const mn = item
       if (!mn) return 0
   
-      const qty = Number(mn.qty || item.qty || 1)
-      const basePrice = Number(mn.detailMenu?.price || 0)
+      const qty = Number(mn.qty || 1)
+      const basePrice = Number(mn.price || 0)
       console.log("qty", qty);
       console.log("basePrice", basePrice);
   

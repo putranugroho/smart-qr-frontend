@@ -81,15 +81,24 @@ export default function PaymentPage() {
           const productsTotal = (combo.products ?? []).reduce((pSum, p) => {
             const price = (p.price || 0) * (p.qty || 1);
             const taxes = (p.taxes ?? []).reduce((tSum, t) => tSum + (t.taxAmount || 0), 0);
+            console.log(p.itemName,price);
+            console.log(p.itemName,taxes);
+            console.log(p.itemName,p.qty);
             if (taxes === 0 && price === 0) {
               return pSum;
             }
+            console.log("psum",pSum);
+            console.log("psum+",pSum + (price + taxes));
             
             return pSum + (price + taxes);
           }, 0);
+          console.log("productsTotal",productsTotal);
+          // console.log("combosum",comboSum + productsTotal);
+          
           return comboSum + productsTotal;
         }, 0);
       }
+      console.log("menuTotal",menuTotal);
 
       return sum + menuTotal;
     }, 0);

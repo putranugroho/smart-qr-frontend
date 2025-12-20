@@ -133,8 +133,7 @@ export default function PaymentPage() {
     /* =======================
     * 3️⃣ ROUNDING
     * ======================= */
-    paymentTotal = Math.round(paymentTotal / 100) * 100;
-
+    paymentTotal = Math.ceil(paymentTotal / 100) * 100;
 
     const sessionStore = sessionStorage.getItem("yoshi_store_code") || "";
     const dataUser = getUser?.() || {};

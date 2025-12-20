@@ -176,14 +176,9 @@ export default function CheckoutPage() {
     setTotal(t.total)
 
     // === Rounding rule ===
-    if (t.subtotal < 20 || t.total < 20) {
-      setRoundedTotal(t.total)
-      setRounding(0)
-    } else {
-      const rTotal = Math.round(t.total / 100) * 100
-      setRoundedTotal(rTotal)
-      setRounding(rTotal - t.total)
-    }
+    const rTotal = Math.ceil(t.total / 100) * 100
+    setRoundedTotal(rTotal)
+    setRounding(rTotal - t.total)
   }, [cart])
 
   // qty update

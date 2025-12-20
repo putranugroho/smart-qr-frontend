@@ -133,21 +133,24 @@ export default function CheckoutPage() {
 
   // load cart from storage on client only
   useEffect(() => {
-    const c = (getCart() || []).map(it => {
-      console.log("cart :", c);
+    const rawCart = getCart() || []
+
+    const cleanedCart = rawCart.map(item => {
       const taxes =
-        it.type === 'combo'
-          ? it.taxes
-          : it.taxes || it.menus?.[0]?.taxes || []
-  
-      const flags = normalizeTaxFlags(taxes)
-  
+        item.type === 'combo'
+          ? item.taxes || []
+          : item.taxes ||
+            item.menus?.[0]?.taxes ||
+            []
+
+      const { hasPB1, hasPPN } = normalizeTaxFlags(taxes)
+
       return {
-        ...it,
-        hasPB1: flags.hasPB1,
-        hasPPN: flags.hasPPN,
-        pb1Percent: flags.hasPB1 ? it.pb1Percent : 0,
-        ppnPercent: flags.hasPPN ? it.ppnPercent : 0
+        ...item,
+        hasPB1,
+        hasPPN,
+        pb1Percent: hasPB1 ? item.pb1Percent : 0,
+        ppnPercent: hasPPN ? item.ppnPercent : 0
       }
     })
 
@@ -160,7 +163,7 @@ export default function CheckoutPage() {
       setTable(`Table ${dataUser.tableNumber} • Take Away`)
     } 
     
-    setCart(c)
+    setCart(cleanedCart)
     setCartLoaded(true)
   }, [])
 

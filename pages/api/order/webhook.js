@@ -13,6 +13,11 @@ export default function useAutoDetectOrder() {
   
     const normalize = v =>
       String(v || '').trim().toLowerCase()
+
+    console.log(normalize(apiData.customerName), normalize(session.customerName))
+    console.log(normalize(apiData.customerName) === normalize(session.customerName));
+    console.log(normalize(apiData.customerPhoneNumber), normalize(session.customerPhone));
+    console.log(normalize(apiData.customerPhoneNumber) === normalize(session.customerPhone));
   
     return (
       normalize(apiData.customerName) === normalize(session.customerName) &&
@@ -56,7 +61,7 @@ export default function useAutoDetectOrder() {
       
           if (!validOwner) {
             console.log('Order session mismatch, clearing session')
-            clearOrderSession()
+            // clearOrderSession()
             return
           }
       

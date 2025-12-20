@@ -1,14 +1,40 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
-import { getSavedOrderCode } from '../../../lib/session'
+import { getOrderSession, clearOrderSession } from './orderSession'
+
+const BLOCKED_PATHS = ['/menu', '/checkout', '/paymentpage']
 
 export default function useAutoDetectOrder() {
   const router = useRouter()
   const [checking, setChecking] = useState(true)
 
+  function isSameCustomer(apiData, session) {
+    if (!apiData || !session) return false
+  
+    const normalize = v =>
+      String(v || '').trim().toLowerCase()
+  
+    return (
+      normalize(apiData.customerName) === normalize(session.customerName) &&
+      normalize(apiData.customerPhoneNumber) === normalize(session.customerPhone)
+    )
+  }
+
   useEffect(() => {
-    const orderCode = getSavedOrderCode()
-    if (!orderCode) {
+    // 🚫 Jangan jalan di halaman tertentu
+    if (BLOCKED_PATHS.some(p => router.pathname.startsWith(p))) {
+      setChecking(false)
+      return
+    }
+
+    const session = getOrderSession()
+        if (!session?.orderCode) {
+        setChecking(false)
+        return
+    }
+
+    // 🚫 Sudah di halaman order → stop
+    if (router.asPath.startsWith(`/order/${orderCode}`)) {
       setChecking(false)
       return
     }
@@ -16,38 +42,43 @@ export default function useAutoDetectOrder() {
     let interval = null
 
     async function checkStatus() {
-      try {
-        const res = await fetch(`/api/order/check-status?orderCode=${encodeURIComponent(orderCode)}`)
-        if (!res.ok) throw new Error('Failed fetching order status')
-        const { data } = await res.json()
-        if (!data || typeof data.status === 'undefined') return
-
-        // -1 → belum bayar
-        // if (data.status === -1) {
-        //   router.replace(`/order/waiting/${orderCode}`)
-        // }
-        // 0 → sudah bayar
-        else if (data.status === 0) {
-          router.replace(`/order/${orderCode}`)
+        try {      
+          const res = await fetch(
+            `/api/order/check-status?orderCode=${encodeURIComponent(session.orderCode)}`
+          )
+          if (!res.ok) throw new Error('Failed fetching order status')
+      
+          const { data } = await res.json()
+          if (!data) return
+      
+          // 🔐 VALIDASI KEPEMILIKAN TRANSAKSI
+          const validOwner = isSameCustomer(data, session)
+      
+          if (!validOwner) {
+            console.warn('Order session mismatch, clearing session')
+            clearOrderSession()
+            return
+          }
+      
+          // ✅ STATUS VALID
+          if (data.status >= 0) {
+            if (!router.asPath.startsWith(`/order/${session.orderCode}`)) {
+              clearOrderSession()
+              router.replace(`/order/${session.orderCode}`)
+            }
+          }
+        } catch (err) {
+          console.error('Auto detect order error', err)
+        } finally {
+          setChecking(false)
         }
-        // >0 → sudah diproses
-        else if (data.status > 0) {
-          router.replace(`/order/${orderCode}`)
-        }
-      } catch (err) {
-        console.error('Auto detect order error', err)
-      } finally {
-        setChecking(false)
-      }
-    }
+      }      
 
-    // polling setiap 5 detik
-    interval = setInterval(checkStatus, 5000)
-    // langsung panggil sekali supaya tidak tunggu 5 detik
     checkStatus()
+    interval = setInterval(checkStatus, 5000)
 
     return () => clearInterval(interval)
-  }, [])
+  }, [router.pathname])
 
   return { checking }
 }

@@ -393,6 +393,73 @@ export default function OrderStatus() {
   // FINAL TOTALS (BACKEND IS SOURCE OF TRUTH)
   // ================================
 
+  function addTax(acc, taxName, amount) {
+    const name = String(taxName || '').toUpperCase()
+    if (name === 'PB1') acc.pb1 += amount
+    if (name === 'PPN') acc.ppn += amount
+  }
+
+  function computeTaxesFromRealData(data) {
+    let pb1 = 0
+    let ppn = 0
+  
+    /* ======================
+       COMBOS
+    ====================== */
+    if (Array.isArray(data?.combos)) {
+      data.combos.forEach(combo => {
+        const comboQty = Number(combo.qty || 1)
+  
+        combo.products?.forEach(p => {
+          const price = Number(p.price || 0)
+  
+          p.taxes?.forEach(tx => {
+            const pct = Number(tx.taxPercentage || 0)
+            const taxValue = Math.round(price * pct / 100 * comboQty)
+            addTax({ pb1, ppn }, tx.taxName, taxValue)
+            if (tx.taxName === 'PB1') pb1 += taxValue
+            if (tx.taxName === 'PPN') ppn += taxValue
+          })
+        })
+      })
+    }
+  
+    /* ======================
+       MENUS
+    ====================== */
+    if (Array.isArray(data?.menus)) {
+      data.menus.forEach(menu => {
+        const qty = Number(menu.qty || 1)
+        const basePrice = Number(menu.detailMenu?.price || 0)
+  
+        // menu utama
+        menu.taxes?.forEach(tx => {
+          const pct = Number(tx.taxPercentage || 0)
+          const taxValue = Math.round(basePrice * pct / 100 * qty)
+          if (tx.taxName === 'PB1') pb1 += taxValue
+          if (tx.taxName === 'PPN') ppn += taxValue
+        })
+  
+        // condiment menu
+        menu.condiments?.forEach(c => {
+          const cPrice = Number(c.price || 0)
+  
+          c.taxes?.forEach(tx => {
+            const pct = Number(tx.taxPercentage || 0)
+            const taxValue = Math.round(cPrice * pct / 100 * qty)
+            if (tx.taxName === 'PB1') pb1 += taxValue
+            if (tx.taxName === 'PPN') ppn += taxValue
+          })
+        })
+      })
+    }
+  
+    return {
+      pb1: Math.round(pb1),
+      ppn: Math.round(ppn)
+    }
+  }
+
   const hasBackendTotals =
     dataOrder &&
     typeof dataOrder.subTotal === 'number' &&
@@ -403,32 +470,15 @@ export default function OrderStatus() {
     ? Number(dataOrder.subTotal || 0)
     : items.reduce((s, it) => s + calculateItemTaxes(it).base, 0)
 
-  // TAXES
-  let computedPB1 = 0
-  let computedPPN = 0
-
-  if (hasBackendTotals && Array.isArray(dataOrder.taxes)) {
-    dataOrder.taxes.forEach(tx => {
-      const name = String(tx.taxName || '').toUpperCase()
-      const amt = Number(tx.taxAmount || 0)
-
-      if (name.includes('PB')) computedPB1 += amt
-      if (name.includes('PPN')) computedPPN += amt
-    })
-  } else {
-    items.forEach(it => {
-      const t = calculateItemTaxes(it)
-      computedPB1 += t.pb1
-      computedPPN += t.ppn
-    })
-  }
-
-  computedPB1 = Math.round(computedPB1)
-  computedPPN = Math.round(computedPPN)
+  // TAXES  
+  const { pb1: computedPB1, ppn: computedPPN } = computeTaxesFromRealData(dataOrder)
 
   // ROUNDING
+  // const roundingAmount = hasBackendTotals
+  //   ? Number(dataOrder.rounding || 0)
+  //   : 0
   const roundingAmount = hasBackendTotals
-    ? Number(dataOrder.rounding || 0)
+    ? Number(dataOrder.grandTotal - dataOrder.subTotal - computedPB1 - computedPPN)
     : 0
 
   // TOTAL

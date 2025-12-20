@@ -570,7 +570,7 @@ export default function PaymentStatus() {
       </div>
 
       <div className={styles.instructionred}>Pastikan anda kembali ke layar ini setelah melakukan pembayaran untuk melihat status orderan kamu</div>
-      <div className={styles.instruction}>Silahkan lakukan pembayaran menggunakan aplikasi pembayaran pilihan kamu</div>
+      <div className={styles.instruction}>Silahkan lakukan pembayaran menggunakan aplikasi pembayaran pilihan anda</div>
 
       {/* -----------------------
           LOGS PANEL (NEW)

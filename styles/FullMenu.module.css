@@ -17,6 +17,7 @@
   z-index: 1400;
   display: flex;
   justify-content: center;
+  align-items: flex-end;
   pointer-events: none;
 }
 
@@ -36,6 +37,9 @@
   touch-action: none;
   will-change: transform, height;
   transition: height 220ms ease;
+  transform: translateZ(0);
+  position: relative;
+  bottom: 0;
 }
 
 /* collapsed & expanded helpers (JS toggles class) */
@@ -45,7 +49,7 @@
 }
 
 .expanded {
-  height: 92vh;    /* full expanded */
+  height: calc(100dvh - 32px);
   max-height: 653px;
 }
 

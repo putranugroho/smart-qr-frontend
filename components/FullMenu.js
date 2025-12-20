@@ -142,8 +142,7 @@ export default function FullMenu({
       if (!dragging) return
       currentY = e.touches ? e.touches[0].clientY : e.clientY
       const dy = currentY - startY
-      const maxTranslate = window.innerHeight
-      const translate = Math.max(-maxTranslate, Math.min(maxTranslate, dy))
+      const translate = Math.max(0, dy)
       el.style.transform = `translateY(${translate}px)`
     }
 

@@ -16,7 +16,6 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
   const categoryId = item.categoryId ?? item.categoryIdRaw ?? item.menuCategoryId ?? null
   const categoryName = item.category ?? null
   const isOutOfStock = item.outOfStock === true;
-  const isCombo = Array.isArray(item.comboGroups) && item.comboGroups.length > 0;
 
   function saveLastItemObject() {
     try {
@@ -45,7 +44,9 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
     } catch (e) {
       console.warn('sessionStorage save failed', e);
     }
-    console.log("carditem", item);
+
+    // If item is a combo (has comboGroups) -> open ComboDetail
+    const isCombo = Array.isArray(item.comboGroups) && item.comboGroups.length > 0;
     if (isCombo) {
       try {
         // Save combo object to sessionStorage to avoid very long querystring
@@ -106,7 +107,6 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
         <div className={styles.listLeft}>
           <div className={styles.listTitle}>{name}</div>
           <div className={styles.listSpacer} />
-          <div className={styles.listPrice}>{isCombo ? formatRp(item.maskingprice) : formatRp(item.price)}</div>
           <div className={styles.listPrice}>{formatRp(item.price)}</div>
         </div>
         <div className={styles.listRight}>
@@ -139,7 +139,6 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
       </div>
 
       <div className={styles.cardBody}>
-        <div className={styles.cardPrice}>{isCombo ? formatRp(item.maskingprice) : formatRp(item.price)}</div>
         <div className={styles.cardPrice}>{formatRp(item.price)}</div>
         <div className={styles.cardTitle}>{name}</div>
       </div>

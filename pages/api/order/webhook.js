@@ -14,9 +14,11 @@ export default function useAutoDetectOrder() {
     const normalize = v =>
       String(v || '').trim().toLowerCase()
 
-    console.log(normalize(apiData.customerName), normalize(session.customerName))
+    console.log(normalize(apiData.customerName))
+    console.log(normalize(session.customerName))
     console.log(normalize(apiData.customerName) === normalize(session.customerName));
-    console.log(normalize(apiData.customerPhoneNumber), normalize(session.customerPhone));
+    console.log(normalize(apiData.customerPhoneNumber));
+    console.log(normalize(session.customerPhone));
     console.log(normalize(apiData.customerPhoneNumber) === normalize(session.customerPhone));
   
     return (

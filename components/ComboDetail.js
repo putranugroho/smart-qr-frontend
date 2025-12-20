@@ -713,12 +713,12 @@ export default function ComboDetail({ combo: propCombo = null }) {
         if (Array.isArray(sel)) {
           sel.forEach(selId => {
             const opt = (g.products || []).find(p => String(p.code ?? p.id) === String(selId))
-            if (opt) line += Number(opt.price || 0)
+            if (opt) line += Number(opt.maskingprice || 0)
           })
         } else if (sel === NONE_OPTION_ID) {
         } else {
           const opt = (g.products || []).find(p => String(p.code ?? p.id) === String(sel))
-          if (opt) line += Number(opt.price || 0)
+          if (opt) line += Number(opt.maskingprice || 0)
         }
       })
       total += line
@@ -1308,7 +1308,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                           }}
                         >
                           <div style={{ fontWeight: 600, fontSize: 13 }}>
-                            {formatRp(p.price)}
+                            {formatRp(p.maskingprice)}
                           </div>
 
                           <input

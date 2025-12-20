@@ -53,7 +53,7 @@ function calcCartTotals(cart) {
         if (!pct) return
     
         const name = String(t.taxName || '').toUpperCase()
-        const amt = Math.round(line * pct / 100)
+        const amt = line * pct / 100
     
         if (name.includes('PPN') && hasPPN) {
           taxPPN += amt
@@ -91,7 +91,7 @@ function calcCartTotals(cart) {
           const pct = Number(t.taxPercentage || 0)
           if (!pct) return
 
-          const taxAmt = Math.round(unitPrice * itemQty * pct / 100)
+          const taxAmt = unitPrice * itemQty * pct / 100
           const name = String(t.taxName || t.name || '').toUpperCase()
 
           if (name.includes('PB1')) taxPB1 += taxAmt
@@ -171,8 +171,8 @@ export default function CheckoutPage() {
   useEffect(() => {
     const t = calcCartTotals(cart)
     setSubtotal(t.subtotal)
-    setTaxPB1(t.taxPB1)
-    setTaxPPN(t.taxPPN)
+    setTaxPB1(Math.round(t.taxPB1))
+    setTaxPPN(Math.round(t.taxPPN))
     setTotal(t.total)
 
     // === Rounding rule ===

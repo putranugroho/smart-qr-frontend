@@ -221,6 +221,73 @@ export default function BillPage() {
   // FINAL TOTALS — BACKEND ONLY
   // ================================
 
+  function addTax(acc, taxName, amount) {
+    const name = String(taxName || '').toUpperCase()
+    if (name === 'PB1') acc.pb1 += amount
+    if (name === 'PPN') acc.ppn += amount
+  }
+
+  function computeTaxesFromRealData(data) {
+    let pb1 = 0
+    let ppn = 0
+  
+    /* ======================
+       COMBOS
+    ====================== */
+    if (Array.isArray(data?.combos)) {
+      data.combos.forEach(combo => {
+        const comboQty = Number(combo.qty || 1)
+  
+        combo.products?.forEach(p => {
+          const price = Number(p.price || 0)
+  
+          p.taxes?.forEach(tx => {
+            const pct = Number(tx.taxPercentage || 0)
+            const taxValue = Math.round(price * pct / 100 * comboQty)
+            addTax({ pb1, ppn }, tx.taxName, taxValue)
+            if (tx.taxName === 'PB1') pb1 += taxValue
+            if (tx.taxName === 'PPN') ppn += taxValue
+          })
+        })
+      })
+    }
+  
+    /* ======================
+       MENUS
+    ====================== */
+    if (Array.isArray(data?.menus)) {
+      data.menus.forEach(menu => {
+        const qty = Number(menu.qty || 1)
+        const basePrice = Number(menu.detailMenu?.price || 0)
+  
+        // menu utama
+        menu.taxes?.forEach(tx => {
+          const pct = Number(tx.taxPercentage || 0)
+          const taxValue = Math.round(basePrice * pct / 100 * qty)
+          if (tx.taxName === 'PB1') pb1 += taxValue
+          if (tx.taxName === 'PPN') ppn += taxValue
+        })
+  
+        // condiment menu
+        menu.condiments?.forEach(c => {
+          const cPrice = Number(c.price || 0)
+  
+          c.taxes?.forEach(tx => {
+            const pct = Number(tx.taxPercentage || 0)
+            const taxValue = Math.round(cPrice * pct / 100 * qty)
+            if (tx.taxName === 'PB1') pb1 += taxValue
+            if (tx.taxName === 'PPN') ppn += taxValue
+          })
+        })
+      })
+    }
+  
+    return {
+      pb1: Math.round(pb1),
+      ppn: Math.round(ppn)
+    }
+  }
+
   const hasBackendTotals =
     doOrderRaw &&
     typeof doOrderRaw.subTotal === "number" &&
@@ -228,22 +295,17 @@ export default function BillPage() {
 
   const computedSubtotal = hasBackendTotals
     ? Number(doOrderRaw.subTotal)
-    : 0;
+    : items.reduce((s, it) => s + calculateItemTaxes(it).base, 0)
 
-  const computedPB1 = hasBackendTotals
-    ? (doOrderRaw.taxes || []).reduce(
-        (t, tx) => t + Number(tx.taxAmount || 0),
-        0
-      )
-    : 0;
+  const { pb1: computedPB1, ppn: computedPPN } = computeTaxesFromRealData(doOrderRaw)
 
   const roundingAmount = hasBackendTotals
-    ? Number(doOrderRaw.rounding || 0)
+    ? Number(doOrderRaw.grandTotal - doOrderRaw.subTotal - computedPB1 - computedPPN)
     : 0;
 
   const roundedTotal = hasBackendTotals
     ? Number(doOrderRaw.grandTotal)
-    : 0;
+    : Math.round(computedSubtotal + computedPB1 + computedPPN + roundingAmount)
 
   /* DOWNLOAD PDF */
   const downloadPDF = async () => {
@@ -492,8 +554,13 @@ export default function BillPage() {
           </div>
 
           <div className={styles.detailRow}>
-            <div>PB1</div>
+            <div>PB1 (10%)</div>
             <div>{formatRp(computedPB1)}</div>
+          </div>
+
+          <div className={styles.detailRow}>
+            <div>PPN (11%)</div>
+            <div>{formatRp(computedPPN)}</div>
           </div>
 
           <div className={styles.detailRow}>

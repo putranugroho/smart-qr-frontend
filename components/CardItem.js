@@ -22,7 +22,9 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
       const toStore = {
         id: item.id ?? item.code ?? item.productCode,
         name: item.name,
+        itemName: item.itemName,
         price: item.price ?? item.basePrice ?? null,
+        taxes: item.taxes ?? item.Taxes ?? null,
         image: imgSrc,
         description: item.description ?? ''
       }

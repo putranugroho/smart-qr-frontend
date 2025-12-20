@@ -24,6 +24,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     title: q.title || propItem.name || propItem.title || '',
     itemName: q.itemName || propItem.itemName || propItem.itemName || '',
     price: q.price ? Number(q.price) : (propItem.price ?? 0),
+    taxes: q.taxes || propItem.taxes || propItem.taxes || '',
     image: q.image || propItem.imagePath || propItem.image || '',
     description: q.description || propItem.description || propItem.itemName || ''
   }
@@ -435,6 +436,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
       }];
       console.log("fallback");
     }
+    console.log(propItem);
     console.log(apiItem);
     console.log(item);
     console.log(legacySourceForTaxes);

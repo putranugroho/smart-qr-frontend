@@ -14,16 +14,9 @@ export default function useAutoDetectOrder() {
     const normalize = v =>
       String(v || '').trim().toLowerCase()
 
-    console.log(normalize(apiData.customerName))
-    console.log(normalize(session.customerName))
-    console.log(normalize(apiData.customerName) === normalize(session.customerName));
-    console.log(normalize(apiData.customerPhoneNumber));
-    console.log(normalize(session.customerPhone));
-    console.log(normalize(apiData.customerPhoneNumber) === normalize(session.customerPhone));
-  
     return (
-      normalize(apiData.customerName) === normalize(session.customerName) &&
-      normalize(apiData.customerPhoneNumber) === normalize(session.customerPhone)
+      normalize(apiData.customerName) === normalize(session.name) &&
+      normalize(apiData.customerPhoneNumber) === normalize(session.phone)
     )
   }
 
@@ -70,6 +63,7 @@ export default function useAutoDetectOrder() {
           // ✅ STATUS VALID
           if (data.status >= 0) {
             if (!router.asPath.startsWith(`/order/${session.orderCode}`)) {
+              clearOrderSession()
               router.replace(`/order/${session.orderCode}`)
             }
           }

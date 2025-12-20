@@ -564,12 +564,12 @@ export default function PaymentStatus() {
         <div className={styles.totalLabel}>Total Pembayaran</div>
         <div className={styles.totalPrice}>{isMounted ? formatRp(subtotal) : 'Rp 0'}</div>
       </div>
-      <div className={styles.instructionred}>Pastikan anda kembali ke layar ini setelah melakukan pembayaran untuk melihat status orderan kamu</div>
 
       <div style={{ marginTop: 16 }}>
         {renderPaymentArea()}
       </div>
 
+      <div className={styles.instructionred}>Pastikan anda kembali ke layar ini setelah melakukan pembayaran untuk melihat status orderan kamu</div>
       <div className={styles.instruction}>Silahkan lakukan pembayaran menggunakan aplikasi pembayaran pilihan kamu</div>
 
       {/* -----------------------

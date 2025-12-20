@@ -63,7 +63,6 @@ export default function useAutoDetectOrder() {
           // ✅ STATUS VALID
           if (data.status >= 0) {
             if (!router.asPath.startsWith(`/order/${session.orderCode}`)) {
-              clearOrderSession()
               router.replace(`/order/${session.orderCode}`)
             }
           }

@@ -5,7 +5,7 @@ import HeroLocation from "../components/HeroLocation";
 import PaymentBar from "../components/PaymentBar";
 import InfoBox from "../components/InfoBox";
 import { useOrderGuard } from "../hooks/useOrderGuard";
-import useAutoDetectOrder from '../hooks/useAutoDetectOrder'
+import useAutoDetectOrder from '../pages/api/order/webhookwebhook'
 
 export default function Home() {
   const { checking_order } = useAutoDetectOrder()

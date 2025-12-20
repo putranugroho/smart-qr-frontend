@@ -101,7 +101,7 @@ function calcCartTotals(cart) {
     })
   })
 
-  const total = subtotal + taxPB1 + taxPPN
+  const total = Math.ceil(subtotal + taxPB1 + taxPPN)
   return { subtotal, taxPB1, taxPPN, total }
 }
 
@@ -171,8 +171,8 @@ export default function CheckoutPage() {
   useEffect(() => {
     const t = calcCartTotals(cart)
     setSubtotal(t.subtotal)
-    setTaxPB1(Math.round(t.taxPB1))
-    setTaxPPN(Math.round(t.taxPPN))
+    setTaxPB1(Math.ceil(t.taxPB1))
+    setTaxPPN(Math.ceil(t.taxPPN))
     setTotal(t.total)
 
     // === Rounding rule ===

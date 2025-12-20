@@ -11,6 +11,17 @@ function formatRp(n) {
   return 'Rp' + new Intl.NumberFormat('id-ID').format(Number(n || 0))
 }
 
+function normalizeTaxFlags(taxes = []) {
+  const names = taxes.map(t =>
+    String(t.taxName || t.name || '').toUpperCase()
+  )
+
+  const hasPPN = names.some(n => n.includes('PPN'))
+  const hasPB1 = !hasPPN && names.some(n => n.includes('PB1'))
+
+  return { hasPB1, hasPPN }
+}
+
 /**
  * Helpers to compute totals for mixed cart:
  * - menu items (legacy shape)
@@ -34,22 +45,25 @@ function calcCartTotals(cart) {
       const qty = Number(it.qty || 1)
       const line = price * qty
       subtotal += line
-
-      if (Array.isArray(it.taxes)) {
-        it.taxes.forEach(t => {
-          const pct = Number(t.taxPercentage || t.amount || 0)
-          const amt = Math.round(line * (pct / 100))
-          const name = String(t.taxName || t.name || '').toUpperCase()
-
-          if (name.includes('PB1')) taxPB1 += amt
-          if (name.includes('PPN')) taxPPN += amt
-        })
-      } else {
-        const pb1 = Number(it.pb1Percent || 0)
-        const ppn = Number(it.ppnPercent || 0)
-        if (pb1) taxPB1 += Math.round(line * pb1 / 100)
-        if (ppn) taxPPN += Math.round(line * ppn / 100)
-      }
+    
+      const { hasPB1, hasPPN } = normalizeTaxFlags(it.taxes)
+    
+      it.taxes?.forEach(t => {
+        const pct = Number(t.taxPercentage || 0)
+        if (!pct) return
+    
+        const name = String(t.taxName || '').toUpperCase()
+        const amt = Math.round(line * pct / 100)
+    
+        if (name.includes('PPN') && hasPPN) {
+          taxPPN += amt
+        }
+    
+        if (name.includes('PB1') && hasPB1) {
+          taxPB1 += amt
+        }
+      })
+    
       return
     }
 
@@ -119,8 +133,23 @@ export default function CheckoutPage() {
 
   // load cart from storage on client only
   useEffect(() => {
-    const c = getCart() || []
-    console.log("cart :", c);
+    const c = (getCart() || []).map(it => {
+      console.log("cart :", c);
+      const taxes =
+        it.type === 'combo'
+          ? it.taxes
+          : it.taxes || it.menus?.[0]?.taxes || []
+  
+      const flags = normalizeTaxFlags(taxes)
+  
+      return {
+        ...it,
+        hasPB1: flags.hasPB1,
+        hasPPN: flags.hasPPN,
+        pb1Percent: flags.hasPB1 ? it.pb1Percent : 0,
+        ppnPercent: flags.hasPPN ? it.ppnPercent : 0
+      }
+    })
 
     const dataUser = getUser?.() || null;
     setUser(dataUser)

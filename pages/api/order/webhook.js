@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
-import { getOrderSession, clearOrderSession } from './orderSession'
+import { getOrderSession, clearOrderSession } from '../../../lib/orderSession'
 
 const BLOCKED_PATHS = ['/menu', '/checkout', '/paymentpage']
 

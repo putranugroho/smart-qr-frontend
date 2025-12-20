@@ -50,6 +50,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     code: prev.code || parsed.id || prev.code,
     title: prev.title || parsed.name || prev.title,
     itemName: prev.itemName || parsed.itemName || prev.itemName,
+    taxes: prev.taxes || parsed.taxes || prev.Taxes,
     price: prev.price || (parsed.price != null ? Number(parsed.price) : prev.price),
     image: prev.image || parsed.image || prev.image,
     description: prev.description || parsed.description || prev.description
@@ -257,6 +258,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         setItem(prev => (({
           code: prev.code || product.code || productCode,
           title: prev.title || product.name || '',
+          taxes: prev.taxes || '',
           price: Number(prev.price || product.price || 0),
           image: prev.image || product.imagePath || '',
           description: prev.description || product.description || ''
@@ -434,12 +436,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         taxPercentage: 10,
         taxAmount: Math.round(0.1 * menuBasePrice)
       }];
-      console.log("fallback");
     }
-    console.log(propItem);
-    console.log(apiItem);
-    console.log(item);
-    console.log(legacySourceForTaxes);
     
 
     // ======== menus[] payload =========

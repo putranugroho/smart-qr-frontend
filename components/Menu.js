@@ -351,6 +351,7 @@ export default function Menu() {
           code: it.code ?? it.id,
           name: it.name,
           itemName: it.itemName,
+          taxes: it.taxes,
           price: it.price,
           image: it.imagePath ?? it.imageUrl ?? "/images/no-image-available.jpg",
           category: cat.name
@@ -544,13 +545,12 @@ export default function Menu() {
                 </div>
               </div>
 
-              {renderCategorySkeleton()}
             </div>
           ))}
         </div>
       ) : (
         (filteredCategories.length === 0 ? (
-          <div style={{ padding: 16 }}>Tidak ada item.</div>
+          <div style={{ padding: 16 }}>{renderCategorySkeleton()}</div>
         ) : (
           <div style={{ padding: 12 }}>
             {filteredCategories.map((cat) => {
@@ -688,6 +688,7 @@ export default function Menu() {
                 code,
                 name: it.name,
                 itemName: it.itemName,
+                taxes: it.taxes,
                 price: it.price,
                 image: it.imagePath ?? it.imageUrl ?? "/images/no-image-available.jpg",
                 category: categories.find(c => String(c.id) === String(menuCategoryId))?.name ?? ''

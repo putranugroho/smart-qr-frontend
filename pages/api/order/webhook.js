@@ -55,7 +55,7 @@ export default function useAutoDetectOrder() {
           const validOwner = isSameCustomer(data, session)
       
           if (!validOwner) {
-            console.warn('Order session mismatch, clearing session')
+            console.log('Order session mismatch, clearing session')
             clearOrderSession()
             return
           }

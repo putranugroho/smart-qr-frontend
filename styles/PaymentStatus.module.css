@@ -90,6 +90,15 @@
 }
 
 /* INSTRUCTIONS */
+.instructionred {
+  font-size: 14px;
+  text-align: center;
+  margin-top: 20px;
+  padding: 0 20px;
+  color: #ff0000;
+}
+
+/* INSTRUCTIONS */
 .instruction {
   font-size: 14px;
   text-align: center;
@@ -200,7 +209,7 @@
 .qrWrap {
   width: 100%;
   /* allocate generous height so QR is large on mobile; adjust as needed */
-  height: calc(75vh - 270px);
+  height: calc(70vh - 270px);
   display: block;
   align-items: center;
   justify-content: center;

@@ -486,7 +486,7 @@ export default function PaymentStatus() {
                   if (!ok) alert('Gagal mengunduh QR. Coba buka di tab baru lalu simpan.')
                 }}
               >
-                Simpan ke Galeri
+                Simpan ke Galeri / Sceenshot Barcode QRIS
               </button>
 
               {qrError && <div className={styles.qrError} style={{ marginTop: 8 }}>{qrError}</div>}
@@ -564,7 +564,7 @@ export default function PaymentStatus() {
         <div className={styles.totalLabel}>Total Pembayaran</div>
         <div className={styles.totalPrice}>{isMounted ? formatRp(subtotal) : 'Rp 0'}</div>
       </div>
-      <div className={styles.instruction}>Pastikan anda kembali ke layar ini setelah melakukan pembayaran untuk melihat status orderan kamu</div>
+      <div className={styles.instructionred}>Pastikan anda kembali ke layar ini setelah melakukan pembayaran untuk melihat status orderan kamu</div>
 
       <div style={{ marginTop: 16 }}>
         {renderPaymentArea()}

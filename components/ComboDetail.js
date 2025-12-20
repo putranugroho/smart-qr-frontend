@@ -713,12 +713,12 @@ export default function ComboDetail({ combo: propCombo = null }) {
         if (Array.isArray(sel)) {
           sel.forEach(selId => {
             const opt = (g.products || []).find(p => String(p.code ?? p.id) === String(selId))
-            if (opt) line += Number(opt.maskingprice || 0)
+            if (opt) line += (Number(opt.maskingprice || 0) * Number(opt.qty || 1))
           })
         } else if (sel === NONE_OPTION_ID) {
         } else {
           const opt = (g.products || []).find(p => String(p.code ?? p.id) === String(sel))
-          if (opt) line += Number(opt.maskingprice || 0)
+          if (opt) line += (Number(opt.maskingprice || 0) * Number(opt.qty || 1))
         }
       })
       total += line

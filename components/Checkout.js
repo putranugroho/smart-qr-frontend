@@ -171,8 +171,8 @@ export default function CheckoutPage() {
   useEffect(() => {
     const t = calcCartTotals(cart)
     setSubtotal(t.subtotal)
-    setTaxPB1(Math.ceil(t.taxPB1))
-    setTaxPPN(Math.ceil(t.taxPPN))
+    setTaxPB1(Math.round(t.taxPB1))
+    setTaxPPN(Math.round(t.taxPPN))
     setTotal(t.total)
 
     // === Rounding rule ===

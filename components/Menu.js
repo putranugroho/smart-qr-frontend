@@ -354,7 +354,8 @@ export default function Menu() {
           taxes: it.taxes,
           price: it.price,
           image: it.imagePath ?? it.imageUrl ?? "/images/no-image-available.jpg",
-          category: cat.name
+          category: cat.name,
+          outOfStock: Boolean(it.outOfStock)
         }));
 
         // 🔑 FILTER combo PER CATEGORY (LOGIC DI SINI)
@@ -691,7 +692,8 @@ export default function Menu() {
                 taxes: it.taxes,
                 price: it.price,
                 image: it.imagePath ?? it.imageUrl ?? "/images/no-image-available.jpg",
-                category: categories.find(c => String(c.id) === String(menuCategoryId))?.name ?? ''
+                category: categories.find(c => String(c.id) === String(menuCategoryId))?.name ?? '',
+                outOfStock: Boolean(it.outOfStock)
               }
             })
 

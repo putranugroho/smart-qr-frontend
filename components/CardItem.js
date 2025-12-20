@@ -15,6 +15,7 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
   // item may have `categoryId` or `category` name; we prefer numeric id if available
   const categoryId = item.categoryId ?? item.categoryIdRaw ?? item.menuCategoryId ?? null
   const categoryName = item.category ?? null
+  const isOutOfStock = item.outOfStock === true;
 
   function saveLastItemObject() {
     try {
@@ -35,6 +36,7 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
   }
 
   function handleClick() {
+    if (isOutOfStock) return; 
     try {
       sessionStorage.setItem('menu_scroll', String(window.scrollY || 0));
       sessionStorage.setItem('last_item', String(item.id));
@@ -96,7 +98,11 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
 
   if (mode === "list") {
     return (
-      <div id={`menu-item-${item.id}`} className={styles.listCard} onClick={handleClick}>
+      <div
+        id={`menu-item-${item.id}`}
+        className={`${styles.listCard} ${isOutOfStock ? styles.outOfStock : ""}`}
+        onClick={isOutOfStock ? undefined : handleClick}
+      >
         <Image src={imgSrc} alt={name} width={90} height={72} className={styles.listImage} />
         <div className={styles.listLeft}>
           <div className={styles.listTitle}>{name}</div>
@@ -107,8 +113,9 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
           <div className={styles.listSpacer} />
           <button
             className={styles.listAddBtn}
+            disabled={isOutOfStock}
           >
-            Tambah
+            {isOutOfStock ? "Out of Stock" : "Tambah"}
           </button>
         </div>
       </div>
@@ -116,7 +123,11 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
   }
 
   return (
-    <div id={`menu-item-${item.id}`} className={styles.card} onClick={handleClick}>
+    <div
+        id={`menu-item-${item.id}`}
+        className={`${styles.card} ${isOutOfStock ? styles.outOfStock : ""}`}
+        onClick={isOutOfStock ? undefined : handleClick}
+      >
       <div className={styles.cardImage}>
         <Image
           src={imgSrc}
@@ -135,8 +146,9 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
       <div className={styles.cardFooter}>
         <button
           className={styles.cardAddBtn}
+          disabled={isOutOfStock}
         >
-          Tambah
+          {isOutOfStock ? "Out of Stock" : "Tambah"}
         </button>
       </div>
     </div>

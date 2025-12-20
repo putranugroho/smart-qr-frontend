@@ -34,7 +34,7 @@ export default function useAutoDetectOrder() {
     }
 
     // 🚫 Sudah di halaman order → stop
-    if (router.asPath.startsWith(`/order/${orderCode}`)) {
+    if (router.asPath.startsWith(`/order/${session.orderCode}`)) {
       setChecking(false)
       return
     }

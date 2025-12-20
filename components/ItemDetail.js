@@ -433,7 +433,12 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         taxPercentage: 10,
         taxAmount: Math.round(0.1 * menuBasePrice)
       }];
+      console.log("fallback");
     }
+    console.log(apiItem);
+    console.log(item);
+    console.log(legacySourceForTaxes);
+    
 
     // ======== menus[] payload =========
     const menusPayload = [{

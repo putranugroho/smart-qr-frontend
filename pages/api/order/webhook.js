@@ -17,7 +17,7 @@ export default function useAutoDetectOrder() {
 
     async function checkStatus() {
       try {
-        const res = await fetch(`/api/proxy/order/${encodeURIComponent(orderCode)}`)
+        const res = await fetch(`/api/order/check-status?orderCode=${encodeURIComponent(orderCode)}`)
         if (!res.ok) throw new Error('Failed fetching order status')
         const { data } = await res.json()
         if (!data || typeof data.status === 'undefined') return

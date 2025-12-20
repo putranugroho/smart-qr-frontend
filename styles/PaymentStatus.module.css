@@ -200,7 +200,7 @@
 .qrWrap {
   width: 100%;
   /* allocate generous height so QR is large on mobile; adjust as needed */
-  height: calc(100vh - 280px);
+  height: calc(65vh - 270px);
   display: block;
   align-items: center;
   justify-content: center;

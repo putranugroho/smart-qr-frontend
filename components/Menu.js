@@ -142,12 +142,15 @@ export default function Menu() {
             parsed = c;
           }
           const id = ensureUniqueIdForCombo(parsed);
+          console.log("check masking price",parsed);
+          
           return {
             ...parsed,
             id,
             code: parsed.code ?? parsed.id ?? parsed.comboId ?? parsed.code,
             image: parsed.image ?? parsed.imagePath ?? parsed.imageUrl ?? "/images/no-image-available.jpg",
-            price: parsed.price ?? parsed.totalPrice ?? 0
+            price: parsed.price ?? parsed.totalPrice ?? 0,
+            maskingprice: parsed.maskingprice ?? parsed.maskingPrice ?? 0
           };
         });
 
@@ -312,7 +315,8 @@ export default function Menu() {
         id: ensureUniqueIdForCombo(parsed),
         code: parsed.code ?? parsed.id,
         image: parsed.image ?? parsed.imagePath ?? "/images/no-image-available.jpg",
-        price: parsed.price ?? parsed.totalPrice ?? 0
+        price: parsed.price ?? parsed.totalPrice ?? 0,
+        maskingprice: parsed.maskingprice ?? parsed.maskingPrice ?? 0
       };
     });
   } catch (e) {

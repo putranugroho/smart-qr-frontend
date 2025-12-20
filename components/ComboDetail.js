@@ -1107,15 +1107,51 @@ export default function ComboDetail({ combo: propCombo = null }) {
               const selProd = selectedProducts[key]
               const selProdObj = selProd && String(selProd) !== NO_ADDON_CODE ? findProductInGroup(g, selProd) : null
               const expanded = expandedGroup === key
+              const isSelected = selProd && String(selProd) !== NO_ADDON_CODE
 
               // determine default product to scroll to (first product or NO_ADDON_CODE)
               const defaultProduct = (Array.isArray(g.products) && g.products.length) ? (g.products[0].code ?? g.products[0].id) : NO_ADDON_CODE
 
               return (
-                <div key={key} style={{ borderRadius: 10, overflow: 'hidden', border: expanded ? '1px solid #e2e8f0' : '1px solid transparent', background: expanded ? '#fff' : 'transparent' }}>
+                <div key={key} style={{ 
+                  borderRadius: 10,
+                  overflow: 'hidden', 
+                  // 🔥 BORDER ORANGE JIKA SUDAH DIPILIH
+                  border: isSelected
+                    ? '2px solid #f97316'
+                    : expanded
+                      ? '1px solid #e2e8f0'
+                      : '1px solid transparent',
+              
+                  // 🔥 BACKGROUND ORANGE TERANG
+                  background: isSelected
+                    ? '#fff7ed'        // orange-50
+                    : expanded
+                      ? '#fff'
+                      : 'transparent',
+                  boxShadow: isSelected
+                    ? '0 0 0 2px rgba(249, 115, 22, 0.25)'
+                    : 'none',              
+                  transition: 'all 0.2s ease'
+                  }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px' }}>
                     <div>
-                      <div style={{ fontWeight: 600 }}>{g.name}</div>
+                      <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {g.name}
+                        {isSelected && (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              background: '#f97316',
+                              color: '#fff',
+                              padding: '2px 6px',
+                              borderRadius: 999
+                            }}
+                          >
+                            Dipilih
+                          </span>
+                        )}
+                      </div>
                       <div style={{ fontSize: 13, color: '#666' }}>
                         {selProdObj ? selProdObj.name : (selectedProducts[key] === NO_ADDON_CODE ? 'Tanpa Add On' : (g.allowSkip ? 'Boleh dikosongkan' : 'Belum dipilih'))}
                       </div>

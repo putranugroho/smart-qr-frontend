@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
-import { getSavedOrderCode } from '../../../lib/orderSession'
+import { getSavedOrderCode } from '../../../lib/session'
 
 export default function useAutoDetectOrder() {
   const router = useRouter()

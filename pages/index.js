@@ -5,17 +5,19 @@ import HeroLocation from "../components/HeroLocation";
 import PaymentBar from "../components/PaymentBar";
 import InfoBox from "../components/InfoBox";
 import { useOrderGuard } from "../hooks/useOrderGuard";
+import useAutoDetectOrder from '../hooks/useAutoDetectOrder'
 
 export default function Home() {
+  const { checking_order } = useAutoDetectOrder()
   const { allowed, checking } = useOrderGuard({
     requireStore: true,
     requireTable: true,
   });
 
-  if (checking) {
+  if (checking_order) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        Loading...
+        {checking && <p>Checking order status...</p>}
       </div>
     );
   }

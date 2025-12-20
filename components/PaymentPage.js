@@ -3,9 +3,11 @@ import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import styles from '../styles/PaymentPage.module.css'
 import Image from 'next/image'
-import { getPayment, clearCart } from '../lib/cart'
+import { clearCart } from '../lib/cart'
 import { mapDoOrderPayload } from '../lib/order'
-import { getUser, userSignIn } from '../lib/auth'
+import { getUser } from '../lib/auth'
+import { getOrCreateSessionId } from '../lib/session'
+import { saveOrderSession } from '../lib/orderSession'
 
 function formatRp(n) {
   return 'Rp' + new Intl.NumberFormat('id-ID').format(Number(n || 0))
@@ -409,6 +411,14 @@ export default function PaymentPage() {
         payload.paymentLink = paymentLink;
       }
 
+      const sessionId = getOrCreateSessionId()
+      saveOrderSession({
+        sessionId,
+        orderCode: doOrderData.data.orderCode,
+        name: customer.first_name,
+        phone: customer.phone
+      })
+
       // clear client cart (calls clearCart -> localStorage)
       clearCart();
 
@@ -570,7 +580,7 @@ export default function PaymentPage() {
                 <Image src={`/images/pay-${m}.png`} alt={m} width={55} height={14} className={styles.iconImg} />
                 <div>
                   <div style={{ fontWeight: 600 }}>{m.toUpperCase()}</div>
-                  {isDisabled && <div style={{ fontSize: 12, color: '#b00' }}>UNDER MAINTENANCE</div>}
+                  {isDisabled && <div style={{ fontSize: 12, color: '#b00' }}>COMING SOON</div>}
                 </div>
               </div>
               <div className={styles.radio}>

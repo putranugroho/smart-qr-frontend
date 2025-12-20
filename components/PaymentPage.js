@@ -412,11 +412,12 @@ export default function PaymentPage() {
       }
 
       const sessionId = getOrCreateSessionId()
+      const phoneNumber = "0" + (customer.phone || "")
       saveOrderSession({
         sessionId,
         orderCode: doOrderData.data.orderCode,
         name: customer.first_name,
-        phone: customer.phone
+        phone: phoneNumber
       })
 
       // clear client cart (calls clearCart -> localStorage)

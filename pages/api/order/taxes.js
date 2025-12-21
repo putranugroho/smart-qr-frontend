@@ -27,8 +27,9 @@ export default async function handler(req, res) {
       // try parse json response
       let respBody = null;
       const text = await resp.text().catch(() => null);
+      console.log("text taxes",text);
       try {
-        respBody = text ? JSON.parse(text) : null;
+        respBody = text ? JSON.parse(text.data.orderCode) : null;
       } catch (e) {
         // not JSON
         respBody = text || null;
@@ -37,9 +38,7 @@ export default async function handler(req, res) {
       // propagate status and body
       const status = resp.status || 200;
       return res.status(status).json({
-        ok: resp.ok,
-        status,
-        body: respBody
+        respBody
       });
     } catch (err) {
       console.error('proxy /api/order/taxes error', err);

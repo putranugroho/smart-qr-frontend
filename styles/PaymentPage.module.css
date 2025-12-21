@@ -186,6 +186,9 @@ letter-spacing: 0%;
 
 .iconImg {
   margin-right: 25px;
+  image-rendering: -webkit-optimize-contrast;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .radio {

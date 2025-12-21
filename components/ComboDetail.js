@@ -756,6 +756,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
         })),
         condiments: []
       }
+      console.log("prod",prod);
+      console.log("productPayload",productPayload);
 
       const prodCondMap = selectedCondiments[prod.code] || {}
       const condGroups = Array.isArray(prod.condimentGroups) ? prod.condimentGroups : []

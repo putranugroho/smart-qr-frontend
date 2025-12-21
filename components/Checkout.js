@@ -424,7 +424,7 @@ export default function CheckoutPage() {
                     <div style={{ textAlign: 'right', minWidth: 90 }}>
                       {/* 🔑 PAKAI item.qty */}
                       <div style={{ fontSize: 12, color: '#666' }}>
-                        x{Number(item.qty * cb.qty)}
+                        x{Number(p.qty * cb.qty)}
                       </div>
                     </div>
                   </div>
@@ -487,6 +487,8 @@ export default function CheckoutPage() {
 
       it.combos?.forEach(cb => {
         cb.products?.forEach(p => {
+          console.log("product", p);
+          
           const base = Number(p.price * p.qty)
           let condTotal = 0
 

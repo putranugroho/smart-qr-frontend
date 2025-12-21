@@ -415,7 +415,7 @@ export default function CheckoutPage() {
                           p.condiments.map((c, ci) => (
                             <div key={ci} className={styles.addonLine}>
                               - {c.name}
-                              {c.qty > 1 ? ` x${Number(c.qty * cb.qty)}` : ''}
+                              {c.qty > 1 ? ` x${c.qty}` : ''}
                             </div>
                           ))}
                       </div>
@@ -424,7 +424,7 @@ export default function CheckoutPage() {
                     <div style={{ textAlign: 'right', minWidth: 90 }}>
                       {/* 🔑 PAKAI item.qty */}
                       <div style={{ fontSize: 12, color: '#666' }}>
-                        x{item.qty}
+                        x{Number(item.qty * cb.qty)}
                       </div>
                     </div>
                   </div>
@@ -487,13 +487,10 @@ export default function CheckoutPage() {
 
       it.combos?.forEach(cb => {
         cb.products?.forEach(p => {
-          const base = Number(p.price || 0)
+          const base = Number(p.price * p.qty)
           let condTotal = 0
 
           p.condiments?.forEach(c => {
-            console.log("c.price",c.price);
-            console.log("c.qty",c.qty);
-            
             condTotal += Number(c.price || 0) * (Number(c.qty || 1))
           })
 

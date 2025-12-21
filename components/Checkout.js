@@ -193,7 +193,8 @@ export default function CheckoutPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payloadPreview)
         })
-  
+        console.log("taxesResp",taxesResp);
+        
         const calculate_taxes = await taxesResp.json()
         if (!taxesResp.ok) throw new Error(calculate_taxes.error || 'Gagal taxes')
   

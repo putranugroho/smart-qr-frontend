@@ -703,7 +703,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
       const grp = findComboGroupByKey(groupKey)
       const prod = findProductInGroup(grp, productCode)
       if (!prod) return
-      let line = Number(prod.price || 0)
+      let line = Number(prod.maskingprice * prod.qty)
       const prodSel = selectedCondiments[prod.code] || {}
       const condGroups = Array.isArray(prod.condimentGroups) ? prod.condimentGroups : []
       condGroups.forEach(g => {
@@ -1311,7 +1311,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                           }}
                         >
                           <div style={{ fontWeight: 600, fontSize: 13 }}>
-                            {formatRp(p.maskingprice)}
+                            {formatRp(p.maskingprice * p.qty)}
                           </div>
 
                           <input

@@ -37,7 +37,6 @@ function generateOrderId(user, isTakeAway) {
 export default function PaymentPage() {
   const router = useRouter();
   const [payment, setPayment] = useState({});
-  const [finalTotal, setFinalTotal] = useState({});
   const [selectedMethod, setSelectedMethod] = useState('qris');
   const [customer, setCustomer] = useState({ first_name: '', email: '' });
   const [isLoading, setIsLoading] = useState(false);
@@ -45,6 +44,12 @@ export default function PaymentPage() {
   const [user, setUser] = useState({})
   const [table, setTable] = useState('')
   const [tableNumber, setTableNumber] = useState('');
+  const [calcTax, setCalcTax] = useState({
+    subTotal: 0,
+    grandTotal: 0,
+    rounding: 0,
+    taxes: []
+  });  
 
   // validation state
   const [errors, setErrors] = useState({
@@ -52,6 +57,34 @@ export default function PaymentPage() {
     phone: '',
     tableNumber: ''
   });
+
+  async function calculateTaxFromAPI(explicitTableNumber = null) {
+    const payload = buildPayload(null, explicitTableNumber);
+  
+    const resp = await fetch('/api/order/taxes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Gagal hitung pajak');
+  
+    setCalcTax({
+      subTotal: data.subTotal,
+      grandTotal: data.grandTotal,
+      rounding: data.rounding,
+      taxes: data.taxes || []
+    });
+  
+    // 🔑 Sinkronkan payment object
+    setPayment(prev => ({
+      ...prev,
+      paymentTotal: data.grandTotal
+    }));
+  
+    return data;
+  }  
 
   function getLatestCart() {
     try {
@@ -65,99 +98,28 @@ export default function PaymentPage() {
 
   useEffect(() => {
     const latestCart = getLatestCart();
-    let paymentTotal = latestCart.reduce((sum, item) => {
-      let itemTotal = 0;
-
-      /* =======================
-      * 1️⃣ MENU BIASA
-      * ======================= */
-      itemTotal += (item.menus ?? []).reduce((menuSum, menu) => {
-        const basePrice = menu.detailMenu?.price || 0;
-
-        const condimentPrice = (menu.condiments ?? []).reduce(
-          (s, c) => s + (c.price || 0),
-          0
-        );
-
-        const qty = menu.qty || 1;
-
-        // 🔥 HITUNG TAX ULANG
-        const tax = (menu.taxes ?? []).reduce(
-          (s, t) => s + ((basePrice * qty * (t.taxPercentage || 0)) / 100),
-          0
-        );
-
-        const condimentTax = (menu.condiments ?? []).reduce(
-          (s, c) =>
-            s +
-            ((c.price || 0) *
-              (c.qty || 1) *
-              ((c.taxes?.[0]?.taxPercentage || 0) / 100)),
-          0
-        );
-
-        return (
-          menuSum +
-          basePrice * qty +
-          condimentPrice * qty +
-          tax +
-          condimentTax
-        );
-      }, 0);
-
-      /* =======================
-      * 2️⃣ COMBO
-      * ======================= */
-      if (item.type === "combo") {
-        itemTotal += (item.combos ?? []).reduce((comboSum, combo) => {
-          const productsTotal = (combo.products ?? []).reduce((pSum, p) => {
-            const qty = p.qty || 1;
-            const base = (p.price || 0) * qty;
-
-            // 🔥 TAX HARUS DARI PERCENTAGE
-            const tax = (p.taxes ?? []).reduce(
-              (s, t) =>
-                s + ((p.price || 0) * qty * (t.taxPercentage || 0)) / 100,
-              0
-            );
-
-            return pSum + base + tax;
-          }, 0);
-
-          return comboSum + productsTotal;
-        }, 0);
-      }
-
-      return sum + itemTotal;
-    }, 0);
-
-    /* =======================
-    * 3️⃣ ROUNDING
-    * ======================= */
-    paymentTotal = Math.ceil(paymentTotal / 100) * 100;
-
     const sessionStore = sessionStorage.getItem("yoshi_store_code") || "";
     const dataUser = getUser?.() || {};
     setUser(dataUser)
-
     if (dataUser.orderType === "DI") {
       setTable(`Table ${dataUser.tableNumber} • Dine In`)
     } else {
       setTable(`Table ${dataUser.tableNumber} • Take Away`)
     }
 
-    if (dataUser.tableNumber && String(dataUser.tableNumber).trim() !== '' && String(dataUser.tableNumber).trim() !== '000') {
-      setTableNumber(String(dataUser.tableNumber).trim().toUpperCase());
+    if (dataUser.tableNumber && dataUser.tableNumber !== '000') {
+      setTableNumber(String(dataUser.tableNumber).trim().toUpperCase())
     }
 
     setPayment({
       cart: latestCart,
-      paymentTotal,
       storeCode: sessionStore,
       tableNumber: dataUser.tableNumber
     });
-
-    setIsMounted(true);
+  
+    calculateTaxFromAPI(dataUser.tableNumber)
+      .finally(() => setIsMounted(true));
+  
   }, []);
 
   // helper untuk cek apakah order type adalah take away
@@ -306,17 +268,10 @@ export default function PaymentPage() {
         return;
       }
 
+      const taxResult = await calculateTaxFromAPI(finalTableForPayload);
+
       // Build payload (source of truth) explicitly passing finalTableForPayload to avoid setState race
       const payload = buildPayload(null, finalTableForPayload);
-
-      const taxResp = await fetch('/api/order/taxes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-  
-      const dataResp = await taxResp.json()
-      if (!resp.ok) throw new Error(data.error || 'Gagal hitung pajak')
 
       // persist tableNumber in sessionStorage payload so downstream pages can read the same formatted value
       try {
@@ -329,12 +284,11 @@ export default function PaymentPage() {
         console.warn('failed to persist do_order_payload tableNumber', e);
       }
 
-      const grossAmount = dataResp.grandTotal;
-      setFinalTotal(dataResp.grandTotal)
-      payload.subTotal = dataResp.subTotal;
-      payload.grandTotal = dataResp.grandTotal;
-      payload.rounding = dataResp.rounding;
-      payload.taxes = dataResp.taxes;
+      const grossAmount = taxResult.grandTotal;
+      payload.subTotal = taxResult.subTotal;
+      payload.grandTotal = taxResult.grandTotal;
+      payload.rounding = taxResult.rounding;
+      payload.taxes = taxResult.taxes;
 
       // generate orderId that will be used as Midtrans order_id (displayOrderId)
       const orderId = generateOrderId(user, isTakeAway)
@@ -610,7 +564,7 @@ export default function PaymentPage() {
         <div className={styles.stickyTop}>
           <div className={styles.totalLabel}>Total Pembayaran</div>
           <div className={styles.totalValue}>
-            {isMounted ? formatRp(Number(finalTotal)) : 'Rp0'}
+            {isMounted ? formatRp(calcTax.grandTotal) : 'Rp0'}
           </div>
         </div>
 

@@ -307,7 +307,6 @@ export default function PaymentPage() {
 
       // Build payload (source of truth) explicitly passing finalTableForPayload to avoid setState race
       const payload = buildPayload(null, finalTableForPayload);
-      console.log("payload", payload);
 
       // persist tableNumber in sessionStorage payload so downstream pages can read the same formatted value
       try {

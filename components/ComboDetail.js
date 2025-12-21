@@ -711,20 +711,17 @@ export default function ComboDetail({ combo: propCombo = null }) {
         const sel = prodSel[key]
         if (!sel) return
         if (Array.isArray(sel)) {
-          console.log("opt 1", opt);
           sel.forEach(selId => {
             const opt = (g.products || []).find(p => String(p.code ?? p.id) === String(selId))
             if (opt) line += Number(opt.maskingprice * opt.qty )
           })
         } else if (sel === NONE_OPTION_ID) {
         } else {
-          console.log("opt 2", opt);
           const opt = (g.products || []).find(p => String(p.code ?? p.id) === String(sel))
           if (opt) line += Number(opt.maskingprice * opt.qty)
         }
       })
       total += line
-      console.log("total", total);
     })
     return Math.round(total * Number(qty || 1))
   }, [selectedProducts, selectedCondiments, qty, comboState])
@@ -756,8 +753,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
         })),
         condiments: []
       }
-      console.log("prod",prod);
-      console.log("productPayload",productPayload);
 
       const prodCondMap = selectedCondiments[prod.code] || {}
       const condGroups = Array.isArray(prod.condimentGroups) ? prod.condimentGroups : []
@@ -899,7 +894,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
       return
     }
 
-    // console.log("Payload combos:", payload);
     
 
     try {

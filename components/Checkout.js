@@ -202,18 +202,18 @@ export default function CheckoutPage() {
           return {
             ...cb,
             qty: newQty, // qty combo ikut user
-            products: Array.isArray(cb.products)
-              ? cb.products.map(p => ({
-                  ...p,
-                  // qty: newQty, // 🔑 PRODUCT QTY IKUT USER
-                  condiments: Array.isArray(p.condiments)
-                    ? p.condiments.map(c => ({
-                        ...c,
-                        // qty: newQty // 🔑 CONDIMENT IKUT
-                      }))
-                    : []
-                }))
-              : []
+            // products: Array.isArray(cb.products)
+            //   ? cb.products.map(p => ({
+            //       ...p,
+            //       // qty: newQty, // 🔑 PRODUCT QTY IKUT USER
+            //       condiments: Array.isArray(p.condiments)
+            //         ? p.condiments.map(c => ({
+            //             ...c,
+            //             // qty: newQty // 🔑 CONDIMENT IKUT
+            //           }))
+            //         : []
+            //     }))
+            //   : []
           }
         })
       }

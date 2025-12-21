@@ -37,6 +37,7 @@ function generateOrderId(user, isTakeAway) {
 export default function PaymentPage() {
   const router = useRouter();
   const [payment, setPayment] = useState({});
+  const [finalTotal, setFinalTotal] = useState({});
   const [selectedMethod, setSelectedMethod] = useState('qris');
   const [customer, setCustomer] = useState({ first_name: '', email: '' });
   const [isLoading, setIsLoading] = useState(false);
@@ -308,6 +309,15 @@ export default function PaymentPage() {
       // Build payload (source of truth) explicitly passing finalTableForPayload to avoid setState race
       const payload = buildPayload(null, finalTableForPayload);
 
+      const taxResp = await fetch('/api/order/taxes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+  
+      const dataResp = await taxResp.json()
+      if (!resp.ok) throw new Error(data.error || 'Gagal hitung pajak')
+
       // persist tableNumber in sessionStorage payload so downstream pages can read the same formatted value
       try {
         const existing = sessionStorage.getItem('do_order_payload');
@@ -319,7 +329,12 @@ export default function PaymentPage() {
         console.warn('failed to persist do_order_payload tableNumber', e);
       }
 
-      const grossAmount = payload.grandTotal;
+      const grossAmount = dataResp.grandTotal;
+      setFinalTotal(dataResp.grandTotal)
+      payload.subTotal = dataResp.subTotal;
+      payload.grandTotal = dataResp.grandTotal;
+      payload.rounding = dataResp.rounding;
+      payload.taxes = dataResp.taxes;
 
       // generate orderId that will be used as Midtrans order_id (displayOrderId)
       const orderId = generateOrderId(user, isTakeAway)
@@ -595,7 +610,7 @@ export default function PaymentPage() {
         <div className={styles.stickyTop}>
           <div className={styles.totalLabel}>Total Pembayaran</div>
           <div className={styles.totalValue}>
-            {isMounted ? formatRp(payment.paymentTotal) : 'Rp0'}
+            {isMounted ? formatRp(finalTotal) : 'Rp0'}
           </div>
         </div>
 

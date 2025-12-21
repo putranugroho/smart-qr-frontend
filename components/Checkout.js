@@ -143,6 +143,52 @@ export default function CheckoutPage() {
     return payload;
   }
 
+  async function recalculateFromAPI(latestCart) {
+    try {
+      const payload = mapDoOrderPayload(
+        latestCart,
+        null,
+        'qris',
+        {
+          posId: 'QR',
+          orderType: user.orderType || 'DI',
+          tableNumber: user.orderType === 'TA' ? '' : (user.tableNumber || '')
+        }
+      )
+  
+      const resp = await fetch('/api/order/taxes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+  
+      const data = await resp.json()
+      if (!resp.ok) throw new Error(data.error || 'Gagal hitung pajak')
+  
+      setSubtotal(data.subTotal)
+  
+      let pb1 = 0
+      let ppn = 0
+      data.taxes?.forEach(t => {
+        const name = (t.TaxName || '').toUpperCase()
+        if (name === 'PB1') pb1 = Number(t.TaxAmount)
+        if (name === 'PPN') ppn = Number(t.TaxAmount)
+      })
+  
+      setTaxPB1(pb1)
+      setTaxPPN(ppn)
+      setRoundedTotal(data.grandTotal)
+      setRounding(data.rounding)
+    } catch (err) {
+      console.error('Recalculate error:', err)
+    }
+  } 
+  
+  useEffect(() => {
+    if (!cartLoaded) return
+    recalculateFromAPI(cart)
+  }, [cart])
+
   // load cart from storage on client only
   useEffect(() => {
     const rawCart = getCart() || []
@@ -178,56 +224,6 @@ export default function CheckoutPage() {
     setCart(cleanedCart)
     setCartLoaded(true)
   }, [])
-
-  // compute totals whenever `cart` changes (client only)
-  useEffect(() => {
-    let cancelled = false;
-  
-    const run = async () => {
-      try {
-        const payloadPreview = buildPayload()
-        console.log("payloadPreview", payloadPreview)
-  
-        const taxesResp = await fetch('/api/order/taxes', {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payloadPreview)
-        })
-        console.log("taxesResp",taxesResp);
-        
-        const calculate_taxes = await taxesResp.json()
-        if (!taxesResp.ok) throw new Error(calculate_taxes.error || 'Gagal taxes')
-  
-        if (!cancelled) {
-          console.log("calculate_taxes", calculate_taxes)      
-          setSubtotal(calculate_taxes.subtotal)
-          calculate_taxes.taxes.forEach(tax => {
-            const name = (tax.TaxName || '').toUpperCase()
-        
-            if (name === 'PB1') {
-              setTaxPB1(Number(tax.TaxAmount))
-            }
-        
-            if (name === 'PPN') {
-              setTaxPPN(Number(tax.TaxAmount))
-            }
-          })
-          setRoundedTotal(calculate_taxes.grandTotal)
-          setRounding(calculate_taxes.rounding)
-        }
-      } catch (err) {
-        if (!cancelled) {
-          console.error(err)
-        }
-      }
-    }
-  
-    run();
-  
-    return () => {
-      cancelled = true;
-    }
-  }, [cart])
 
   // qty update
   function handleQty(index, action) {

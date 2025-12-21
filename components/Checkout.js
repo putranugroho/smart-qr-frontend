@@ -415,7 +415,7 @@ export default function CheckoutPage() {
                           p.condiments.map((c, ci) => (
                             <div key={ci} className={styles.addonLine}>
                               - {c.name}
-                              {c.qty > 1 ? ` x${c.qty}` : ''}
+                              {c.qty > 1 ? ` x${Number(c.qty * cb.qty)}` : ''}
                             </div>
                           ))}
                       </div>
@@ -491,6 +491,9 @@ export default function CheckoutPage() {
           let condTotal = 0
 
           p.condiments?.forEach(c => {
+            console.log("c.price",c.price);
+            console.log("c.qty",c.qty);
+            
             condTotal += Number(c.price || 0) * (Number(c.qty || 1))
           })
 

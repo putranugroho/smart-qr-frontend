@@ -6,6 +6,7 @@ import styles from '../styles/Checkout.module.css'
 import AddPopup from './AddPopup'
 import { getCart, updateCart, removeFromCartByIndex, savePayment } from '../lib/cart'
 import { getUser } from '../lib/auth'
+import { mapDoOrderPayload } from '../lib/order'
 
 function formatRp(n) {
   return 'Rp' + new Intl.NumberFormat('id-ID').format(Number(n || 0))
@@ -130,10 +131,35 @@ export default function CheckoutPage() {
   // delete confirmation modal state
   const [confirmDeleteIndex, setConfirmDeleteIndex] = useState(null)
   const [showConfirmDelete, setShowConfirmDelete] = useState(false)
+  
+  // compute payload from cart and use it as source of truth for totals
+  function buildPayload(grossAmountForRounding = null, explicitTableNumber = null) {
+    const cart = getCart();
+    // pass grossAmount so mapDoOrderPayload can compute rounding if needed
+    const payload = mapDoOrderPayload(cart, grossAmountForRounding, 'qris', {
+      posId: 'QR',
+      orderType: user.orderType || 'DI',
+      tableNumber: user.orderType === 'TA' ? '' : (user.tableNumber || '')
+    });
+    return payload;
+  }
 
   // load cart from storage on client only
-  useEffect(() => {
+  useEffect(async () => {
     const rawCart = getCart() || []
+    const payloadPreview = buildPayload();
+    console.log("payloadPreview", payloadPreview);
+    const taxesResp = await fetch('/api/order/taxes', {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payloadPreview)
+    });
+
+    const calculate_taxes = await taxesResp.json();
+    if (!taxesResp.ok) throw new Error(calculate_taxes.error || 'Gagal taxes');
+
+    console.log("calculate_taxes", calculate_taxes);
+    
 
     const cleanedCart = rawCart.map(item => {
       const taxes =
@@ -202,18 +228,6 @@ export default function CheckoutPage() {
           return {
             ...cb,
             qty: newQty, // qty combo ikut user
-            // products: Array.isArray(cb.products)
-            //   ? cb.products.map(p => ({
-            //       ...p,
-            //       // qty: newQty, // 🔑 PRODUCT QTY IKUT USER
-            //       condiments: Array.isArray(p.condiments)
-            //         ? p.condiments.map(c => ({
-            //             ...c,
-            //             // qty: newQty // 🔑 CONDIMENT IKUT
-            //           }))
-            //         : []
-            //     }))
-            //   : []
           }
         })
       }
@@ -487,8 +501,6 @@ export default function CheckoutPage() {
 
       it.combos?.forEach(cb => {
         cb.products?.forEach(p => {
-          console.log("product", p);
-          
           const base = Number(p.price * p.qty)
           let condTotal = 0
 

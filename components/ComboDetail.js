@@ -771,7 +771,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
               code: opt.code ?? opt.id,
               name: opt.name ?? opt.itemName ?? '',
               price: Number(opt.price || 0),
-              qty: Number(qty || 1) || 1,
+              qty: Number(opt.qty),
               taxes: (opt.taxes || []).map(t => ({ taxName: t.name || t.code || '', taxPercentage: Number(t.amount || 0), taxAmount: 0 }))
             })
           })
@@ -890,6 +890,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
     }
 
     const payload = buildComboCartPayload()
+    console.log("payload combo", payload);
+    
     if (!payload) {
       alert('Payload combo tidak valid.')
       return

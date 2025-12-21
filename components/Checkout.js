@@ -112,6 +112,7 @@ export default function CheckoutPage() {
   // cart state (loaded from storage on client)
   const [cart, setCart] = useState([])
   const [cartLoaded, setCartLoaded] = useState(false)
+  const [isCalculating, setIsCalculating] = useState(false)
 
   // totals state (initialize 0 so SSR and initial client render match)
   const [subtotal, setSubtotal] = useState(0)
@@ -125,7 +126,7 @@ export default function CheckoutPage() {
   // popup state
   const [showAddPopup, setShowAddPopup] = useState(false)
   const addBtnRef = useRef(null)
-  const popupTimerRef = useRef(null)
+  const recalcTimerRef = useRef(null)
 
   // delete confirmation modal state
   const [confirmDeleteIndex, setConfirmDeleteIndex] = useState(null)
@@ -144,6 +145,8 @@ export default function CheckoutPage() {
   }
 
   async function recalculateFromAPI(latestCart) {
+    setIsCalculating(true) // 🔒 LOCK
+  
     try {
       const payload = mapDoOrderPayload(
         latestCart,
@@ -179,15 +182,38 @@ export default function CheckoutPage() {
       setTaxPPN(ppn)
       setRoundedTotal(data.grandTotal)
       setRounding(data.rounding)
+  
     } catch (err) {
       console.error('Recalculate error:', err)
+    } finally {
+      setIsCalculating(false) // 🔓 UNLOCK
     }
-  } 
+  }
+
+  function debouncedRecalculate(latestCart, delay = 400) {
+    setIsCalculating(true)
+  
+    if (recalcTimerRef.current) {
+      clearTimeout(recalcTimerRef.current)
+    }
+  
+    recalcTimerRef.current = setTimeout(() => {
+      recalculateFromAPI(latestCart)
+    }, delay)
+  }
   
   useEffect(() => {
     if (!cartLoaded) return
-    recalculateFromAPI(cart)
+    debouncedRecalculate(cart)
   }, [cart])
+
+  useEffect(() => {
+    return () => {
+      if (recalcTimerRef.current) {
+        clearTimeout(recalcTimerRef.current)
+      }
+    }
+  }, [])
 
   // load cart from storage on client only
   useEffect(() => {
@@ -279,24 +305,25 @@ export default function CheckoutPage() {
   }
 
   function confirmPayment(totalAmt) {
+    if (isCalculating) return // ⛔ masih hitung
+  
     try {
-      // 🔑 SINGLE SOURCE OF TRUTH
-      const latestCart = JSON.parse(localStorage.getItem("yoshi_cart_v1") || "[]");
-
-      sessionStorage.setItem("yoshi_cart_payment", JSON.stringify(latestCart));
-      sessionStorage.setItem("yoshi_cart_total", totalAmt);
-
+      const latestCart = JSON.parse(localStorage.getItem("yoshi_cart_v1") || "[]")
+  
+      sessionStorage.setItem("yoshi_cart_payment", JSON.stringify(latestCart))
+      sessionStorage.setItem("yoshi_cart_total", totalAmt)
+  
       savePayment(latestCart, totalAmt, {
         storeCode: user.storeCode || "",
         orderType: user.orderType || "",
         tableNumber: user.tableNumber || ""
-      });
-
+      })
+  
     } catch (e) {
-      console.error("Gagal set session cart", e);
+      console.error("Gagal set session cart", e)
     }
-
-    router.push("/payment");
+  
+    router.push("/payment")
   }
 
   // open delete confirmation modal (instead of immediate delete)
@@ -703,7 +730,13 @@ export default function CheckoutPage() {
           <div className={styles.totalAmount}>{formatRp(roundedTotal)}</div>
         </div>
 
-        <button className={styles.payBtn} onClick={() => confirmPayment(roundedTotal)}>Proses Pembayaran</button>
+        <button
+          className={`${styles.payBtn} ${isCalculating ? styles.payBtnDisabled : ''}`}
+          onClick={() => confirmPayment(roundedTotal)}
+          disabled={isCalculating}
+        >
+          {isCalculating ? 'Menghitung total...' : 'Proses Pembayaran'}
+        </button>
       </div>
 
       {/* AddPopup anchored to addBtnRef */}

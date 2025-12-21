@@ -36,6 +36,7 @@ function generateOrderId(user, isTakeAway) {
 
 export default function PaymentPage() {
   const router = useRouter();
+  const [isBlocking, setIsBlocking] = useState(false)
   const [payment, setPayment] = useState({});
   const [selectedMethod, setSelectedMethod] = useState('qris');
   const [customer, setCustomer] = useState({ first_name: '', email: '' });
@@ -59,32 +60,37 @@ export default function PaymentPage() {
   });
 
   async function calculateTaxFromAPI(explicitTableNumber = null) {
-    const payload = buildPayload(null, explicitTableNumber);
+    setIsBlocking(true)
   
-    const resp = await fetch('/api/order/taxes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    try {
+      const payload = buildPayload(null, explicitTableNumber)
   
-    const data = await resp.json();
-    if (!resp.ok) throw new Error(data.error || 'Gagal hitung pajak');
+      const resp = await fetch('/api/order/taxes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
   
-    setCalcTax({
-      subTotal: data.subTotal,
-      grandTotal: data.grandTotal,
-      rounding: data.rounding,
-      taxes: data.taxes || []
-    });
+      const data = await resp.json()
+      if (!resp.ok) throw new Error(data.error || 'Gagal hitung pajak')
   
-    // 🔑 Sinkronkan payment object
-    setPayment(prev => ({
-      ...prev,
-      paymentTotal: data.grandTotal
-    }));
+      setCalcTax({
+        subTotal: data.subTotal,
+        grandTotal: data.grandTotal,
+        rounding: data.rounding,
+        taxes: data.taxes || []
+      })
   
-    return data;
-  }  
+      setPayment(prev => ({
+        ...prev,
+        paymentTotal: data.grandTotal
+      }))
+  
+      return data
+    } finally {
+      setIsBlocking(false)
+    }
+  }
 
   function getLatestCart() {
     try {
@@ -237,6 +243,7 @@ export default function PaymentPage() {
   }
 
   async function handlePayNow() {
+    if (isBlocking) return
     // clear previous errors
     setErrors({ first_name: '', phone: '', tableNumber: '' });
 
@@ -247,7 +254,8 @@ export default function PaymentPage() {
       return;
     }
 
-    setIsLoading(true);
+    setIsLoading(true)
+    setIsBlocking(true)
 
     try {
       const cart = payment.cart || [];
@@ -265,6 +273,7 @@ export default function PaymentPage() {
       // final validation just to be safe
       if (!validateAll(true)) {
         setIsLoading(false);
+        setIsBlocking(false);
         return;
       }
 
@@ -395,10 +404,12 @@ export default function PaymentPage() {
     } catch (err) {
       console.error(err);
       setIsLoading(false);
+      setIsBlocking(false);
       alert('Error pembayaran: ' + (err.message || err));
       return;
     } finally {
       setIsLoading(false);
+      setIsBlocking(false);
     }
   }
 
@@ -568,8 +579,12 @@ export default function PaymentPage() {
           </div>
         </div>
 
-        <button className={styles.payBtn} onClick={handlePayNow} disabled={isLoading}>
-          {isLoading ? 'Memproses...' : 'Bayar Sekarang'}
+        <button
+          className={styles.payBtn}
+          onClick={handlePayNow}
+          disabled={isBlocking}
+        >
+          {isBlocking ? 'Memproses...' : 'Bayar Sekarang'}
         </button>
       </div>
     </div>

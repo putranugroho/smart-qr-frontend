@@ -102,17 +102,11 @@
 
 
 /* removed the floating Edit button on the image */
-/*.editBtn {
-  position: absolute;
-  top: 50px;
-  left: 15px;
-  background: white;
-  color: #FC661A;
-  font-size: 8px;
-  padding: 4px 8px;
-  border-radius: 99px;
-  border: 0.5px solid rgba(255,255,255,0.5);
-}*/
+.payBtnDisabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
 
 .itemInfo {
   flex: 1;

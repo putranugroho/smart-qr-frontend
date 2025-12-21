@@ -205,11 +205,11 @@ export default function CheckoutPage() {
             products: Array.isArray(cb.products)
               ? cb.products.map(p => ({
                   ...p,
-                  qty: newQty, // 🔑 PRODUCT QTY IKUT USER
+                  // qty: newQty, // 🔑 PRODUCT QTY IKUT USER
                   condiments: Array.isArray(p.condiments)
                     ? p.condiments.map(c => ({
                         ...c,
-                        qty: newQty // 🔑 CONDIMENT IKUT
+                        // qty: newQty // 🔑 CONDIMENT IKUT
                       }))
                     : []
                 }))
@@ -424,7 +424,7 @@ export default function CheckoutPage() {
                     <div style={{ textAlign: 'right', minWidth: 90 }}>
                       {/* 🔑 PAKAI item.qty */}
                       <div style={{ fontSize: 12, color: '#666' }}>
-                        x{Number(p.qty * cb.qty)}
+                        x{Number(p.qty * item.qty)}
                       </div>
                     </div>
                   </div>

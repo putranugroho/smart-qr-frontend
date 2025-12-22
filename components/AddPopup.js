@@ -45,9 +45,9 @@ export default function AddPopup({
     // If mode explicitly provided, use it; else use current orderType or default to TAKEAWAY
     const chosenMode = mode === 'dinein' ? 'DI' : mode === 'takeaway' ? 'TA' : "" ;
     let newTablenumber = tableNumber
-    if (mode === 'takeaway') {
+    if (chosenMode === 'TA') {
       newTablenumber = '000'
-    } else if (mode === 'DI' && tableNumber === '') {
+    } else if (chosenMode === 'DI' && tableNumber === '') {
       newTablenumber = '000'
     }
 

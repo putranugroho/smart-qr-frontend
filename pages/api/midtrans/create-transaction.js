@@ -1,26 +1,46 @@
 // pages/api/midtrans/create-transaction.js
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
   const { orderId, grossAmount, customer, selectedMethod, metadata } = req.body;
-  if (!orderId || !grossAmount) return res.status(400).json({ error: 'orderId & grossAmount required' });
+  if (!orderId || !grossAmount) {
+    return res.status(400).json({ error: 'orderId & grossAmount required' });
+  }
 
-  // Production endpoint
   const MIDTRANS_API = 'https://api.midtrans.com/v2/charge';
-  const SERVER_KEY = process.env.MIDTRANS_SERVER_KEY_PRODUCTION; // production server key -> set di env
+  const SERVER_KEY = process.env.MIDTRANS_SERVER_KEY_PRODUCTION;
 
-  // Build base payload (transaction_details + item/customer minimal)
+  /**
+   * =========================
+   * DEVELOPER MODE
+   * =========================
+   */
+  const developerMode =
+    process.env.NEXT_PUBLIC_DEVELOPER_MODE === 'true';
+
+  const finalGrossAmount = developerMode
+    ? 1
+    : Number(grossAmount);
+
+  if (developerMode) {
+    console.warn(
+      '[DEV MODE] Midtrans gross_amount overridden to Rp. 1',
+      { orderId, originalAmount: grossAmount }
+    );
+  }
+
   const payload = {
-    payment_type: selectedMethod === 'gopay' ? 'gopay' : 'qris', // contoh. kamu bisa extend per method
+    payment_type: selectedMethod === 'gopay' ? 'gopay' : 'qris',
     transaction_details: {
       order_id: orderId,
-      gross_amount: Number(grossAmount)
+      gross_amount: finalGrossAmount
     },
     metadata,
     customer_details: customer || undefined
   };
     const URLCallback = process.env.MIDTRANS_CALLBACK_URL
-    // khusus GoPay: enable deeplink callback (mobile)
     if (selectedMethod === 'gopay') {
       payload.gopay = {
         enable_callback: true,
@@ -45,7 +65,6 @@ export default async function handler(req, res) {
       return res.status(r.status).json({ error: j });
     }
 
-    // kembalikan response ke frontend (frontend akan menyimpan response dan menggunakan deeplink/qr)
     return res.status(200).json(j);
   } catch (err) {
     console.error('create-transaction error', err);

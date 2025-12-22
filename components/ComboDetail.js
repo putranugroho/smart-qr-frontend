@@ -703,7 +703,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
       const grp = findComboGroupByKey(groupKey)
       const prod = findProductInGroup(grp, productCode)
       if (!prod) return
-      let line = Number(prod.maskingprice * prod.qty)
+      let line = Number(prod.price * prod.qty)
       const prodSel = selectedCondiments[prod.code] || {}
       const condGroups = Array.isArray(prod.condimentGroups) ? prod.condimentGroups : []
       condGroups.forEach(g => {
@@ -713,12 +713,12 @@ export default function ComboDetail({ combo: propCombo = null }) {
         if (Array.isArray(sel)) {
           sel.forEach(selId => {
             const opt = (g.products || []).find(p => String(p.code ?? p.id) === String(selId))
-            if (opt) line += Number(opt.maskingprice * opt.qty )
+            if (opt) line += Number(opt.price * opt.qty )
           })
         } else if (sel === NONE_OPTION_ID) {
         } else {
           const opt = (g.products || []).find(p => String(p.code ?? p.id) === String(sel))
-          if (opt) line += Number(opt.maskingprice * opt.qty)
+          if (opt) line += Number(opt.price * opt.qty)
         }
       })
       total += line
@@ -744,7 +744,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         comboGroup: grp.code ?? grp.name ?? groupKey,
         name: prod.name ?? '',
         itemName: prod.itemName ?? '',
-        price: Number(prod.maskingprice),
+        price: Number(prod.price),
         qty: Number(prod.qty),
         taxes: (prod.taxes || []).map(t => ({
           taxName: t.name || t.code || '',

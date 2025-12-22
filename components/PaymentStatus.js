@@ -488,7 +488,6 @@ export default function PaymentStatus() {
               >
                 Simpan ke Galeri / Screenshot Barcode QRIS
               </button>
-              <div className={styles.instructionred}>Pastikan anda kembali ke layar ini setelah melakukan pembayaran untuk melihat status orderan anda</div>
               {qrError && <div className={styles.qrError} style={{ marginTop: 8 }}>{qrError}</div>}
             </div>
           )
@@ -568,6 +567,9 @@ export default function PaymentStatus() {
       <div style={{ marginTop: 16 }}>
         {renderPaymentArea()}
       </div>
+      {!deeplinkUrl && ( 
+        <div className={styles.instructionred}>Pastikan anda kembali ke layar ini setelah melakukan pembayaran untuk melihat status orderan anda</div>
+      )}
       <div className={styles.instruction}>Silakan lakukan pembayaran menggunakan aplikasi pembayaran pilihan anda</div>
 
       {/* -----------------------

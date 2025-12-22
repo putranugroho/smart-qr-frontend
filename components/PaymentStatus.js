@@ -486,9 +486,9 @@ export default function PaymentStatus() {
                   if (!ok) alert('Gagal mengunduh QR. Coba buka di tab baru lalu simpan.')
                 }}
               >
-                Simpan ke Galeri / Sceenshot Barcode QRIS
+                Simpan ke Galeri / Screenshot Barcode QRIS
               </button>
-
+              <div className={styles.instructionred}>Pastikan anda kembali ke layar ini setelah melakukan pembayaran untuk melihat status orderan anda</div>
               {qrError && <div className={styles.qrError} style={{ marginTop: 8 }}>{qrError}</div>}
             </div>
           )
@@ -568,8 +568,6 @@ export default function PaymentStatus() {
       <div style={{ marginTop: 16 }}>
         {renderPaymentArea()}
       </div>
-
-      <div className={styles.instructionred}>Pastikan anda kembali ke layar ini setelah melakukan pembayaran untuk melihat status orderan anda</div>
       <div className={styles.instruction}>Silakan lakukan pembayaran menggunakan aplikasi pembayaran pilihan anda</div>
 
       {/* -----------------------

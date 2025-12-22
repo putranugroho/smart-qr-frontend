@@ -567,9 +567,9 @@ export default function PaymentStatus() {
       <div style={{ marginTop: 16 }}>
         {renderPaymentArea()}
       </div>
-      {!deeplinkUrl && ( 
+      {/* {!deeplinkUrl && (  */}
         <div className={styles.instructionred}>Pastikan anda kembali ke layar ini setelah melakukan pembayaran untuk melihat status orderan anda</div>
-      )}
+      {/* )} */}
       <div className={styles.instruction}>Silakan lakukan pembayaran menggunakan aplikasi pembayaran pilihan anda</div>
 
       {/* -----------------------

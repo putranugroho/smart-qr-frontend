@@ -470,15 +470,32 @@ export default function OrderStatus() {
     ? Number(dataOrder.subTotal || 0)
     : items.reduce((s, it) => s + calculateItemTaxes(it).base, 0)
 
-  // TAXES  
-  const { pb1: computedPB1, ppn: computedPPN } = computeTaxesFromRealData(dataOrder)
+  // TAXES
+  let computedPB1 = 0
+  let computedPPN = 0
+
+  if (hasBackendTotals && Array.isArray(dataOrder.taxes)) {
+    dataOrder.taxes.forEach(tx => {
+      const name = String(tx.taxName || '').toUpperCase()
+      const amt = Number(tx.taxAmount || 0)
+
+      if (name.includes('PB')) computedPB1 += amt
+      if (name.includes('PPN')) computedPPN += amt
+    })
+  } else {
+    items.forEach(it => {
+      const t = calculateItemTaxes(it)
+      computedPB1 += t.pb1
+      computedPPN += t.ppn
+    })
+  }
+
+  computedPB1 = Math.round(computedPB1)
+  computedPPN = Math.round(computedPPN)
 
   // ROUNDING
-  // const roundingAmount = hasBackendTotals
-  //   ? Number(dataOrder.rounding || 0)
-  //   : 0
   const roundingAmount = hasBackendTotals
-    ? Number(dataOrder.grandTotal - dataOrder.subTotal - computedPB1 - computedPPN)
+    ? Number(dataOrder.rounding || 0)
     : 0
 
   // TOTAL

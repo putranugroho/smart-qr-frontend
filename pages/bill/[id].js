@@ -295,17 +295,22 @@ export default function BillPage() {
 
   const computedSubtotal = hasBackendTotals
     ? Number(doOrderRaw.subTotal)
-    : items.reduce((s, it) => s + calculateItemTaxes(it).base, 0)
+    : 0;
 
-  const { pb1: computedPB1, ppn: computedPPN } = computeTaxesFromRealData(doOrderRaw)
+  const computedPB1 = hasBackendTotals
+    ? (doOrderRaw.taxes || []).reduce(
+        (t, tx) => t + Number(tx.taxAmount || 0),
+        0
+      )
+    : 0;
 
   const roundingAmount = hasBackendTotals
-    ? Number(doOrderRaw.grandTotal - doOrderRaw.subTotal - computedPB1 - computedPPN)
+    ? Number(doOrderRaw.rounding || 0)
     : 0;
 
   const roundedTotal = hasBackendTotals
     ? Number(doOrderRaw.grandTotal)
-    : Math.round(computedSubtotal + computedPB1 + computedPPN + roundingAmount)
+    : 0;
 
   /* DOWNLOAD PDF */
   const downloadPDF = async () => {

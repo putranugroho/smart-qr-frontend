@@ -614,9 +614,10 @@ export default function Menu() {
                     </div>
                   ) : (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-                      {cat.items.map((it) => (
-                        <CardItem key={it.id} item={it} mode="grid" />
-                      ))}
+                      {cat.items.map((it) => {
+                        console.log("CardItem", it)
+                        return <CardItem key={it.id} item={it} mode="grid" />
+                      })}
                     </div>
                   )}
                 </div>

@@ -16,6 +16,7 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
   const categoryId = item.categoryId ?? item.categoryIdRaw ?? item.menuCategoryId ?? null
   const categoryName = item.category ?? null
   const isOutOfStock = item.outOfStock === true;
+  console.log("card item",item);
 
   function saveLastItemObject() {
     try {
@@ -60,7 +61,6 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
       } catch (e) {
         console.warn('failed to navigate to combo detail via sessionStorage, falling back to query', e);
         // fallback: send full combo as query (may be long)
-        console.log("card item",item);
         const productCode = item.id;
         const q = {};
         if (item.name) q.title = item.name;

@@ -547,6 +547,9 @@ export default function PaymentStatus() {
     return <div>Instruksi pembayaran tidak tersedia.</div>
   }
 
+  const paymentMethod = getNormalizedMethod(tx)
+  const isQris = paymentMethod === 'qris'
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -567,9 +570,11 @@ export default function PaymentStatus() {
       <div style={{ marginTop: 16 }}>
         {renderPaymentArea()}
       </div>
-      {/* {!deeplinkUrl && (  */}
-        <div className={styles.instructionred}>Pastikan anda kembali ke layar ini setelah melakukan pembayaran untuk melihat status orderan anda</div>
-      {/* )} */}
+      {isQris && (
+        <div className={styles.instructionred}>
+          Pastikan anda kembali ke layar ini setelah melakukan pembayaran untuk melihat status orderan anda
+        </div>
+      )}
       <div className={styles.instruction}>Silakan lakukan pembayaran menggunakan aplikasi pembayaran pilihan anda</div>
 
       {/* -----------------------

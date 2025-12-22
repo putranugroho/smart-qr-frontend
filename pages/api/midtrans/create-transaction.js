@@ -14,8 +14,7 @@ export default async function handler(req, res) {
     payment_type: selectedMethod === 'gopay' ? 'gopay' : 'qris', // contoh. kamu bisa extend per method
     transaction_details: {
       order_id: orderId,
-      // gross_amount: Number(grossAmount)
-      gross_amount: Number(1)
+      gross_amount: Number(grossAmount)
     },
     metadata,
     customer_details: customer || undefined

@@ -305,8 +305,6 @@ export default function Menu() {
 
     const raw = Array.isArray(j?.data) ? j.data : [];
 
-    console.log("raw get combos", raw);
-
     return raw.map((c, idx) => {
       const parsed = parseComboToMenuItem ? parseComboToMenuItem(c) : c;
       return {
@@ -363,10 +361,7 @@ export default function Menu() {
         // 🔑 FILTER combo PER CATEGORY (LOGIC DI SINI)
         const comboForCategory = combos.filter(c =>
           String(c.categoryId ?? c.menuCategoryId ?? '').toString() === String(cat.id)
-        );
-
-        console.log("item combos", combos);
-        
+        );        
 
         const finalItems = uniqBy(
           [...menuItems, ...combos],
@@ -614,10 +609,9 @@ export default function Menu() {
                     </div>
                   ) : (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-                      {cat.items.map((it) => {
-                        console.log("CardItem", it)
-                        return <CardItem key={it.id} item={it} mode="grid" />
-                      })}
+                      {cat.items.map((it) => (
+                        <CardItem key={it.id} item={it} mode="grid" />
+                      ))}
                     </div>
                   )}
                 </div>

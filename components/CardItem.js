@@ -141,8 +141,10 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
       </div>
 
       <div className={styles.cardBody}>
-        {!isCombo && (
+        {!isCombo ? (
           <div className={styles.cardPrice}>{formatRp(item.price)}</div>
+        ) : (
+          <div className={styles.cardPrice}></div>
         )}
         <div className={styles.cardTitle}>{name}</div>
       </div>

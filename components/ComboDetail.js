@@ -744,7 +744,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         comboGroup: grp.code ?? grp.name ?? groupKey,
         name: prod.name ?? '',
         itemName: prod.itemName ?? '',
-        price: Number(prod.price),
+        price: Number(prod.maskingprice),
         qty: Number(prod.qty),
         taxes: (prod.taxes || []).map(t => ({
           taxName: t.name || t.code || '',

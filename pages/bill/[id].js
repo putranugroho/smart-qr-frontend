@@ -297,12 +297,27 @@ export default function BillPage() {
     ? Number(doOrderRaw.subTotal)
     : 0;
 
-  const computedPB1 = hasBackendTotals
-    ? (doOrderRaw.taxes || []).reduce(
-        (t, tx) => t + Number(tx.taxAmount || 0),
-        0
-      )
-    : 0;
+    let computedPB1 = 0
+    let computedPPN = 0
+  
+    if (hasBackendTotals && Array.isArray(doOrderRaw.taxes)) {
+      doOrderRaw.taxes.forEach(tx => {
+        const name = String(tx.taxName || '').toUpperCase()
+        const amt = Number(tx.taxAmount || 0)
+  
+        if (name.includes('PB')) computedPB1 += amt
+        if (name.includes('PPN')) computedPPN += amt
+      })
+    } else {
+      items.forEach(it => {
+        const t = calculateItemTaxes(it)
+        computedPB1 += t.pb1
+        computedPPN += t.ppn
+      })
+    }
+  
+    computedPB1 = Math.round(computedPB1)
+    computedPPN = Math.round(computedPPN)
 
   const roundingAmount = hasBackendTotals
     ? Number(doOrderRaw.rounding || 0)

@@ -128,18 +128,17 @@ export default function PaymentPage() {
   
   }, []);
 
-  // helper untuk cek apakah order type adalah take away
-  const isTakeAway = (() => {
-    const t = String(user?.orderType || '').toUpperCase();
-    return t === 'TA' || t.includes('TAKE');
-  })();
+  const orderType = String(user?.orderType || '').toUpperCase();
+
+  const isTakeAway = orderType === 'TA' || orderType.includes('TAKE');
+  const isDineIn = orderType === 'DI' || orderType.includes('DINE');
 
   // treat empty / '000' as not having preset table
-  const hasPresetTable =
-    !!(user?.tableNumber && String(user.tableNumber).trim() !== '');
+  const presetTableNumber = String(user?.tableNumber || '').trim();
 
   const mustFillTableNumber =
-    !isTakeAway && !hasPresetTable;
+  (isTakeAway && presetTableNumber === '000') ||
+  (isDineIn && (presetTableNumber === '' || presetTableNumber === '000'));
 
   function getLatestCart() {
     try {

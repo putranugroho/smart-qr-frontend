@@ -305,6 +305,8 @@ export default function Menu() {
 
     const raw = Array.isArray(j?.data) ? j.data : [];
 
+    console.log("raw get combos", raw);
+
     return raw.map((c, idx) => {
       const parsed = parseComboToMenuItem ? parseComboToMenuItem(c) : c;
       return {
@@ -362,6 +364,9 @@ export default function Menu() {
         const comboForCategory = combos.filter(c =>
           String(c.categoryId ?? c.menuCategoryId ?? '').toString() === String(cat.id)
         );
+
+        console.log("item combos", combos);
+        
 
         const finalItems = uniqBy(
           [...menuItems, ...combos],

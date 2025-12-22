@@ -16,7 +16,6 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
   const categoryId = item.categoryId ?? item.categoryIdRaw ?? item.menuCategoryId ?? null
   const categoryName = item.category ?? null
   const isOutOfStock = item.outOfStock === true;
-  console.log("card item",item);
 
   function saveLastItemObject() {
     try {

@@ -47,6 +47,8 @@ export default function AddPopup({
     let newTablenumber = tableNumber
     if (mode === 'takeaway') {
       newTablenumber = '000'
+    } else if (mode === 'DI' && tableNumber === '') {
+      newTablenumber = '000'
     }
 
 

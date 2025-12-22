@@ -20,7 +20,7 @@ export function useOrderGuard(options = {}) {
     const hasStore =
       !requireStore || Boolean(user?.storeLocation);
 
-    const hasTable = user?.tableNumber == "X99" ? true : user?.orderType == "TA" ? true : false;
+    const hasTable = user?.tableNumber == "" ? true : user?.orderType == "TA" ? true : false;
 
     if (hasStore && hasTable) {
       setAllowed(true);

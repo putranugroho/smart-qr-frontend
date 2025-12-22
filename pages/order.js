@@ -68,6 +68,8 @@ export default function OrderPage() {
         // optionally set a small delay or show message
         setStatus({ loading: false, message: "Success — redirecting..." });
         // redirect
+        sessionStorage.removeItem("yoshi_cart_v1");
+        localStorage.removeItem("yoshi_cart_v1");
         router.replace("/"); // replace so /order not in history
       } catch (err) {
         console.error("Order page error:", err);

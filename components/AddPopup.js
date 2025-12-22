@@ -44,12 +44,17 @@ export default function AddPopup({
   const goToMenu = (mode) => {
     // If mode explicitly provided, use it; else use current orderType or default to TAKEAWAY
     const chosenMode = mode === 'dinein' ? 'DI' : mode === 'takeaway' ? 'TA' : "" ;
+    let newTablenumber = tableNumber
+    if (mode === 'takeaway') {
+      newTablenumber = '000'
+    }
+
 
     // Prepare user object using current state
     const userAuth = {
       storeLocation: storeLocation || 'MGI',
       orderType: chosenMode,
-      tableNumber: '', // keep table only for dine-in
+      tableNumber: newTablenumber, // keep table only for dine-in
     };
 
     // persist and go to menu

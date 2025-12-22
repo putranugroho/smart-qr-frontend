@@ -327,34 +327,25 @@ export default function BillPage() {
     ? Number(doOrderRaw.grandTotal)
     : 0;
 
-  /* DOWNLOAD PDF */
-  const downloadPDF = async () => {
+  /* DOWNLOAD JPG */
+  const downloadJPG = async () => {
+    if (!printRef?.current) return;
+
     const canvas = await html2canvas(printRef.current, {
-      scale: 2,
+      scale: 2, // makin besar makin HD
       useCORS: true,
       backgroundColor: "#ffffff",
     });
 
-    const imgData = canvas.toDataURL("image/png");
+    const imgData = canvas.toDataURL("image/jpeg", 0.92); // JPG HD
 
-    const pdf = new jsPDF("p", "mm", "a4");
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
+    const link = document.createElement("a");
+    link.href = imgData;
+    link.download = `bill-${id}.jpg`;
 
-    // scaling: sesuaikan tinggi canvas ke A4
-    const canvasWidth = canvas.width;
-    const canvasHeight = canvas.height;
-
-    const ratio = Math.min(pageWidth / canvasWidth, pageHeight / canvasHeight);
-
-    const imgWidth = canvasWidth * ratio;
-    const imgHeight = canvasHeight * ratio;
-
-    // center horizontal
-    const xOffset = (pageWidth - imgWidth) / 2;
-    pdf.addImage(imgData, "PNG", xOffset, 0, imgWidth, imgHeight);
-
-    pdf.save(`bill-${id}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -596,7 +587,7 @@ export default function BillPage() {
       </div>
 
       <div className={styles.downloadWrap}>
-        <button className={styles.downloadBtn} onClick={downloadPDF}>
+        <button className={styles.downloadBtn} onClick={downloadJPG}>
           Download Bill (PDF)
         </button>
       </div>

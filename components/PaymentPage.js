@@ -136,7 +136,7 @@ export default function PaymentPage() {
 
   // treat empty / '000' as not having preset table
   const hasPresetTable =
-    !!(user?.tableNumber && String(user.tableNumber).trim() !== '' && String(user.tableNumber).trim() !== '000');
+    !!(user?.tableNumber && String(user.tableNumber).trim() !== '');
 
   const mustFillTableNumber =
     !isTakeAway && !hasPresetTable;

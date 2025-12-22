@@ -13,6 +13,38 @@ function formatRp(n) {
 
 const NONE_OPTION_ID = '__NONE__'
 
+function resolveOrderType({ router, propItem, fromCheckout, editingIndex }) {
+  // 1. dari query (Checkout.js sudah kirim)
+  if (router.query?.orderType) {
+    return String(router.query.orderType)
+  }
+
+  // 2. dari session yoshi_edit
+  try {
+    const s = sessionStorage.getItem('yoshi_edit')
+    if (s) {
+      const parsed = JSON.parse(s)
+      if (parsed?.orderType) return parsed.orderType
+    }
+  } catch {}
+
+  // 3. dari cart item (paling kuat)
+  try {
+    if (fromCheckout && typeof editingIndex === 'number') {
+      const cart = getCart() || []
+      const it = cart[editingIndex]
+      if (it?.menus?.[0]?.orderType) return it.menus[0].orderType
+    }
+  } catch {}
+
+  // 4. dari propItem
+  if (propItem?.menus?.[0]?.orderType) return propItem.menus[0].orderType
+  if (propItem?.orderType) return propItem.orderType
+
+  // 5. terakhir BARU user
+  return getUser?.()?.orderType || null
+}
+
 export default function ItemDetail({ productCode: propProductCode, item: propItem = {} }) {
   const router = useRouter()
   const q = router.query
@@ -82,6 +114,15 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   const [addAnimating, setAddAnimating] = useState(false)
   const [showPopup, setShowPopup] = useState(false)
   const toastTimerRef = useRef(null)
+
+  const resolvedOrderType = useMemo(() => {
+    return resolveOrderType({
+      router,
+      propItem,
+      fromCheckout,
+      editingIndex
+    })
+  }, [router.query, fromCheckout, editingIndex, propItem])
 
   useEffect(() => {
     if (!fromCheckout || editingIndex == null) return
@@ -208,9 +249,20 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     setErr(null)
     setNoCondiments(false)
     setDataUser(getUser?.());
-    const orderCategoryCode = dataUser.orderType
-    const storeCode = dataUser.orderType
-    const url = `/api/proxy/condiment?productCode=${encodeURIComponent(productCode)}&orderCategoryCode=${encodeURIComponent(getUser().orderType)}&storeCode=${encodeURIComponent(getUser?.().storeLocation)}`
+    const user = getUser?.()
+    const orderCategoryCode = resolvedOrderType
+    const storeCode = user?.storeLocation
+
+    if (!orderCategoryCode || !storeCode) {
+      setLoading(false)
+      return
+    }
+
+    const url = `/api/proxy/condiment?productCode=${encodeURIComponent(
+      productCode
+    )}&orderCategoryCode=${encodeURIComponent(
+      orderCategoryCode
+    )}&storeCode=${encodeURIComponent(storeCode)}`
 
     fetch(url)
       .then(r => {
@@ -450,7 +502,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         image: item.image || apiItem.imagePath || '',
       },
       isFromMacro: true,
-      orderType: dataUser.orderType,
+      orderType: resolvedOrderType,
       qty: qtyNum,
       taxes: menuTaxes
     }];
@@ -518,6 +570,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     try {
       if (fromCheckout && editingIndex != null) {
         // === EDIT FLOW: replace item deterministically ===
+        order.menus[0].orderType = resolvedOrderType
         try {
           const currentCart = getCart() || [];
           const original = (typeof editingIndex === 'number' && currentCart[editingIndex]) ? currentCart[editingIndex] : null;

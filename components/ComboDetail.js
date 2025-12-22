@@ -15,6 +15,42 @@ function formatRp(n) {
   return 'Rp' + new Intl.NumberFormat('id-ID').format(Number(n || 0))
 }
 
+function resolveOrderType({ isEdit, router, editingIndex }) {
+  const user = getUser?.() || null
+
+  // NEW ITEM
+  if (!isEdit) return user?.orderType || 'DI'
+
+  // 1️⃣ dari query (Checkout.js versi baru)
+  if (router.query?.orderType) {
+    return String(router.query.orderType)
+  }
+
+  // 2️⃣ dari sessionStorage yoshi_edit
+  try {
+    const raw = sessionStorage.getItem('yoshi_edit')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed?.orderType) return parsed.orderType
+    }
+  } catch (e) {}
+
+  // 3️⃣ dari cart entry
+  try {
+    const cart = getCart() || []
+    const entry = cart[editingIndex]
+    const ot =
+      entry?.orderType ||
+      entry?.combos?.[0]?.orderType ||
+      entry?.detailCombo?.orderType
+    if (ot) return ot
+  } catch (e) {}
+
+  // fallback terakhir
+  return user?.orderType || 'DI'
+}
+
+
 function mergeComboStates(prev, fetched) {
   if (!fetched) return prev || fetched || null;
   if (!prev) {
@@ -144,6 +180,11 @@ export default function ComboDetail({ combo: propCombo = null }) {
   const fromCheckout = String(router.query?.from || '') === 'checkout'
   const editIndexQuery = router.query?.index != null ? Number(router.query.index) : null
   const [editingIndex, setEditingIndex] = useState(editIndexQuery != null ? editIndexQuery : null)
+  const isEdit = fromCheckout && editingIndex != null
+
+  const resolvedOrderType = useMemo(() => {
+    return resolveOrderType({ isEdit, router, editingIndex })
+  }, [isEdit, router.query, editingIndex])
 
   const comboGroups = useMemo(() => (comboState && Array.isArray(comboState.comboGroups) ? comboState.comboGroups : []), [comboState])
 
@@ -293,7 +334,10 @@ export default function ComboDetail({ combo: propCombo = null }) {
         if (comboCode) {
           try {
             // console.log('[RECOVER] Memulai Fetch API untuk:', comboCode);
-            const url = `/api/proxy/combo-list?orderCategoryCode=DI&storeCode=MGI`
+            const user = getUser?.() || {}
+            const storeCode = user.storeLocation
+
+            const url = `/api/proxy/combo-list?orderCategoryCode=${resolvedOrderType}&storeCode=${encodeURIComponent(storeCode)}`
             const r = await fetch(url)
             if (r.ok) {
               const j = await r.json()
@@ -812,7 +856,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
           image: comboState.imagePath || comboState.image || null,
         },
         isFromMacro: true,
-        orderType: user?.orderType || 'DI',
+        orderType: resolvedOrderType,
         products: productsPayload,
         qty: Number(qty || 1),
         voucherCode: null,

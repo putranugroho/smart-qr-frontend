@@ -23,87 +23,12 @@ function normalizeTaxFlags(taxes = []) {
   return { hasPB1, hasPPN }
 }
 
-/**
- * Helpers to compute totals for mixed cart:
- * - menu items (legacy shape)
- * - combo items (type === 'combo') with combos[].products[].condiments[]
- */
-function calcCartTotals(cart) {
-  let subtotal = 0
-  let taxPB1 = 0
-  let taxPPN = 0
-
-  if (!Array.isArray(cart)) {
-    return { subtotal: 0, taxPB1: 0, taxPPN: 0, total: 0 }
+function getItemOrderType(item) {
+  if (!item) return null
+  if (item.type === 'combo') {
+    return item.combos?.[0]?.orderType || null
   }
-
-  cart.forEach(it => {
-    /* =========================
-       MENU BIASA (LEGACY)
-    ========================= */
-    if (it.type !== 'combo') {
-      const price = Number(it.price || 0)
-      const qty = Number(it.qty || 1)
-      const line = price * qty
-      subtotal += line
-    
-      const { hasPB1, hasPPN } = normalizeTaxFlags(it.taxes)
-    
-      it.taxes?.forEach(t => {
-        const pct = Number(t.taxPercentage || 0)
-        if (!pct) return
-    
-        const name = String(t.taxName || '').toUpperCase()
-        const amt = line * pct / 100
-    
-        if (name.includes('PPN') && hasPPN) {
-          taxPPN += amt
-        }
-    
-        if (name.includes('PB1') && hasPB1) {
-          taxPB1 += amt
-        }
-      })
-    
-      return
-    }
-
-    /* =========================
-       COMBO (FIXED)
-    ========================= */
-    const itemQty = Number(it.qty || 1)
-
-    it.combos?.forEach(cb => {
-      cb.products?.forEach(p => {
-        const base = Number(p.price || 0)
-
-        // condiments
-        let condTotal = 0
-        p.condiments?.forEach(c => {
-          condTotal += Number(c.price || 0) * Number(c.qty || 1)
-        })
-
-        const unitPrice = base + condTotal
-        const lineTotal = unitPrice * itemQty
-        subtotal += lineTotal
-
-        /* === TAX: ONLY % × item.qty === */
-        p.taxes?.forEach(t => {
-          const pct = Number(t.taxPercentage || 0)
-          if (!pct) return
-
-          const taxAmt = unitPrice * itemQty * pct / 100
-          const name = String(t.taxName || t.name || '').toUpperCase()
-
-          if (name.includes('PB1')) taxPB1 += taxAmt
-          if (name.includes('PPN')) taxPPN += taxAmt
-        })
-      })
-    })
-  })
-
-  const total = Math.ceil(subtotal + taxPB1 + taxPPN)
-  return { subtotal, taxPB1, taxPPN, total }
+  return item.menus?.[0]?.orderType || null
 }
 
 export default function CheckoutPage() {
@@ -132,17 +57,6 @@ export default function CheckoutPage() {
   const [confirmDeleteIndex, setConfirmDeleteIndex] = useState(null)
   const [showConfirmDelete, setShowConfirmDelete] = useState(false)
   
-  // compute payload from cart and use it as source of truth for totals
-  function buildPayload(grossAmountForRounding = null, explicitTableNumber = null) {
-    const cart = getCart();
-    // pass grossAmount so mapDoOrderPayload can compute rounding if needed
-    const payload = mapDoOrderPayload(cart, grossAmountForRounding, 'qris', {
-      posId: 'QR',
-      orderType: user.orderType || 'DI',
-      tableNumber: user.orderType === 'TA' ? '' : (user.tableNumber || '')
-    });
-    return payload;
-  }
 
   async function recalculateFromAPI(latestCart) {
     setIsCalculating(true) // 🔒 LOCK
@@ -366,28 +280,45 @@ export default function CheckoutPage() {
   function handleEdit(index) {
     const it = cart[index]
     if (!it) return
+
+    const itemOrderType = getItemOrderType(it)
+
     if (it.type === 'combo') {
-      try {
-        sessionStorage.setItem('yoshi_edit', JSON.stringify({ index, signature: `combo|${index}` }))
-      } catch (e) { /* ignore */ }
-      // be defensive when accessing nested props
+      sessionStorage.setItem(
+        'yoshi_edit',
+        JSON.stringify({
+          index,
+          orderType: itemOrderType,
+          signature: `combo|${index}`
+        })
+      )
+
       const comboCode = it.combos?.[0]?.detailCombo?.code ?? ''
-      router.push(`/combo-detail?comboCode=${comboCode}&from=checkout&index=${index}`)
+      router.push(
+        `/combo-detail?comboCode=${comboCode}&from=checkout&index=${index}&orderType=${itemOrderType}`
+      )
       return
     }
 
     const productCode = encodeURIComponent(String(it.productCode ?? it.id ?? ''))
     const sig = signatureForItem(it)
-    try {
-      sessionStorage.setItem('yoshi_edit', JSON.stringify({ index, signature: sig }))
-    } catch (e) {
-      console.warn('sessionStorage write failed', e)
-    }
+
+    sessionStorage.setItem(
+      'yoshi_edit',
+      JSON.stringify({
+        index,
+        signature: sig,
+        orderType: itemOrderType
+      })
+    )
+
     const qs = new URLSearchParams({
       index: String(index),
-      sig: sig,
-      from: 'checkout'
+      sig,
+      from: 'checkout',
+      orderType: itemOrderType
     }).toString()
+
     router.push(`/item/${productCode}?${qs}`)
   }
 

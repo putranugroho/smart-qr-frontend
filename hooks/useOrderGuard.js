@@ -6,7 +6,7 @@ import { getUser } from "../lib/auth";
 function isOperationalTimeWIB() {
   const now = new Date();
   const wibHour = (now.getUTCHours() + 7) % 24;
-  return wibHour >= 10 && wibHour < 21;
+  return wibHour >= process.env.NEXT_PUBLIC_JAM_BUKA && wibHour < process.env.NEXT_PUBLIC_JAM_TUTUP;
 }
 
 export function useOrderGuard(options = {}) {

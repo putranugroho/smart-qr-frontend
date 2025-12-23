@@ -93,7 +93,7 @@ export function useOrderGuard(options = {}) {
       (user?.orderType === "TA") ||
       (user?.orderType === "DI" && Boolean(user?.tableNumber));
 
-    if (!hasStore || !hasTable) {
+    if (!hasStore) {
       setAllowed(false);
       setBlockReason("need-scan");
       redirectTo && router.replace(redirectTo);

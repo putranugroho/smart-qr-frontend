@@ -38,7 +38,7 @@ export default function HeroLocation() {
     const userAuth = {
       storeLocation: storeLocation || 'MGI',
       orderType: chosenMode,
-      tableNumber: chosenMode === 'DI' ? (tableNumber || "") : '', // keep table only for dine-in
+      tableNumber: tableNumber || '', // keep table only for dine-in
     };
 
     // persist and go to menu

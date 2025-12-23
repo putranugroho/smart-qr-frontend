@@ -136,9 +136,7 @@ export default function PaymentPage() {
   // treat empty / '000' as not having preset table
   const presetTableNumber = String(user?.tableNumber || '').trim();
 
-  const mustFillTableNumber =
-  (isTakeAway && presetTableNumber === '000') ||
-  (isDineIn && (presetTableNumber === '' || presetTableNumber === '000'));
+  const mustFillTableNumber = (presetTableNumber === '' || presetTableNumber === '000');
 
   function getLatestCart() {
     try {

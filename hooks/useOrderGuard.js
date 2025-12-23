@@ -94,7 +94,7 @@ export function useOrderGuard(options = {}) {
       (user?.orderType === "TA") ||
       (user?.orderType === "DI" && user?.tableNumber !== "");
 
-    if (hasStore && hasTable) {
+    if (hasStore) {
       setAllowed(true);
     } else {
       setAllowed(false);

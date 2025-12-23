@@ -6,7 +6,6 @@ import { getUser } from "../lib/auth";
 function isOperationalTimeWIB() {
   const now = new Date();
 
-  // WIB time
   const wibHour = (now.getUTCHours() + 7) % 24;
   const wibMinute = now.getUTCMinutes();
 
@@ -68,19 +67,20 @@ export function useOrderGuard(options = {}) {
      * =========================
      */
     if (!inOperationalTime) {
-      if (isX99) {
-        setAllowed(true);
-      } else {
+      if (!isX99) {
         setAllowed(false);
         redirectTo && router.replace(redirectTo);
+        setChecking(false);
+        return;
       }
+      setAllowed(true);
       setChecking(false);
       return;
     }
 
     /**
      * =========================
-     * 3. VALIDASI NORMAL
+     * 3. VALIDASI NORMAL (HANYA SAAT JAM BUKA)
      * =========================
      */
     const hasStore =
@@ -88,8 +88,8 @@ export function useOrderGuard(options = {}) {
 
     const hasTable =
       !requireTable ||
-      user?.tableNumber !== "" ||
-      user?.orderType === "TA";
+      (user?.orderType === "TA") ||
+      (user?.orderType === "DI" && user?.tableNumber !== "");
 
     if (hasStore && hasTable) {
       setAllowed(true);

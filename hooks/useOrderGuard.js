@@ -78,6 +78,7 @@ export function useOrderGuard(options = {}) {
       }
       setAllowed(true);
       setChecking(false);
+      setBlockReason('closed');
       return;
     }
 

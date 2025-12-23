@@ -78,7 +78,6 @@ export function useOrderGuard(options = {}) {
       }
       setAllowed(true);
       setChecking(false);
-      setBlockReason('closed');
       return;
     }
 
@@ -95,7 +94,7 @@ export function useOrderGuard(options = {}) {
       (user?.orderType === "TA") ||
       (user?.orderType === "DI" && user?.tableNumber !== "");
 
-    if (hasStore) {
+    if (hasStore && hasTable) {
       setAllowed(true);
     } else {
       setAllowed(false);

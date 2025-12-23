@@ -27,6 +27,7 @@ export function useOrderGuard(options = {}) {
   const router = useRouter();
   const [allowed, setAllowed] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [blockReason, setBlockReason] = useState(null);
 
   const {
     redirectTo = null,
@@ -55,6 +56,7 @@ export function useOrderGuard(options = {}) {
         setAllowed(true);
       } else {
         setAllowed(false);
+        setBlockReason('maintenance');
         redirectTo && router.replace(redirectTo);
       }
       setChecking(false);
@@ -69,6 +71,7 @@ export function useOrderGuard(options = {}) {
     if (!inOperationalTime) {
       if (!isX99) {
         setAllowed(false);
+        setBlockReason('closed');
         redirectTo && router.replace(redirectTo);
         setChecking(false);
         return;
@@ -95,11 +98,12 @@ export function useOrderGuard(options = {}) {
       setAllowed(true);
     } else {
       setAllowed(false);
+      setBlockReason('invalid');
       redirectTo && router.replace(redirectTo);
     }
 
     setChecking(false);
   }, [router, redirectTo, requireStore, requireTable]);
 
-  return { allowed, checking };
+  return { allowed, checking, blockReason };
 }

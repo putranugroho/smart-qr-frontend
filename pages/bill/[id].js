@@ -588,7 +588,7 @@ export default function BillPage() {
 
       <div className={styles.downloadWrap}>
         <button className={styles.downloadBtn} onClick={downloadJPG}>
-          Download Bill (PDF)
+          Download Bill
         </button>
       </div>
     </div>

@@ -9,7 +9,7 @@ import useAutoDetectOrder from '../pages/api/order/webhook'
 
 export default function Home() {
   const { checking_order } = useAutoDetectOrder()
-  const { allowed, checking } = useOrderGuard({
+  const { allowed, checking, blockReason } = useOrderGuard({
     requireStore: true,
     requireTable: true,
   });
@@ -46,11 +46,25 @@ export default function Home() {
               className="mx-auto mb-6"
             />
 
-            <h2 className="text-lg font-semibold text-gray-800">
-              <b>Mohon maaf sistem sedang dalam maintenance
-              <br />
-              silakan order di kasir / kiosk</b>
-            </h2>
+            {blockReason === 'maintenance' && (
+              <h2 className="text-lg font-semibold text-gray-800">
+                <b>
+                  Mohon maaf sistem sedang dalam maintenance
+                  <br />
+                  silakan order di kasir / kiosk
+                </b>
+              </h2>
+            )}
+
+            {blockReason === 'closed' && (
+              <h2 className="text-lg font-semibold text-gray-800">
+                <b>
+                  Mohon maaf QR order sedang ditutup
+                  <br />
+                  Silakan melakukan pemesanan melalui Kasir (POS)
+                </b>
+              </h2>
+            )}
           </div>
         </main>
       )}

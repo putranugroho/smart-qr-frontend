@@ -115,6 +115,10 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   const [showPopup, setShowPopup] = useState(false)
   const toastTimerRef = useRef(null)
 
+  const isCondimentReady = !loading && !err && (
+    noCondiments || addons.length > 0
+  )
+
   const resolvedOrderType = useMemo(() => {
     return resolveOrderType({
       router,
@@ -339,7 +343,8 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         console.error('fetch condiment error', e)
         setErr(e.message || 'Fetch error')
         setAddons([])
-        setNoCondiments(true)
+        setSelected({})
+        setNoCondiments(false)
       })
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -563,6 +568,10 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   }
 
   function handleAddToCart() {
+    // ⛔ BLOCK saat condiment belum siap / error
+    if (!isCondimentReady) return
+
+    // ⛔ BLOCK kalau addon mandatory belum dipilih
     if (addons.length > 0 && !validateSelection()) return
 
     const order = buildOrderObject()
@@ -855,6 +864,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
             onAdd={handleAddToCart}
             addAnimating={addAnimating}
             addLabel={addBtnLabel}
+            disabled={!isCondimentReady}
             isEditing={fromCheckout && editingIndex != null}
           />
         </div>

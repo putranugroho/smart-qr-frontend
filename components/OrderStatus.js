@@ -989,7 +989,7 @@ export default function OrderStatus() {
       <div className={styles.hoverBarWrap} role="region" aria-label="Aksi pesanan">
         <div className={styles.hoverBar}>
           <button className={styles.btnDownload} onClick={() => router.push(`/bill/${displayOrderId || id}`)} aria-label="Download bill" type="button">
-            <span>Download Bill</span>
+            <span>View Bill</span>
           </button>
 
           {/* <button className={styles.btnContact} onClick={contactMerchant} aria-label="Kontak merchant" type="button">

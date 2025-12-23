@@ -26,7 +26,8 @@ export default function StickyCartBar({
   onAdd = () => {},
   style = {},
   addAnimating = false,
-  addLabel = 'Tambah Pesanan'
+  addLabel = 'Tambah Pesanan',
+  disabled = false
 }) {
   const hasItems = Number(subtotal) > 0
 
@@ -74,10 +75,11 @@ export default function StickyCartBar({
         {/* ROW 2 — BUTTON ADD */}
         <div className={styles.rowBottom}>
           <button
-            onClick={onAdd}
+            onClick={disabled ? undefined : onAdd}
             aria-label={addLabel}
+            disabled={disabled}
             className={`${styles.addBtn} ${
-              hasItems ? styles.addBtnActive : styles.addBtnInactive
+              hasItems && !disabled ? styles.addBtnActive : styles.addBtnInactive
             } ${addAnimating ? styles.addPulse : ''}`}
             type="button"
           >

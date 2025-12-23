@@ -17,10 +17,10 @@ function isOperationalTimeWIB() {
   const [closeHour, closeMinute = 0] =
     process.env.NEXT_PUBLIC_JAM_TUTUP.split(':').map(Number);
 
-  const openInMinutes = openHour * 60 + openMinute;
-  const closeInMinutes = closeHour * 60 + closeMinute;
-
-  return nowInMinutes >= openInMinutes && nowInMinutes < closeInMinutes;
+  return (
+    nowInMinutes >= openHour * 60 + openMinute &&
+    nowInMinutes < closeHour * 60 + closeMinute
+  );
 }
 
 export function useOrderGuard(options = {}) {
@@ -65,7 +65,7 @@ export function useOrderGuard(options = {}) {
 
     /**
      * =========================
-     * 2. DI LUAR JAM OPERASIONAL
+     * 2. JAM TUTUP
      * =========================
      */
     if (!inOperationalTime) {
@@ -73,17 +73,16 @@ export function useOrderGuard(options = {}) {
         setAllowed(false);
         setBlockReason('closed');
         redirectTo && router.replace(redirectTo);
-        setChecking(false);
-        return;
+      } else {
+        setAllowed(true);
       }
-      setAllowed(true);
       setChecking(false);
       return;
     }
 
     /**
      * =========================
-     * 3. VALIDASI NORMAL (HANYA SAAT JAM BUKA)
+     * 3. JAM BUKA (NORMAL FLOW)
      * =========================
      */
     const hasStore =
@@ -92,14 +91,14 @@ export function useOrderGuard(options = {}) {
     const hasTable =
       !requireTable ||
       (user?.orderType === "TA") ||
-      (user?.orderType === "DI" && user?.tableNumber !== "");
+      (user?.orderType === "DI" && Boolean(user?.tableNumber));
 
-    if (hasStore && hasTable) {
-      setAllowed(true);
-    } else {
+    if (!hasStore || !hasTable) {
       setAllowed(false);
-      setBlockReason('invalid');
+      setBlockReason("need-scan");
       redirectTo && router.replace(redirectTo);
+    } else {
+      setAllowed(true);
     }
 
     setChecking(false);

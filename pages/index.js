@@ -65,6 +65,12 @@ export default function Home() {
                 </b>
               </h2>
             )}
+
+            {blockReason === "need-scan" && (
+              <h2 className="text-lg font-semibold text-gray-800">
+                <b>Silakan scan barcode yang tersedia</b>
+              </h2>
+            )}
           </div>
         </main>
       )}

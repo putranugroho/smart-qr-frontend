@@ -5,8 +5,23 @@ import { getUser } from "../lib/auth";
 
 function isOperationalTimeWIB() {
   const now = new Date();
+
+  // WIB time
   const wibHour = (now.getUTCHours() + 7) % 24;
-  return wibHour >= process.env.NEXT_PUBLIC_JAM_BUKA && wibHour < process.env.NEXT_PUBLIC_JAM_TUTUP;
+  const wibMinute = now.getUTCMinutes();
+
+  const nowInMinutes = wibHour * 60 + wibMinute;
+
+  const [openHour, openMinute = 0] =
+    process.env.NEXT_PUBLIC_JAM_BUKA.split(':').map(Number);
+
+  const [closeHour, closeMinute = 0] =
+    process.env.NEXT_PUBLIC_JAM_TUTUP.split(':').map(Number);
+
+  const openInMinutes = openHour * 60 + openMinute;
+  const closeInMinutes = closeHour * 60 + closeMinute;
+
+  return nowInMinutes >= openInMinutes && nowInMinutes < closeInMinutes;
 }
 
 export function useOrderGuard(options = {}) {

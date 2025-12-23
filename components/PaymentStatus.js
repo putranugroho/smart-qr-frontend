@@ -530,9 +530,9 @@ export default function PaymentStatus() {
           {deeplinkUrl ? (
             <>
               <div style={{ marginBottom: 12 }}>
-                {alreadyAttempted ? 'Auto-redirect sudah dicoba. Tekan tombol di bawah untuk membuka kembali aplikasinya:' : 'Tekan tombol untuk membuka aplikasi pembayaran:'}
+                Tekan tombol untuk membuka aplikasi pembayaran
               </div>
-              <button className={styles.checkBtn} onClick={openDeeplinkManually} disabled={redirecting}>
+              <button className={styles.checkBtn} onClick={openDeeplinkManually}>
                 {redirecting ? 'Mengarahkan...' : `Redirect Pembayaran`}
               </button>
               {/* <div style={{ marginTop: 12, wordBreak: 'break-all' }}>{deeplinkUrl}</div> */}

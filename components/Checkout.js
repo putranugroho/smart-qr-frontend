@@ -281,6 +281,11 @@ export default function CheckoutPage() {
     const it = cart[index]
     if (!it) return
 
+    const clientInstanceId =
+    it.clientInstanceId ||
+    it.detailCombo?.clientInstanceId ||
+    it.combos?.[0]?.clientInstanceId
+
     const itemOrderType = getItemOrderType(it)
 
     if (it.type === 'combo') {
@@ -289,13 +294,14 @@ export default function CheckoutPage() {
         JSON.stringify({
           index,
           orderType: itemOrderType,
-          signature: `combo|${index}`
+          signature: `combo|${index}`,
+          clientInstanceId
         })
       )
 
       const comboCode = it.combos?.[0]?.detailCombo?.code ?? ''
       router.push(
-        `/combo-detail?comboCode=${comboCode}&from=checkout&index=${index}&orderType=${itemOrderType}`
+        `/combo-detail?from=checkout&index=${index}&cid=${clientInstanceId}`
       )
       return
     }

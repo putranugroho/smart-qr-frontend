@@ -195,6 +195,17 @@ export default function ComboDetail({ combo: propCombo = null }) {
   const fallbackProductsRef = useRef({})        // store fallback products per groupKey from cart entry
   const prefilledRef = useRef(false)
 
+  const editingCID =
+  router.query?.cid ||
+  (() => {
+    try {
+      const raw = sessionStorage.getItem('yoshi_edit')
+      return raw ? JSON.parse(raw)?.clientInstanceId : null
+    } catch {
+      return null
+    }
+  })()
+
   // reset guards when editingIndex changes (new edit flow)
   useEffect(() => {
     injectedCondimentsRef.current = false
@@ -235,9 +246,18 @@ export default function ComboDetail({ combo: propCombo = null }) {
       try {
         setLoadingCombo(true)
         const cart = getCart() || []
-        const entry = cart[editingIndex]
-        if (!entry || entry.type !== 'combo') {
-          setLoadingCombo(false)
+        const entry = cart.find(it =>
+          it?.type === 'combo' &&
+          (
+            it.clientInstanceId === editingCID ||
+            it.detailCombo?.clientInstanceId === editingCID ||
+            it.combos?.[0]?.clientInstanceId === editingCID
+          )
+        )
+
+        if (!entry) {
+          console.log('[ComboDetail] Combo edit not found by CID:', editingCID)
+          router.replace('/checkout')
           return
         }
 
@@ -671,11 +691,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
     return (group.products || []).find(p => (p.code ?? String(p.id)) === String(productCode))
   }
 
-  function toggleExpandGroup(key) {
-    setExpandedGroup(prev => (prev === key ? null : key))
-    setMissingAddons(null)
-  }
-
   function handleSelectProduct(groupKey, productCode) {
     setSelectedProducts(prev => {
       const next = { ...prev }
@@ -938,7 +953,18 @@ export default function ComboDetail({ combo: propCombo = null }) {
       return
     }
 
-    
+    payload.clientInstanceId = originalClientInstanceId
+
+    if (payload.detailCombo) {
+      payload.detailCombo.clientInstanceId = originalClientInstanceId
+    }
+
+    if (Array.isArray(payload.combos)) {
+      payload.combos = payload.combos.map(c => ({
+        ...c,
+        clientInstanceId: originalClientInstanceId
+      }))
+    }
 
     try {
       setAddAnimating(true)
@@ -1262,7 +1288,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
             }
 
             const productsToShow = isToppingGroup ? [noAddonOption, ...products] : products
-            console.log("productsToShow",productsToShow);
 
             return (
               <div>

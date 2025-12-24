@@ -57,6 +57,14 @@ function mergeComboStates(prev, fetched) {
     // console.log('[MERGE] Tidak ada data sebelumnya, menggunakan data fetched.');
     return fetched;
   }
+  // 🚫 JANGAN merge jika orderType beda
+  if (
+    prev?.orderType &&
+    fetched?.orderType &&
+    String(prev.orderType) !== String(fetched.orderType)
+  ) {
+    return fetched
+  }
   
   // console.log('[MERGE] Menggabungkan data. Produk yang dipilih sebelumnya akan diprioritaskan.');
 
@@ -185,6 +193,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
   const resolvedOrderType = useMemo(() => {
     return resolveOrderType({ isEdit, router, editingIndex })
   }, [isEdit, router.query, editingIndex])
+  
+  const user = getUser?.() || {}
+  const storeCode = user.storeLocation
 
   const comboGroups = useMemo(() => (comboState && Array.isArray(comboState.comboGroups) ? comboState.comboGroups : []), [comboState])
 
@@ -354,8 +365,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
         if (comboCode) {
           try {
             // console.log('[RECOVER] Memulai Fetch API untuk:', comboCode);
-            const user = getUser?.() || {}
-            const storeCode = user.storeLocation
 
             const url = `/api/proxy/combo-list?orderCategoryCode=${resolvedOrderType}&storeCode=${encodeURIComponent(storeCode)}`
             const r = await fetch(url)
@@ -496,7 +505,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
             return;
           }
           // console.log('[ComboDetail] fetching full combo data for code:', code, 'because needsFetch=', needsFetch, 'groupsTruncated=', groupsTruncated);
-          const url = `/api/proxy/combo-list?orderCategoryCode=DI&storeCode=MGI`
+          const url = `/api/proxy/combo-list?orderCategoryCode=${resolvedOrderType}&storeCode=${storeCode}`
           const r = await fetch(url)
           if (r.ok) {
             const j = await r.json()
@@ -861,7 +870,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
     if (productsPayload.length === 0) return null
 
-    const user = getUser?.() || null;
     const combosForCart = [
       {
         detailCombo: {

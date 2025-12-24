@@ -1262,6 +1262,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
             }
 
             const productsToShow = isToppingGroup ? [noAddonOption, ...products] : products
+            console.log("productsToShow",productsToShow);
 
             return (
               <div>

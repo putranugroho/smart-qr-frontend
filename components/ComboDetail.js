@@ -108,7 +108,7 @@ function mergeComboStates(prev, fetched) {
         const pcode = String(p.code ?? p.id)
         if (!prodMap[pcode]) {
           // if prev product not in fetched, append it (so selection still resolvable)
-          console.warn('[SKIP PREV PRODUCT]', pcode, p)
+          console.log('[SKIP PREV PRODUCT]', pcode, p)
           // console.log(`[MERGE] Produk cart: ${pcode} (${p.name}) ditambahkan ke grup ${key} karena tidak ada di data API.`);
         } else {
           // merge condimentGroups carefully: prefer fetched, but add any extra conds from prev
@@ -431,7 +431,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
               }
             }
           } catch (e) {
-            console.warn('[ComboDetail] recover fetch error', e)
+            console.log('[ComboDetail] recover fetch error', e)
           }
         }
 
@@ -481,7 +481,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
         setLoadingCombo(false)
       } catch (e) {
-        console.warn('recoverComboForEdit failed', e)
+        console.log('recoverComboForEdit failed', e)
         setLoadingCombo(false)
       }
     }
@@ -554,10 +554,10 @@ export default function ComboDetail({ combo: propCombo = null }) {
               // console.log('[ComboDetail] fetch returned empty list')
             }
           } else {
-            console.warn('[ComboDetail] fetch failed status', r.status)
+            console.log('[ComboDetail] fetch failed status', r.status)
           }
         } catch (e) {
-          console.warn('[ComboDetail] fetch error', e)
+          console.log('[ComboDetail] fetch error', e)
         } finally {
           fetchedFullRef.current = true;
         }
@@ -671,7 +671,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
             injectedCondimentsRef.current = true; // mark done for this edit flow
           }
         } catch (e) {
-          console.warn('inject condimentGroups failed', e)
+          console.log('inject condimentGroups failed', e)
         }
 
         setSelectedProducts(sp)
@@ -696,7 +696,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         } catch (e) {}
       }
     } catch (e) {
-      console.warn('prefill combo edit failed', e)
+      console.log('prefill combo edit failed', e)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromCheckout, editingIndex, comboState])

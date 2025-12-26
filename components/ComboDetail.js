@@ -99,6 +99,10 @@ function mergeComboStates(prev, fetched) {
       fetchedProducts.forEach(p => {
         const pcode = String(p.code ?? p.id)
         prodMap[pcode] = p
+        console.log('[MERGE CHECK]', {
+          fromPrev: p,
+          fromFetched: prodMap[pcode]
+        })
       })
       prevProducts.forEach(p => {
         const pcode = String(p.code ?? p.id)
@@ -377,7 +381,10 @@ export default function ComboDetail({ combo: propCombo = null }) {
                 let found = list.find(x => String(x.code) === needle)
                 if (!found) found = list.find(x => String(x.code).toLowerCase() === needle.toLowerCase())
                 if (!found) found = list.find(x => String(x.name || '').toLowerCase() === needle.toLowerCase())
-
+                console.log('[FETCH COMBO LIST]', {
+                  comboCode,
+                  listCodes: list.map(x => x.code)
+                })
                 if (found) {
                   // console.log('[RECOVER] Data LENGKAP ditemukan dari API:', found.name);
                   try { if (found.code) sessionStorage.setItem(`combo_${String(found.code)}`, JSON.stringify(found)) } catch (e) {}
@@ -448,6 +455,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                  // Note: Tambahkan condimentGroups kosong atau dari p
                  condimentGroups: p.condimentGroups || [] 
              })
+             console.log('[FALLBACK PRODUCT]', p)
           })
           
           const groupsArr = Object.keys(groupsMap).map(k => groupsMap[k])

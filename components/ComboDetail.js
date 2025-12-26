@@ -54,7 +54,6 @@ function resolveOrderType({ isEdit, router, editingIndex }) {
 function mergeComboStates(prev, fetched) {
   if (!fetched) return prev || fetched || null;
   if (!prev) {
-    // console.log('[MERGE] Tidak ada data sebelumnya, menggunakan data fetched.');
     return fetched;
   }
   // 🚫 JANGAN merge jika orderType beda
@@ -65,8 +64,6 @@ function mergeComboStates(prev, fetched) {
   ) {
     return fetched
   }
-  
-  // console.log('[MERGE] Menggabungkan data. Produk yang dipilih sebelumnya akan diprioritaskan.');
 
   // clone fetched as base
   const out = JSON.parse(JSON.stringify(fetched));
@@ -99,7 +96,7 @@ function mergeComboStates(prev, fetched) {
       fetchedProducts.forEach(p => {
         const pcode = String(p.code ?? p.id)
         prodMap[pcode] = p
-        console.log('[MERGE CHECK]', {
+        console.warn('[MERGE CHECK]', {
           fromPrev: p,
           fromFetched: prodMap[pcode]
         })
@@ -108,8 +105,7 @@ function mergeComboStates(prev, fetched) {
         const pcode = String(p.code ?? p.id)
         if (!prodMap[pcode]) {
           // if prev product not in fetched, append it (so selection still resolvable)
-          console.log('[SKIP PREV PRODUCT]', pcode, p)
-          // console.log(`[MERGE] Produk cart: ${pcode} (${p.name}) ditambahkan ke grup ${key} karena tidak ada di data API.`);
+          console.warn('[SKIP PREV PRODUCT]', pcode, p)
         } else {
           // merge condimentGroups carefully: prefer fetched, but add any extra conds from prev
           const fp = prodMap[pcode]
@@ -148,7 +144,7 @@ function mergeComboStates(prev, fetched) {
     }
   })
 
-  console.log('[MERGE RESULT]', mergedGroup.products.map(p => ({
+  console.warn('[MERGE RESULT]', mergedGroup.products.map(p => ({
     code: p.code,
     name: p.name,
     price: p.price,
@@ -278,21 +274,17 @@ export default function ComboDetail({ combo: propCombo = null }) {
         )
 
         if (!entry) {
-          console.log('[ComboDetail] Combo edit not found by CID:', editingCID)
+          console.warn('[ComboDetail] Combo edit not found by CID:', editingCID)
           router.replace('/checkout')
           return
         }
 
-        // console.log('[RECOVER] Memulai Pemulihan Edit Index:', editingIndex);
-        
         // store original clientInstanceId
         const existingClientId = entry.clientInstanceId || (entry.detailCombo && entry.detailCombo.clientInstanceId) || null
         if (existingClientId) setOriginalClientInstanceId(String(existingClientId))
 
         const firstComboBlock = Array.isArray(entry.combos) && entry.combos.length > 0 ? entry.combos[0] : null
         const comboCode = (entry.detailCombo && (entry.detailCombo.code || entry.detailCombo.name)) || (firstComboBlock && (firstComboBlock.detailCombo?.code || firstComboBlock.detailCombo?.name)) || null
-
-        // console.log('[RECOVER] Combo Code terdeteksi:', comboCode);
 
         // build mapping sp/sc
         const sp = {}
@@ -324,8 +316,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
           })
         }
         
-        // console.log('[RECOVER] Produk Terpilih (sp):', sp);
-
         // ============================================================
         // 1) try from sessionStorage (DENGAN VALIDASI KELENGKAPAN DATA)
         // ============================================================
@@ -344,7 +334,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
               const looksLikeMasterData = Array.isArray(parsed.comboGroups) && parsed.comboGroups.some(g => Array.isArray(g.products) && g.products.length > 1);
 
               if (looksLikeMasterData) {
-                // console.log('[RECOVER] Data Session Storage LENGKAP ditemukan. Menggunakan cache.');
                 sessionDataIncomplete = false; // Tandai lengkap, kita stop di sini
 
                 setComboState(parsed)
@@ -363,7 +352,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
                 prefilledRef.current = true
                 return; // STOP HERE only if data is complete
               } else {
-                 // console.log('[RECOVER] Data Session Storage ditemukan tapi TIDAK LENGKAP (versi minimal). Melanjutkan ke Fetch API...');
                  // JANGAN RETURN, LANJUT KE STEP 2
               }
             }
@@ -375,8 +363,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
         // ============================================================
         if (comboCode) {
           try {
-            // console.log('[RECOVER] Memulai Fetch API untuk:', comboCode);
-
             const url = `/api/proxy/combo-list?orderCategoryCode=${resolvedOrderType}&storeCode=${encodeURIComponent(storeCode)}&pageSize=1000`
             const r = await fetch(url)
             if (r.ok) {
@@ -388,12 +374,11 @@ export default function ComboDetail({ combo: propCombo = null }) {
                 let found = list.find(x => String(x.code) === needle)
                 if (!found) found = list.find(x => String(x.code).toLowerCase() === needle.toLowerCase())
                 if (!found) found = list.find(x => String(x.name || '').toLowerCase() === needle.toLowerCase())
-                console.log('[FETCH COMBO LIST]', {
+                console.warn('[FETCH COMBO LIST]', {
                   comboCode,
                   listCodes: list.map(x => x.code)
                 })
                 if (found) {
-                  // console.log('[RECOVER] Data LENGKAP ditemukan dari API:', found.name);
                   try { if (found.code) sessionStorage.setItem(`combo_${String(found.code)}`, JSON.stringify(found)) } catch (e) {}
                   
                   // PENTING: Gunakan mergeComboStates di sini
@@ -426,19 +411,17 @@ export default function ComboDetail({ combo: propCombo = null }) {
                   setLoadingCombo(false)
                   return // SUCCESS Fetch
                 } else {
-                    // console.log('[RECOVER] Fetch berhasil tapi kode combo tidak ditemukan di list.');
                 }
               }
             }
           } catch (e) {
-            console.log('[ComboDetail] recover fetch error', e)
+            console.warn('[ComboDetail] recover fetch error', e)
           }
         }
 
         // ============================================================
         // 3) fallback (Hanya jika Fetch gagal total)
         // ============================================================
-        // console.log('[RECOVER] Masuk ke Fallback (Data Minimal)');
         if (firstComboBlock && Array.isArray(firstComboBlock.products)) {
           // ... (Kode fallback lama Anda tetap disini) ...
           // Kode fallback Anda sudah benar untuk menampilkan apa adanya
@@ -462,7 +445,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                  // Note: Tambahkan condimentGroups kosong atau dari p
                  condimentGroups: p.condimentGroups || [] 
              })
-             console.log('[FALLBACK PRODUCT]', p)
+             console.warn('[FALLBACK PRODUCT]', p)
           })
           
           const groupsArr = Object.keys(groupsMap).map(k => groupsMap[k])
@@ -481,7 +464,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
         setLoadingCombo(false)
       } catch (e) {
-        console.log('recoverComboForEdit failed', e)
+        console.warn('recoverComboForEdit failed', e)
         setLoadingCombo(false)
       }
     }
@@ -519,7 +502,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
             fetchedFullRef.current = true;
             return;
           }
-          // console.log('[ComboDetail] fetching full combo data for code:', code, 'because needsFetch=', needsFetch, 'groupsTruncated=', groupsTruncated);
           const url = `/api/proxy/combo-list?orderCategoryCode=${resolvedOrderType}&storeCode=${storeCode}`
           const r = await fetch(url)
           if (r.ok) {
@@ -547,17 +529,11 @@ export default function ComboDetail({ combo: propCombo = null }) {
                     return finalCombo
                   }
                 })
-              } else {
-                // console.log('[ComboDetail] fetch returned list but no suitable combo found and comboState already present — skipping overwrite')
               }
-            } else {
-              // console.log('[ComboDetail] fetch returned empty list')
             }
-          } else {
-            console.log('[ComboDetail] fetch failed status', r.status)
           }
         } catch (e) {
-          console.log('[ComboDetail] fetch error', e)
+          console.warn('[ComboDetail] fetch error', e)
         } finally {
           fetchedFullRef.current = true;
         }
@@ -671,7 +647,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
             injectedCondimentsRef.current = true; // mark done for this edit flow
           }
         } catch (e) {
-          console.log('inject condimentGroups failed', e)
+          console.warn('inject condimentGroups failed', e)
         }
 
         setSelectedProducts(sp)
@@ -696,7 +672,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         } catch (e) {}
       }
     } catch (e) {
-      console.log('prefill combo edit failed', e)
+      console.warn('prefill combo edit failed', e)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromCheckout, editingIndex, comboState])
@@ -969,7 +945,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
     }
 
     const payload = buildComboCartPayload()
-    console.log("payload combo", payload);
+    console.warn("payload combo", payload);
     
     if (!payload) {
       alert('Payload combo tidak valid.')
@@ -1092,19 +1068,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
       }
     `}</style>
   )
-
-  // debug helper (can remove later)
-  useEffect(() => {
-    try {
-      if (fromCheckout && editingIndex != null) {
-        // console.log('[DEBUG ComboDetail] comboState:', comboState)
-        // console.log('[DEBUG ComboDetail] comboGroups keys:', (comboState?.comboGroups || []).map(g => getGroupKey(g)))
-        // console.log('[DEBUG ComboDetail] selectedProducts:', selectedProducts)
-        // console.log('[DEBUG ComboDetail] selectedCondiments:', selectedCondiments)
-        // console.log('[DEBUG ComboDetail] fallbackProductsRef:', fallbackProductsRef.current)
-      }
-    } catch (e) {}
-  }, [comboState, selectedProducts, selectedCondiments, fromCheckout, editingIndex])
 
   return (
     <div className={styles.page}>
@@ -1294,9 +1257,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
             const products = (Array.isArray(grp.products) && grp.products.length)
               ? grp.products
               : (fallbackProductsRef.current[getGroupKey(grp)] || [])
-            
-            // console.log(`[UI RENDER] Group: ${grp.name}. Total Products: ${products.length}.`);
-            // console.log(`[UI RENDER] Daftar Produk:`, products.map(p => p.name));
 
             const isToppingGroup = String((grp.code || '').toUpperCase()) === 'KIDS-TOPPING-ALL' ||
                                    String((grp.name || '').toLowerCase()).includes('add on topping')

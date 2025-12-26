@@ -108,7 +108,7 @@ function mergeComboStates(prev, fetched) {
         const pcode = String(p.code ?? p.id)
         if (!prodMap[pcode]) {
           // if prev product not in fetched, append it (so selection still resolvable)
-          prodMap[pcode] = p
+          console.warn('[SKIP PREV PRODUCT]', pcode, p)
           // console.log(`[MERGE] Produk cart: ${pcode} (${p.name}) ditambahkan ke grup ${key} karena tidak ada di data API.`);
         } else {
           // merge condimentGroups carefully: prefer fetched, but add any extra conds from prev
@@ -147,6 +147,13 @@ function mergeComboStates(prev, fetched) {
       mergedGroups.push(pg)
     }
   })
+
+  console.log('[MERGE RESULT]', mergedGroup.products.map(p => ({
+    code: p.code,
+    name: p.name,
+    price: p.price,
+    image: p.imagePath || p.image
+  })))
 
   out.comboGroups = mergedGroups
   // preserve some helpful fields from prev (if fetched missing them)

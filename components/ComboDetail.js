@@ -370,7 +370,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
           try {
             // console.log('[RECOVER] Memulai Fetch API untuk:', comboCode);
 
-            const url = `/api/proxy/combo-list?orderCategoryCode=${resolvedOrderType}&storeCode=${encodeURIComponent(storeCode)}`
+            const url = `/api/proxy/combo-list?orderCategoryCode=${resolvedOrderType}&storeCode=${encodeURIComponent(storeCode)}&pageSize=1000`
             const r = await fetch(url)
             if (r.ok) {
               const j = await r.json()

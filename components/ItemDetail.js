@@ -413,17 +413,33 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     const missing = addons.filter(g => {
       const val = selected[g.group]
 
-      // mandatory group
-      if (!g.allowSkip) {
-        // semua opsi OOS → INVALID
-        const available = g.options.filter(o => !o.isOutOfStock)
-        if (available.length === 0) return true
+      // ===============================
+      // 1. GROUP BOLEH SKIP
+      // ===============================
+      if (g.allowSkip) {
+        // user memilih "tanpa add ons" → VALID
+        if (val == null || val === NONE_OPTION_ID) return false
+
+        // array kosong → VALID
+        if (Array.isArray(val) && val.length === 0) return false
       }
 
-      if (val == null) return true
-      if (Array.isArray(val) && val.length === 0) return true
+      // ===============================
+      // 2. GROUP WAJIB
+      // ===============================
+      if (!g.allowSkip) {
+        const available = g.options.filter(o => !o.isOutOfStock)
 
-      // pastikan yg dipilih bukan OOS
+        // semua OOS → tidak bisa dipilih, jangan blok user
+        if (available.length === 0) return false
+
+        // belum pilih apa pun
+        if (val == null || val === NONE_OPTION_ID) return true
+      }
+
+      // ===============================
+      // 3. VALIDASI ISI PILIHAN
+      // ===============================
       const isValid = (optId) =>
         g.options.some(o =>
           String(o.id) === String(optId) && !o.isOutOfStock
@@ -432,12 +448,14 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
       if (Array.isArray(val)) return !val.every(isValid)
       return !isValid(val)
     })
+
     if (missing.length > 0) {
       const names = missing.map(m => m.name || m.group).join(', ')
       setMissingAddons(names)
       setShowPopup(true)
       return false
     }
+
     return true
   }
 
@@ -504,7 +522,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         };
       };
 
-      return Array.isArray(val) ? val.map(mapOne).filter(Boolean) : [mapOne(val).filter(Boolean)];
+      return Array.isArray(val) ? val.map(mapOne) : [mapOne(val)];
     });
 
     // ======== Taxes for Menu only (use legacySourceForTaxes or apiItem) =========

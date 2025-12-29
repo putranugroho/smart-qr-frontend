@@ -43,7 +43,7 @@ export default async function handler(req, res) {
         console.error("Expected:", expectedSignature);
         console.error("Received:", signature_key);
 
-        return res.status(401).json({
+        return res.status(402).json({
             ok: false,
             message: "Invalid signature key"
         });
@@ -98,11 +98,11 @@ export default async function handler(req, res) {
                 });
             } else {
                 console.log("❌ Backend failed: " + JSON.stringify(result));
-                return res.status(402).json({ ok: false, message: "Failed to complete do-payment", error: JSON.stringify(resp) });
+                return res.status(403).json({ ok: false, message: "Failed to complete do-payment", error: JSON.stringify(resp) });
             }
         }
         
-        return res.status(401).json({ ok: false, message: "Paid status was not completed", error: String(err) });
+        return res.status(401).json({ ok: false, message: "Paid status was not completed"});
     } catch (err) {
         console.log("ERROR HANDLING MIDTRANS NOTIF: " + err);
         return res.status(500).json({ ok: false, message: "Internal server error", error: String(err) });

@@ -312,6 +312,7 @@ export default function Menu() {
         ...parsed,
         id: ensureUniqueIdForCombo(parsed),
         code: parsed.code ?? parsed.id,
+        categoryId: Number(menuCategoryId),
         image: parsed.image ?? parsed.imagePath ?? "/images/no-image-available.jpg",
         price: parsed.price ?? parsed.totalPrice ?? 0,
         outOfStock: Boolean(parsed.outOfStock)
@@ -361,12 +362,12 @@ export default function Menu() {
         }));
 
         // 🔑 FILTER combo PER CATEGORY (LOGIC DI SINI)
-        const comboForCategory = combos.filter(c =>
-          String(c.categoryId ?? c.menuCategoryId ?? '').toString() === String(cat.id)
-        );        
+        const comboForCategory = combos.filter(
+          c => Number(c.categoryId) === Number(cat.id)
+        );
 
         const finalItems = uniqBy(
-          [...menuItems, ...combos],
+          [...menuItems, ...comboForCategory],
           x => x.id
         );
 

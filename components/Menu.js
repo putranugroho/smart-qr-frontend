@@ -148,7 +148,7 @@ export default function Menu() {
             code: parsed.code ?? parsed.id ?? parsed.comboId ?? parsed.code,
             image: parsed.image ?? parsed.imagePath ?? parsed.imageUrl ?? "/images/no-image-available.jpg",
             price: parsed.price ?? parsed.totalPrice ?? 0,
-            outOfStock: Boolean(parsed.outOfStock)
+            outOfStock: c.outOfStock === true
           };
         });
 
@@ -315,7 +315,7 @@ export default function Menu() {
         categoryId: Number(menuCategoryId),
         image: parsed.image ?? parsed.imagePath ?? "/images/no-image-available.jpg",
         price: parsed.price ?? parsed.totalPrice ?? 0,
-        outOfStock: Boolean(parsed.outOfStock)
+        outOfStock: c.outOfStock === true
       };
     });
   } catch (e) {
@@ -607,22 +607,13 @@ export default function Menu() {
                   ) : viewMode === "list" ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                       {cat.items.map((it) => {
-                        const safeItem = {
-                          ...it,
-                          outOfStock: it.outOfStock === true
-                        }
-                        return <CardItem key={it.id} item={safeItem} mode={viewMode} />
+                        <CardItem key={it.id} item={safeItem} mode={viewMode} />
                       })}
                     </div>
                   ) : (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
                       {cat.items.map((it) => {
-                        const safeItem = {
-                          ...it,
-                          outOfStock: it.outOfStock === true
-                        }
-                        
-                        return <CardItem key={it.id} item={safeItem} mode={viewMode} />
+                        <CardItem key={it.id} item={safeItem} mode={viewMode} />
                       })}
                     </div>
                   )}

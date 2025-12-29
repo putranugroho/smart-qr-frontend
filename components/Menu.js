@@ -620,6 +620,8 @@ export default function Menu() {
                           ...it,
                           outOfStock: it.outOfStock === true
                         }
+                        console.log("safeItem",safeItem);
+                        
                         return <CardItem key={it.id} item={safeItem} mode={viewMode} />
                       })}
                     </div>

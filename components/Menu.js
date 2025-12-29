@@ -605,15 +605,23 @@ export default function Menu() {
                     renderCategorySkeleton()
                   ) : viewMode === "list" ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                      {cat.items.map((it) => (
-                        <CardItem key={it.id} item={it} mode="list" />
-                      ))}
+                      {cat.items.map((it) => {
+                        const safeItem = {
+                          ...it,
+                          outOfStock: it.outOfStock === true
+                        }
+                        return <CardItem key={it.id} item={safeItem} mode={viewMode} />
+                      })}
                     </div>
                   ) : (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-                      {cat.items.map((it) => (
-                        <CardItem key={it.id} item={it} mode="grid" />
-                      ))}
+                      {cat.items.map((it) => {
+                        const safeItem = {
+                          ...it,
+                          outOfStock: it.outOfStock === true
+                        }
+                        return <CardItem key={it.id} item={safeItem} mode={viewMode} />
+                      })}
                     </div>
                   )}
                 </div>

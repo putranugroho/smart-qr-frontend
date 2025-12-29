@@ -293,7 +293,8 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
             price: Number(p.price || 0),
             image: p.imagePath || '',
             taxes: Array.isArray(p.taxes) ? p.taxes : [],
-            description: p.description || ''
+            description: p.description || '',
+            isOutOfStock: p.isOutOfStock === true
           })) : []
 
           return {
@@ -309,6 +310,28 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         }) : []
 
         setAddons(groups)
+        setSelected(prev => {
+          const cleaned = { ...prev }
+
+          groups.forEach(g => {
+            const val = cleaned[g.group]
+            if (val == null || val === NONE_OPTION_ID) return
+
+            const isValid = (optId) =>
+              g.options.some(o =>
+                String(o.id) === String(optId) && !o.isOutOfStock
+              )
+
+            if (Array.isArray(val)) {
+              const filtered = val.filter(isValid)
+              cleaned[g.group] = filtered.length ? filtered : null
+            } else {
+              if (!isValid(val)) cleaned[g.group] = null
+            }
+          })
+
+          return cleaned
+        })
         setNoCondiments(groups.length === 0)
 
         setItem(prev => (({
@@ -389,9 +412,25 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
   function validateSelection() {
     const missing = addons.filter(g => {
       const val = selected[g.group]
+
+      // mandatory group
+      if (!g.allowSkip) {
+        // semua opsi OOS → INVALID
+        const available = g.options.filter(o => !o.isOutOfStock)
+        if (available.length === 0) return true
+      }
+
       if (val == null) return true
       if (Array.isArray(val) && val.length === 0) return true
-      return false
+
+      // pastikan yg dipilih bukan OOS
+      const isValid = (optId) =>
+        g.options.some(o =>
+          String(o.id) === String(optId) && !o.isOutOfStock
+        )
+
+      if (Array.isArray(val)) return !val.every(isValid)
+      return !isValid(val)
     })
     if (missing.length > 0) {
       const names = missing.map(m => m.name || m.group).join(', ')
@@ -435,6 +474,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
       const mapOne = (optId) => {
         const opt = findOption(g, optId);
+        if (!opt || opt.isOutOfStock) return null;
         const price = Number(opt?.price || 0);
 
         // Prefer tax info from the option itself (opt.taxes), fallback to legacySourceForTaxes.taxes
@@ -464,7 +504,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
         };
       };
 
-      return Array.isArray(val) ? val.map(mapOne) : [mapOne(val)];
+      return Array.isArray(val) ? val.map(mapOne).filter(Boolean) : [mapOne(val).filter(Boolean)];
     });
 
     // ======== Taxes for Menu only (use legacySourceForTaxes or apiItem) =========
@@ -683,6 +723,10 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
   const addBtnLabel = (fromCheckout && editingIndex != null) ? 'Ubah Pesanan' : 'Tambah Pesanan'
 
+  const hasMandatoryOutOfStock = addons.some(g =>
+    !g.allowSkip && g.options.every(o => o.isOutOfStock)
+  )
+
   // UI (unchanged)
   return (
     <div className={styles.page}>
@@ -827,9 +871,20 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
                 })()
 
                 return (
-                  <label key={opt.id} className={styles.optionLabel}>
+                  <label
+                    key={opt.id}
+                    className={`${styles.optionLabel} ${opt.isOutOfStock ? styles.outOfStock : ''}`}
+                    style={{ opacity: opt.isOutOfStock ? 0.45 : 1 }}
+                  >
                     <div className={styles.optionName}>
-                      <div>{opt.name}</div>
+                      <div>
+                        {opt.name}
+                        {opt.isOutOfStock && (
+                          <span style={{ color: 'crimson', marginLeft: 6, fontSize: 12 }}>
+                            (Out Of Stock)
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className={styles.optionRight}>
@@ -839,6 +894,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
                         type="radio"
                         name={groupKey}
                         checked={!!isSelected}
+                        disabled={opt.isOutOfStock}
                         onChange={() => onToggleOption(groupKey, opt.id, allowSkip)}
                         className={styles.radio}
                       />
@@ -864,7 +920,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
             onAdd={handleAddToCart}
             addAnimating={addAnimating}
             addLabel={addBtnLabel}
-            disabled={!isCondimentReady}
+            disabled={!isCondimentReady || hasMandatoryOutOfStock}
             isEditing={fromCheckout && editingIndex != null}
           />
         </div>

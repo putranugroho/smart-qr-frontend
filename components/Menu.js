@@ -147,7 +147,8 @@ export default function Menu() {
             id,
             code: parsed.code ?? parsed.id ?? parsed.comboId ?? parsed.code,
             image: parsed.image ?? parsed.imagePath ?? parsed.imageUrl ?? "/images/no-image-available.jpg",
-            price: parsed.price ?? parsed.totalPrice ?? 0
+            price: parsed.price ?? parsed.totalPrice ?? 0,
+            outOfStock: Boolean(parsed.outOfStock)
           };
         });
 
@@ -312,7 +313,8 @@ export default function Menu() {
         id: ensureUniqueIdForCombo(parsed),
         code: parsed.code ?? parsed.id,
         image: parsed.image ?? parsed.imagePath ?? "/images/no-image-available.jpg",
-        price: parsed.price ?? parsed.totalPrice ?? 0
+        price: parsed.price ?? parsed.totalPrice ?? 0,
+        outOfStock: Boolean(parsed.outOfStock)
       };
     });
   } catch (e) {

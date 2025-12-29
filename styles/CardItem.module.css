@@ -39,6 +39,10 @@
   color: #6b7280 !important;
 }
 
+.outOfStock img {
+  filter: grayscale(100%);
+}
+
 .cardBody {
   height: 65px;
   padding: 4px 2px;

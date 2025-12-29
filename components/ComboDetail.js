@@ -301,7 +301,15 @@ export default function ComboDetail({ combo: propCombo = null }) {
               if (found) matchedKey = (found.code ?? found.name ?? String(found.id))
             }
             const finalKey = matchedKey || rawGroupMarker || (`group_${p.comboGroup || p.comboGroupCode || 'x'}`)
-            if (finalKey && p.code) sp[finalKey] = p.code
+            if (finalKey && p.code) {
+              const grp = comboState?.comboGroups?.find(g => getGroupKey(g) === finalKey)
+              const prod = grp?.products?.find(x => String(x.code) === String(p.code))
+
+              // 🚫 JANGAN preselect jika sekarang OOS
+              if (!prod?.outOfStock) {
+                sp[finalKey] = p.code
+              }
+            }
 
             if (Array.isArray(p.condiments) && p.condiments.length > 0) {
               sc[p.code] = {}
@@ -692,6 +700,14 @@ export default function ComboDetail({ combo: propCombo = null }) {
   }
 
   function handleSelectProduct(groupKey, productCode) {
+    const grp = findComboGroupByKey(groupKey)
+    const prod = findProductInGroup(grp, productCode)
+
+    // 🚫 BLOCK jika out of stock
+    if (prod?.outOfStock) {
+      return
+    }
+
     setSelectedProducts(prev => {
       const next = { ...prev }
       const prevProduct = next[groupKey]
@@ -919,6 +935,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
       const grp = findComboGroupByKey(groupKey)
       const prod = findProductInGroup(grp, prodCode)
       if (!prod) return
+      if (prod?.outOfStock) throw new Error(`Produk ${prod.name} sedang habis`)
       const condGroups = Array.isArray(prod.condimentGroups) ? prod.condimentGroups : []
       const prodCondMap = selectedCondiments[prod.code] || {}
       condGroups.forEach(g => {
@@ -937,59 +954,65 @@ export default function ComboDetail({ combo: propCombo = null }) {
   }
 
   function handleAddToCart() {
-    const v = validateSelectionBeforeAdd()
-    if (!v.ok) {
-      setMissingAddons(v.msg)
-      setShowPopup(true)
-      return
-    }
-
-    const payload = buildComboCartPayload()
-    console.warn("payload combo", payload);
-    
-    if (!payload) {
-      alert('Payload combo tidak valid.')
-      return
-    }
-
-    payload.clientInstanceId = originalClientInstanceId
-
-    if (payload.detailCombo) {
-      payload.detailCombo.clientInstanceId = originalClientInstanceId
-    }
-
-    if (Array.isArray(payload.combos)) {
-      payload.combos = payload.combos.map(c => ({
-        ...c,
-        clientInstanceId: originalClientInstanceId
-      }))
-    }
-
     try {
-      setAddAnimating(true)
-      setTimeout(() => setAddAnimating(false), 500)
-
-      if (fromCheckout && editingIndex != null) {
-        // replace the cart entry at the editing index so we don't accidentally merge/accumulate qty
-        try {
-          replaceCartAtIndex(Number(editingIndex), payload)
-        } catch (e) {
-          // fallback: try updateCart if replace isn't available for some reason
-          updateCart(Number(editingIndex), payload)
-        }
-      } else {
-        addToCart(payload)
+      const v = validateSelectionBeforeAdd()
+      if (!v.ok) {
+        setMissingAddons(v.msg)
+        setShowPopup(true)
+        return
       }
+
+      const payload = buildComboCartPayload()
+      console.warn("payload combo", payload);
+      
+      if (!payload) {
+        alert('Payload combo tidak valid.')
+        return
+      }
+
+      payload.clientInstanceId = originalClientInstanceId
+
+      if (payload.detailCombo) {
+        payload.detailCombo.clientInstanceId = originalClientInstanceId
+      }
+
+      if (Array.isArray(payload.combos)) {
+        payload.combos = payload.combos.map(c => ({
+          ...c,
+          clientInstanceId: originalClientInstanceId
+        }))
+      }
+
+      try {
+        setAddAnimating(true)
+        setTimeout(() => setAddAnimating(false), 500)
+
+        if (fromCheckout && editingIndex != null) {
+          // replace the cart entry at the editing index so we don't accidentally merge/accumulate qty
+          try {
+            replaceCartAtIndex(Number(editingIndex), payload)
+          } catch (e) {
+            // fallback: try updateCart if replace isn't available for some reason
+            updateCart(Number(editingIndex), payload)
+          }
+        } else {
+          addToCart(payload)
+        }
+        setShowPopup(true)
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+        toastTimerRef.current = setTimeout(() => {
+          setShowPopup(false)
+          setMissingAddons(null)
+          router.push('/menu')
+        }, 900)
+      } catch (e) {
+        console.error('addToCart combo failed', e)
+        alert('Gagal menambahkan ke keranjang')
+      }
+      } catch (e) {
+      setMissingAddons(e.message || 'Produk habis')
       setShowPopup(true)
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-      toastTimerRef.current = setTimeout(() => {
-        setShowPopup(false)
-        setMissingAddons(null)
-        router.push('/menu')
-      }, 900)
-    } catch (e) {
-      console.error('addToCart combo failed', e)
-      alert('Gagal menambahkan ke keranjang')
+      return
     }
   }
 
@@ -1280,6 +1303,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                   {productsToShow.map(p => {
                     const pCode = p.code ?? String(p.id)
                     const checked = selectedProducts[getGroupKey(grp)] === pCode
+                    const isOOS = p.outOfStock === true
                     return (
                       <div
                         key={pCode}
@@ -1293,7 +1317,10 @@ export default function ComboDetail({ combo: propCombo = null }) {
                           minHeight: 84,
                           borderRadius: 8,
                           background: '#fff',
-                          border: checked ? '1.5px solid #f97316' : '1px solid #e5e7eb'
+                          border: checked ? '1.5px solid #f97316' : '1px solid #e5e7eb',
+                          opacity: isOOS ? 0.45 : 1,
+                          filter: isOOS ? 'grayscale(1)' : 'none',
+                          pointerEvents: isOOS ? 'none' : 'auto'
                         }}
                       >
                         {/* IMAGE COLUMN */}
@@ -1349,6 +1376,19 @@ export default function ComboDetail({ combo: propCombo = null }) {
                               {p.description}
                             </div>
                           )}
+
+                          {isOOS && (
+                            <div
+                              style={{
+                                marginTop: 4,
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color: '#dc2626' // red-600
+                              }}
+                            >
+                              Out Of Stock
+                            </div>
+                          )}
                         </div>
 
                         {/* PRICE + RADIO COLUMN */}
@@ -1369,6 +1409,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                             type="radio"
                             name={`prod-${getGroupKey(grp)}`}
                             checked={checked}
+                            disabled={isOOS}
                             onChange={() => handleSelectProduct(getGroupKey(grp), pCode)}
                           />
                         </div>

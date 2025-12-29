@@ -349,8 +349,22 @@ export default function Menu() {
         ]);
 
         const rawMenu = Array.isArray(menuRes?.data) ? menuRes.data : [];
-        const menuItems = rawMenu.map((it, idx) => ({
-          id: ensureUniqueIdForMenu(it, cat.id, idx),
+        rawMenu.forEach(it => {
+          console.log('[RAW MENU]', {
+            name: it.name,
+            outOfStock: it.outOfStock,
+            type: typeof it.outOfStock
+          });
+        });
+        const menuItems = rawMenu.map((it, idx) => {
+  console.log('[MAP MENU]', {
+    name: it.name,
+    raw: it.outOfStock,
+    boolean: Boolean(it.outOfStock)
+  });
+
+  return {
+    id: ensureUniqueIdForMenu(it, cat.id, idx),
           code: it.code ?? it.id,
           name: it.name,
           itemName: it.itemName,
@@ -359,7 +373,8 @@ export default function Menu() {
           image: it.imagePath ?? it.imageUrl ?? "/images/no-image-available.jpg",
           category: cat.name,
           outOfStock: Boolean(it.outOfStock)
-        }));
+  };
+});
 
         // 🔑 FILTER combo PER CATEGORY (LOGIC DI SINI)
         const comboForCategory = combos.filter(
@@ -370,6 +385,15 @@ export default function Menu() {
           [...menuItems, ...comboForCategory],
           x => x.id
         );
+
+        finalItems.forEach(it => {
+  console.log('[FINAL ITEMS]', {
+    id: it.id,
+    name: it.name,
+    outOfStock: it.outOfStock,
+    isCombo: !!it.comboGroups
+  });
+});
 
         setCategories(prev =>
           prev.map(p =>
@@ -607,22 +631,28 @@ export default function Menu() {
                   ) : viewMode === "list" ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                       {cat.items.map((it) => {
-                        const safeItem = {
-                          ...it,
-                          outOfStock: it.outOfStock === true
-                        }
+                        finalItems.forEach(it => {
+  console.log('[FINAL ITEMS]', {
+    id: it.id,
+    name: it.name,
+    outOfStock: it.outOfStock,
+    isCombo: !!it.comboGroups
+  });
+});
                         return <CardItem key={it.id} item={safeItem} mode={viewMode} />
                       })}
                     </div>
                   ) : (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
                       {cat.items.map((it) => {
-                        const safeItem = {
-                          ...it,
-                          outOfStock: it.outOfStock === true
-                        }
-                        console.log("safeItem",safeItem);
-                        
+                        finalItems.forEach(it => {
+  console.log('[FINAL ITEMS]', {
+    id: it.id,
+    name: it.name,
+    outOfStock: it.outOfStock,
+    isCombo: !!it.comboGroups
+  });
+});                     
                         return <CardItem key={it.id} item={safeItem} mode={viewMode} />
                       })}
                     </div>

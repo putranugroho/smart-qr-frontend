@@ -366,7 +366,7 @@ export default function Menu() {
         );        
 
         const finalItems = uniqBy(
-          [...menuItems, ...comboForCategory],
+          [...menuItems, ...combos],
           x => x.id
         );
 

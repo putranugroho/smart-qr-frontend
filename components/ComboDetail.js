@@ -685,6 +685,49 @@ export default function ComboDetail({ combo: propCombo = null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromCheckout, editingIndex, comboState])
 
+  // AUTO SELECT SINGLE PRODUCT (NEW COMBO ONLY)
+  useEffect(() => {
+    // ❌ jangan jalan di mode edit
+    if (fromCheckout || editingIndex != null) return
+    if (!comboState) return
+    if (!Array.isArray(comboState.comboGroups)) return
+
+    let changed = false
+    const nextSelected = { ...selectedProducts }
+
+    comboState.comboGroups.forEach(g => {
+      const groupKey = getGroupKey(g)
+
+      // skip kalau sudah ada pilihan
+      if (nextSelected[groupKey]) return
+
+      // hanya auto select jika benar-benar 1 produk
+      if (Array.isArray(g.products) && g.products.length === 1) {
+        const p = g.products[0]
+        if (!p?.outOfStock) {
+          nextSelected[groupKey] = p.code ?? p.id
+          changed = true
+        }
+      }
+    })
+
+    if (changed) {
+      setSelectedProducts(nextSelected)
+
+      // optional UX: auto expand ke group pertama yang di-auto-select
+      const firstKey = Object.keys(nextSelected)[0]
+      if (firstKey) {
+        setExpandedGroup(firstKey)
+        const prodCode = nextSelected[firstKey]
+        requestAnimationFrame(() => {
+          scrollToProduct(prodCode, firstKey)
+        })
+      }
+    }
+  // ⚠️ penting: dependency comboState
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comboState])
+
   function getGroupKey(g) {
     return g.code ?? g.name ?? String(g.id)
   }

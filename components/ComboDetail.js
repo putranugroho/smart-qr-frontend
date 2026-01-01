@@ -1197,31 +1197,77 @@ export default function ComboDetail({ combo: propCombo = null }) {
               ? findProductInGroup(group, selectedProductCode)
               : null
           const isOpen = openGroups[groupKey] === true
+          const isSelected = Boolean(
+            selectedProductCode && selectedProductCode !== NO_ADDON_CODE
+          )
 
           return (
             <div
               key={groupKey}
               style={{
-                border: '1px solid #e5e7eb',
                 borderRadius: 12,
                 padding: 12,
                 marginBottom: 16,
-                background: selectedProduct ? '#fff7ed' : '#fff',
-                transition: 'all .2s'
+                overflow: 'hidden',
+
+                // 🔥 BORDER ORANGE JIKA SUDAH DIPILIH
+                border: isSelected
+                  ? '2px solid #f97316'
+                  : isOpen
+                    ? '1px solid #e5e7eb'
+                    : '1px solid #e5e7eb',
+
+                // 🔥 BACKGROUND ORANGE TERANG
+                background: isSelected
+                  ? '#fff7ed'
+                  : '#fff',
+
+                boxShadow: isSelected
+                  ? '0 0 0 2px rgba(249, 115, 22, 0.25)'
+                  : 'none',
+
+                transition: 'all 0.2s ease'
               }}
             >
               {/* ================= HEADER PAKET ================= */}
               <div
                 style={{ display: 'flex', justifyContent: 'space-between', cursor: 'pointer' }}
                 onClick={() =>
-                  setOpenGroups(prev => ({
-                    ...prev,
-                    [groupKey]: !prev[groupKey]
-                  }))
+                  setOpenGroups(prev => {
+                    const next = {}
+                    Object.keys(prev).forEach(k => {
+                      next[k] = false // 🔥 tutup semua
+                    })
+
+                    next[groupKey] = !prev[groupKey] // buka/tutup target
+                    return next
+                  })
                 }
               >
                 <div>
-                  <div style={{ fontWeight: 600 }}>{group.name}</div>
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6
+                    }}
+                  >
+                    {group.name}
+                    {isSelected && (
+                      <span
+                        style={{
+                          fontSize: 11,
+                          background: '#f97316',
+                          color: '#fff',
+                          padding: '2px 6px',
+                          borderRadius: 999
+                        }}
+                      >
+                        Dipilih
+                      </span>
+                    )}
+                  </div>
                   <div style={{ fontSize: 13, color: '#666' }}>
                     {selectedProduct
                       ? selectedProduct.name

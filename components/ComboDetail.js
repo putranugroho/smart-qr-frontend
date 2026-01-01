@@ -731,7 +731,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
       g => getGroupKey(g) === groupKey
     )
 
-    if (group?.activeCondiment === false || !product.condimentGroups?.length) {
+    if (group?.activeCondiment === false) {
       // langsung pindah ke paket berikutnya
       setTimeout(() => {
         focusNextUnselectedGroup(groupKey)
@@ -808,13 +808,16 @@ export default function ComboDetail({ combo: propCombo = null }) {
       const nextKey = getGroupKey(groups[i])
 
       if (!selectedProducts[nextKey]) {
-        // 🔥 buka hanya paket ini, auto-hide lainnya
-        setOpenGroups({ [nextKey]: true })
+        setOpenGroups(prev => ({
+          ...prev,
+          [currentGroupKey]: false,
+          [nextKey]: true
+        }))
         return
       }
     }
 
-    // 🔥 JIKA SEMUA SUDAH TERPILIH → TUTUP SEMUA
+    // ✅ semua paket sudah terpilih → tutup semua
     setOpenGroups({})
   }
 

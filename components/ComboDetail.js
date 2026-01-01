@@ -1200,6 +1200,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
           const isSelected = Boolean(
             selectedProductCode && selectedProductCode !== NO_ADDON_CODE
           )
+          const isCondimentActive = group.activeCondiment !== false
 
           return (
             <div
@@ -1345,7 +1346,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
               )}
 
               {/* ================= ADD ON ================= */}
-              {isOpen && selectedProduct?.condimentGroups?.length > 0 && (
+              {isCondimentActive && isOpen && selectedProduct?.condimentGroups?.length > 0 && (
                 <div style={{ marginTop: 16 }}>
                   <div style={{ fontWeight: 600, marginBottom: 8 }}>
                     Pilih Add On

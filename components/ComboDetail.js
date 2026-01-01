@@ -665,6 +665,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
         handleSelectProduct(gKey, pCode)
         // ❗ tidak setOpenGroups → tetap tertutup
+        focusNextUnselectedGroup(groupKey)
       }
     })
   }, [comboState])
@@ -726,6 +727,17 @@ export default function ComboDetail({ combo: propCombo = null }) {
       [groupKey]: productCode
     }))
 
+    const group = comboState.comboGroups.find(
+      g => getGroupKey(g) === groupKey
+    )
+
+    if (group?.activeCondiment === false) {
+      // langsung pindah ke paket berikutnya
+      setTimeout(() => {
+        focusNextUnselectedGroup(groupKey)
+      }, 0)
+    }
+
     // 🔑 INIT SLOT CONDIMENT
     setSelectedCondiments(prev => ({
       ...prev,
@@ -766,6 +778,46 @@ export default function ComboDetail({ combo: propCombo = null }) {
           [cgKey]: optCode
         }
       }
+    }))
+
+    const allCondimentsSelected = selectedProduct.condimentGroups.every(cg => {
+      const cgKey = cg.code || cg.name || String(cg.id)
+      return (
+        selectedCondiments[groupKey]?.condiments?.[cgKey] !== undefined
+      )
+    })
+
+    if (allCondimentsSelected) {
+      setTimeout(() => {
+        focusNextUnselectedGroup(groupKey)
+      }, 0)
+    }
+
+  }
+
+  const focusNextUnselectedGroup = (currentGroupKey) => {
+    const groups = comboState.comboGroups || []
+
+    const currentIndex = groups.findIndex(
+      g => getGroupKey(g) === currentGroupKey
+    )
+
+    // cari paket berikutnya yang belum dipilih
+    const nextGroup = groups.slice(currentIndex + 1).find(g => {
+      const gKey = getGroupKey(g)
+      return !selectedProducts[gKey]
+    })
+
+    if (!nextGroup) return // tidak ada → stay
+
+    const nextKey = getGroupKey(nextGroup)
+
+    setOpenGroups(prev => ({
+      ...Object.keys(prev).reduce((acc, k) => {
+        acc[k] = false
+        return acc
+      }, {}),
+      [nextKey]: true
     }))
   }
 

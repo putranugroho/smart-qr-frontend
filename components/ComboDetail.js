@@ -731,7 +731,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
       g => getGroupKey(g) === groupKey
     )
 
-    if (!group?.activeCondiment || !product.condimentGroups?.length) {
+    if (group?.activeCondiment === false || !product.condimentGroups?.length) {
       // langsung pindah ke paket berikutnya
       setTimeout(() => {
         focusNextUnselectedGroup(groupKey)

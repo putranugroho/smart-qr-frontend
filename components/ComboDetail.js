@@ -655,17 +655,13 @@ export default function ComboDetail({ combo: propCombo = null }) {
     comboState.comboGroups.forEach(group => {
       const gKey = getGroupKey(group)
 
-      // sudah ada pilihan → skip
       if (selectedProducts[gKey]) return
 
-      // hanya 1 product → auto select
       if (Array.isArray(group.products) && group.products.length === 1) {
         const p = group.products[0]
         const pCode = p.code ?? String(p.id)
 
         handleSelectProduct(gKey, pCode)
-        // ❗ tidak setOpenGroups → tetap tertutup
-        focusNextUnselectedGroup(gKey)
       }
     })
   }, [comboState])
@@ -727,18 +723,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
       [groupKey]: productCode
     }))
 
-    const group = comboState.comboGroups.find(
-      g => getGroupKey(g) === groupKey
-    )
-
-    if (group?.activeCondiment === false) {
-      // langsung pindah ke paket berikutnya
-      setTimeout(() => {
-        focusNextUnselectedGroup(groupKey)
-      }, 0)
-    }
-
-    // 🔑 INIT SLOT CONDIMENT
+    // INIT SLOT CONDIMENT
     setSelectedCondiments(prev => ({
       ...prev,
       [groupKey]: prev[groupKey] ?? {
@@ -749,10 +734,15 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
     setMissingAddons(null)
 
-    // 🚀 JIKA TIDAK ADA ADDON → BOLEH NEXT
-    const idx = comboState.comboGroups.findIndex(
-      g => getGroupKey(g) === groupKey
-    )
+    if (
+      grp?.activeCondiment === false ||
+      !prod.condimentGroups ||
+      prod.condimentGroups.length === 0
+    ) {
+      setTimeout(() => {
+        focusNextUnselectedGroup(groupKey)
+      }, 0)
+    }
   }
 
   function handleSelectAddon(groupKey, product, cgKey, optCode) {
@@ -764,35 +754,36 @@ export default function ComboDetail({ combo: propCombo = null }) {
       p => String(p.code ?? p.id) === String(optCode)
     )
 
-    // 🚫 BLOCK ADDON OOS
     if (opt?.isOutOfStock) {
       throw new Error(`Add On ${opt.name} sedang habis`)
     }
 
-    setSelectedCondiments(prev => ({
-      ...prev,
-      [groupKey]: {
-        productCode: product.code,
-        condiments: {
-          ...prev[groupKey]?.condiments,
-          [cgKey]: optCode
+    setSelectedCondiments(prev => {
+      const next = {
+        ...prev,
+        [groupKey]: {
+          productCode: product.code,
+          condiments: {
+            ...prev[groupKey]?.condiments,
+            [cgKey]: optCode
+          }
         }
       }
-    }))
 
-    const allCondimentsSelected = selectedProduct.condimentGroups.every(cg => {
-      const cgKey = cg.code || cg.name || String(cg.id)
-      return (
-        selectedCondiments[groupKey]?.condiments?.[cgKey] !== undefined
-      )
+      // ✅ HITUNG DARI NEXT STATE (BUKAN STATE LAMA)
+      const allSelected = product.condimentGroups.every(cg => {
+        const key = cg.code || cg.name || String(cg.id)
+        return next[groupKey].condiments[key] !== undefined
+      })
+
+      if (allSelected) {
+        setTimeout(() => {
+          focusNextUnselectedGroup(groupKey)
+        }, 0)
+      }
+
+      return next
     })
-
-    if (allCondimentsSelected) {
-      setTimeout(() => {
-        focusNextUnselectedGroup(groupKey)
-      }, 0)
-    }
-
   }
 
   function focusNextUnselectedGroup(currentGroupKey) {
@@ -803,7 +794,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
       g => getGroupKey(g) === currentGroupKey
     )
 
-    // cari paket berikutnya yang belum dipilih
     for (let i = currentIdx + 1; i < groups.length; i++) {
       const nextKey = getGroupKey(groups[i])
 
@@ -817,7 +807,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
       }
     }
 
-    // ✅ semua paket sudah terpilih → tutup semua
     setOpenGroups({})
   }
 

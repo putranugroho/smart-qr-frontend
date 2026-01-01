@@ -2,7 +2,7 @@
 import Image from 'next/image'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/router'
-import styles from '../styles/ItemDetail.module.css' // reuse styling
+import styles from '../styles/ComboDetail.module.css' // reuse styling
 import { addToCart, getCart, updateCart, replaceCartAtIndex } from '../lib/cart'
 import StickyCartBar from './StickyCartBar'
 import { getUser } from '../lib/auth'
@@ -179,7 +179,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
   const [selectedProducts, setSelectedProducts] = useState({})
   const [selectedCondiments, setSelectedCondiments] = useState({})
-  const [expandedGroup, setExpandedGroup] = useState(null)
+  const [openGroups, setOpenGroups] = useState({})
   const [fullscreenImg, setFullscreenImg] = useState(null)
 
   const [qty, setQty] = useState(1)
@@ -348,14 +348,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
                 setSelectedProducts(sp)
                 setSelectedCondiments(sc)
                 
-                // Logic expand group...
-                try {
-                  const firstUnpicked = (parsed.comboGroups || []).find(g => !sp[(g.code ?? g.name ?? String(g.id))])
-                  const firstGroup = firstUnpicked ? (firstUnpicked.code ?? firstUnpicked.name ?? String(firstUnpicked.id)) : (parsed.comboGroups[0] ? (parsed.comboGroups[0].code ?? parsed.comboGroups[0].name ?? String(parsed.comboGroups[0].id)) : null)
-                  const groupToOpen = firstGroup || (Object.keys(sp)[0] || null)
-                  if (groupToOpen) setExpandedGroup(groupToOpen)
-                } catch (e) {}
-                
                 setLoadingCombo(false)
                 prefilledRef.current = true
                 return; // STOP HERE only if data is complete
@@ -406,19 +398,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
                   setSelectedProducts(sp)
                   setSelectedCondiments(sc)
 
-                  // Logic expand group...
-                  try {
-                    const groupList = Array.isArray(found.comboGroups) ? found.comboGroups : []
-                    const firstUnpicked = groupList.find(g => !sp[(g.code ?? g.name ?? String(g.id))])
-                    const firstGroup = firstUnpicked ? (firstUnpicked.code ?? firstUnpicked.name ?? String(firstUnpicked.id)) : (groupList[0] ? (groupList[0].code ?? groupList[0].name ?? String(groupList[0].id)) : null)
-                    const groupToOpen = firstGroup || (Object.keys(sp)[0] || null)
-                    if (groupToOpen) setExpandedGroup(groupToOpen)
-                  } catch (e) {}
-
                   prefilledRef.current = true
                   setLoadingCombo(false)
                   return // SUCCESS Fetch
-                } else {
                 }
               }
             }
@@ -660,30 +642,32 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
         setSelectedProducts(sp)
         setSelectedCondiments(sc)
-
-        // determine expanded group to show
-        try {
-          const firstUnpicked = comboGroups.find(g => !sp[(g.code ?? g.name ?? String(g.id))])
-          const firstGroup = firstUnpicked ? (firstUnpicked.code ?? firstUnpicked.name ?? String(firstUnpicked.id)) : (comboGroups[0] ? (comboGroups[0].code ?? comboGroups[0].name ?? String(comboGroups[0].id)) : null)
-          const groupToOpen = firstGroup || (Object.keys(sp)[0] || null)
-          if (groupToOpen) {
-            setExpandedGroup(groupToOpen)
-            const selProd = sp[groupToOpen]
-            if (selProd) {
-              requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                  scrollToProduct(selProd, groupToOpen)
-                })
-              })
-            }
-          }
-        } catch (e) {}
       }
     } catch (e) {
       console.warn('prefill combo edit failed', e)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromCheckout, editingIndex, comboState])
+
+  useEffect(() => {
+    if (!comboState?.comboGroups) return
+
+    comboState.comboGroups.forEach(group => {
+      const gKey = getGroupKey(group)
+
+      // sudah ada pilihan → skip
+      if (selectedProducts[gKey]) return
+
+      // hanya 1 product → auto select
+      if (Array.isArray(group.products) && group.products.length === 1) {
+        const p = group.products[0]
+        const pCode = p.code ?? String(p.id)
+
+        handleSelectProduct(gKey, pCode)
+        // ❗ tidak setOpenGroups → tetap tertutup
+      }
+    })
+  }, [comboState])
 
   // AUTO SELECT SINGLE PRODUCT (NEW COMBO ONLY)
   useEffect(() => {
@@ -713,16 +697,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
     if (changed) {
       setSelectedProducts(nextSelected)
-
-      // optional UX: auto expand ke group pertama yang di-auto-select
-      const firstKey = Object.keys(nextSelected)[0]
-      if (firstKey) {
-        setExpandedGroup(firstKey)
-        const prodCode = nextSelected[firstKey]
-        requestAnimationFrame(() => {
-          scrollToProduct(prodCode, firstKey)
-        })
-      }
     }
   // ⚠️ penting: dependency comboState
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -745,116 +719,136 @@ export default function ComboDetail({ combo: propCombo = null }) {
   function handleSelectProduct(groupKey, productCode) {
     const grp = findComboGroupByKey(groupKey)
     const prod = findProductInGroup(grp, productCode)
+    if (!prod || prod.outOfStock) return
 
-    // 🚫 BLOCK jika out of stock
-    if (prod?.outOfStock) {
+    setSelectedProducts(prev => ({
+      ...prev,
+      [groupKey]: productCode
+    }))
+
+    // 🔑 INIT SLOT CONDIMENT
+    setSelectedCondiments(prev => ({
+      ...prev,
+      [groupKey]: prev[groupKey] ?? {
+        productCode,
+        condiments: {}
+      }
+    }))
+
+    setMissingAddons(null)
+
+    // 🧠 JIKA ADA ADDON → STOP & MINTA PILIH ADDON
+    if (Array.isArray(prod.condimentGroups) && prod.condimentGroups.length > 0) {
+      setActiveCondimentProduct({
+        groupKey,
+        product: prod
+      })
       return
     }
 
-    setSelectedProducts(prev => {
-      const next = { ...prev }
-      const prevProduct = next[groupKey]
-      if (prevProduct && prevProduct === productCode) {
-        // no change
-      } else {
-        if (prevProduct) {
-          setSelectedCondiments(scPrev => {
-            const scNext = { ...scPrev }
-            if (scNext[prevProduct]) delete scNext[prevProduct]
-            return scNext
-          })
+    // 🚀 JIKA TIDAK ADA ADDON → BOLEH NEXT
+    const idx = comboState.comboGroups.findIndex(
+      g => getGroupKey(g) === groupKey
+    )
+  }
+
+  function handleSelectAddon(groupKey, product, cgKey, optCode) {
+    const cg = (product.condimentGroups || []).find(
+      g => (g.code || g.name || String(g.id)) === cgKey
+    )
+
+    const opt = cg?.products?.find(
+      p => String(p.code ?? p.id) === String(optCode)
+    )
+
+    // 🚫 BLOCK ADDON OOS
+    if (opt?.isOutOfStock) {
+      throw new Error(`Add On ${opt.name} sedang habis`)
+    }
+
+    setSelectedCondiments(prev => ({
+      ...prev,
+      [groupKey]: {
+        productCode: product.code,
+        condiments: {
+          ...prev[groupKey]?.condiments,
+          [cgKey]: optCode
         }
-        next[groupKey] = productCode
       }
-      return next
-    })
-
-    const idx = (comboState?.comboGroups || []).findIndex(g => getGroupKey(g) === String(groupKey))
-    if (idx >= 0 && idx < (comboState?.comboGroups?.length || 0) - 1) {
-      const nextGroup = comboState.comboGroups[idx + 1]
-      const nextKey = getGroupKey(nextGroup)
-      setExpandedGroup(nextKey)
-    } else {
-      setExpandedGroup(groupKey)
-    }
-    setMissingAddons(null)
+    }))
   }
 
-  // scroll/drag function: expand group (if needed), then scroll to product element smoothly and highlight
-  function scrollToProduct(productCode, groupKey = null) {
-    // ensure expandedGroup is set to the product's group
-    if (groupKey) {
-      setExpandedGroup(groupKey)
-    }
-
-    // wait next paint to ensure DOM updated
-    requestAnimationFrame(() => {
-      // small delay to allow expandedGroup render
-      requestAnimationFrame(() => {
-        const el = productRefs.current[String(productCode)]
-        if (el && el.scrollIntoView) {
-          try {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-            // highlight effect
-            el.classList.add('combo-highlight')
-            // remove highlight after 900ms
-            setTimeout(() => {
-              el.classList.remove('combo-highlight')
-            }, 900)
-          } catch (e) {
-            // fallback silent
-            el.scrollIntoView()
-          }
-        }
-      })
-    })
-  }
-
-  // compute subtotal
+  // =======================
+  // compute subtotal (SLOT-BASED)
+  // =======================
   const subtotal = useMemo(() => {
     if (!comboState) return 0
+
     let total = 0
+
     Object.keys(selectedProducts).forEach(groupKey => {
       const productCode = selectedProducts[groupKey]
       if (!productCode) return
       if (String(productCode) === NO_ADDON_CODE) return
+
       const grp = findComboGroupByKey(groupKey)
       const prod = findProductInGroup(grp, productCode)
       if (!prod) return
-      let line = Number(prod.price * prod.qty)
-      const prodSel = selectedCondiments[prod.code] || {}
-      const condGroups = Array.isArray(prod.condimentGroups) ? prod.condimentGroups : []
-      condGroups.forEach(g => {
-        const key = g.code || g.name || String(g.id)
-        const sel = prodSel[key]
-        if (!sel) return
+
+      // base product price
+      let line = Number(prod.price || 0) * Number(prod.qty || 1)
+
+      // 🔥 SLOT-BASED ADDON
+      const slotCond = selectedCondiments[groupKey]?.condiments || {}
+      const condGroups = Array.isArray(prod.condimentGroups)
+        ? prod.condimentGroups
+        : []
+
+      condGroups.forEach(cg => {
+        const cgKey = cg.code || cg.name || String(cg.id)
+        const sel = slotCond[cgKey]
+        if (!sel || sel === NONE_OPTION_ID) return
+
         if (Array.isArray(sel)) {
           sel.forEach(selId => {
-            const opt = (g.products || []).find(p => String(p.code ?? p.id) === String(selId))
-            if (opt) line += Number(opt.price * opt.qty )
+            const opt = (cg.products || []).find(
+              p => String(p.code ?? p.id) === String(selId)
+            )
+            if (opt) {
+              line += Number(opt.price || 0) * Number(opt.qty || 1)
+            }
           })
-        } else if (sel === NONE_OPTION_ID) {
         } else {
-          const opt = (g.products || []).find(p => String(p.code ?? p.id) === String(sel))
-          if (opt) line += Number(opt.price * opt.qty)
+          const opt = (cg.products || []).find(
+            p => String(p.code ?? p.id) === String(sel)
+          )
+          if (opt) {
+            line += Number(opt.price || 0) * Number(opt.qty || 1)
+          }
         }
       })
+
       total += line
     })
+
     return Math.round(total * Number(qty || 1))
   }, [selectedProducts, selectedCondiments, qty, comboState])
 
+  // =======================
+  // build combo cart payload (SLOT-BASED)
+  // =======================
   function buildComboCartPayload() {
     if (!comboState) return null
 
     const productsPayload = []
 
     Object.keys(selectedProducts).forEach(groupKey => {
-      const prodCode = selectedProducts[groupKey]
-      if (!prodCode) return
-      if (String(prodCode) === NO_ADDON_CODE) return
+      const productCode = selectedProducts[groupKey]
+      if (!productCode) return
+      if (String(productCode) === NO_ADDON_CODE) return
+
       const grp = findComboGroupByKey(groupKey)
-      const prod = findProductInGroup(grp, prodCode)
+      const prod = findProductInGroup(grp, productCode)
       if (!prod) return
 
       const productPayload = {
@@ -862,8 +856,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
         comboGroup: grp.code ?? grp.name ?? groupKey,
         name: prod.name ?? '',
         itemName: prod.itemName ?? '',
-        price: Number(prod.price),
-        qty: Number(prod.qty),
+        price: Number(prod.price || 0),
+        qty: Number(prod.qty || 1),
         taxes: (prod.taxes || []).map(t => ({
           taxName: t.name || t.code || '',
           taxPercentage: Number(t.amount || 0),
@@ -872,48 +866,80 @@ export default function ComboDetail({ combo: propCombo = null }) {
         condiments: []
       }
 
-      const prodCondMap = selectedCondiments[prod.code] || {}
-      const condGroups = Array.isArray(prod.condimentGroups) ? prod.condimentGroups : []
-      condGroups.forEach(g => {
-        const gKey = g.code || g.name || String(g.id)
-        const sel = prodCondMap[gKey]
-        if (!sel) return
+      // 🔥 SLOT-BASED ADDON
+      const slotCond = selectedCondiments[groupKey]?.condiments || {}
+      const condGroups = Array.isArray(prod.condimentGroups)
+        ? prod.condimentGroups
+        : []
+
+      condGroups.forEach(cg => {
+        const cgKey = cg.code || cg.name || String(cg.id)
+        const sel = slotCond[cgKey]
+        if (!sel || sel === NONE_OPTION_ID) return
+
         if (Array.isArray(sel)) {
           sel.forEach(selId => {
-            const opt = (g.products || []).find(p => String(p.code ?? p.id) === String(selId))
+            const opt = (cg.products || []).find(
+              p => String(p.code ?? p.id) === String(selId)
+            )
             if (!opt) return
+
             productPayload.condiments.push({
               code: opt.code ?? opt.id,
               name: opt.name ?? opt.itemName ?? '',
               price: Number(opt.price || 0),
-              qty: Number(opt.qty),
-              taxes: (opt.taxes || []).map(t => ({ taxName: t.name || t.code || '', taxPercentage: Number(t.amount || 0), taxAmount: 0 }))
+              qty: Number(opt.qty || 1),
+              taxes: (opt.taxes || []).map(t => ({
+                taxName: t.name || t.code || '',
+                taxPercentage: Number(t.amount || 0),
+                taxAmount: 0
+              }))
             })
           })
         } else {
-          const opt = (g.products || []).find(p => String(p.code ?? p.id) === String(sel))
-          if (opt) {
-            productPayload.condiments.push({
-              code: opt.code ?? opt.id,
-              name: opt.name ?? opt.itemName ?? '',
-              price: Number(opt.price || 0),
-              qty: Number(qty || 1) || 1,
-              taxes: (opt.taxes || []).map(t => ({ taxName: t.name || t.code || '', taxPercentage: Number(t.amount || 0), taxAmount: 0 }))
-            })
-          }
+          const opt = (cg.products || []).find(
+            p => String(p.code ?? p.id) === String(sel)
+          )
+          if (!opt) return
+
+          productPayload.condiments.push({
+            code: opt.code ?? opt.id,
+            name: opt.name ?? opt.itemName ?? '',
+            price: Number(opt.price || 0),
+            qty: Number(opt.qty || 1),
+            taxes: (opt.taxes || []).map(t => ({
+              taxName: t.name || t.code || '',
+              taxPercentage: Number(t.amount || 0),
+              taxAmount: 0
+            }))
+          })
         }
       })
 
-      const calcLineTaxes = (price, qty, taxesArr) => {
-        return (taxesArr || []).map(t => {
+      // =======================
+      // TAX CALCULATION
+      // =======================
+      const calcLineTaxes = (price, qty, taxesArr) =>
+        (taxesArr || []).map(t => {
           const p = Number(t.taxPercentage || t.amount || 0)
           const amount = Math.round((price * qty) * (p / 100))
-          return { taxName: t.taxName || t.name || t.code || '', taxPercentage: p, taxAmount: amount }
+          return {
+            taxName: t.taxName || t.name || t.code || '',
+            taxPercentage: p,
+            taxAmount: amount
+          }
         })
-      }
 
-      productPayload.taxes = calcLineTaxes(productPayload.price, productPayload.qty, productPayload.taxes)
-      productPayload.condiments = (productPayload.condiments || []).map(c => ({ ...c, taxes: calcLineTaxes(c.price, c.qty || 1, c.taxes) }))
+      productPayload.taxes = calcLineTaxes(
+        productPayload.price,
+        productPayload.qty,
+        productPayload.taxes
+      )
+
+      productPayload.condiments = productPayload.condiments.map(c => ({
+        ...c,
+        taxes: calcLineTaxes(c.price, c.qty || 1, c.taxes)
+      }))
 
       productsPayload.push(productPayload)
     })
@@ -926,33 +952,38 @@ export default function ComboDetail({ combo: propCombo = null }) {
           code: comboState.code || comboState.id,
           name: comboState.name || comboState.title || '',
           itemName: comboState.itemName || '',
-          image: comboState.imagePath || comboState.image || null,
+          image: comboState.imagePath || comboState.image || null
         },
         isFromMacro: true,
         orderType: resolvedOrderType,
         products: productsPayload,
         qty: Number(qty || 1),
-        voucherCode: null,
-      },
-    ];
+        voucherCode: null
+      }
+    ]
 
     const cartEntry = {
-      type: "combo",
+      type: 'combo',
       combos: combosForCart,
       qty: Number(qty || 1),
       detailCombo: combosForCart[0].detailCombo,
-      note: note || "",
-      image: comboState.imagePath || comboState.image || null,
-    };
+      note: note || '',
+      image: comboState.imagePath || comboState.image || null
+    }
 
-    // ensure clientInstanceId persisted so update/replace can identify the entry
+    // clientInstanceId persistence
     try {
-      const cid = originalClientInstanceId || `cli_${(comboState.code || comboState.id || 'x')}_${Date.now()}_${Math.random().toString(36).slice(2,7)}`
+      const cid =
+        originalClientInstanceId ||
+        `cli_${(comboState.code || comboState.id || 'x')}_${Date.now()}_${Math.random()
+          .toString(36)
+          .slice(2, 7)}`
       cartEntry.clientInstanceId = cid
-      if (cartEntry.detailCombo) cartEntry.detailCombo.clientInstanceId = cid
-      if (Array.isArray(cartEntry.combos)) {
-        cartEntry.combos = cartEntry.combos.map(c => ({ ...c, clientInstanceId: cid }))
-      }
+      cartEntry.detailCombo.clientInstanceId = cid
+      cartEntry.combos = cartEntry.combos.map(c => ({
+        ...c,
+        clientInstanceId: cid
+      }))
     } catch (e) {}
 
     return cartEntry
@@ -1083,69 +1114,13 @@ export default function ComboDetail({ combo: propCombo = null }) {
     return <div className={styles.page}><div style={{ padding: 16 }}>Memuat data paket...</div></div>
   }
 
-  // inline CSS for highlight effect (minimal, won't disturb existing styling)
-  const highlightStyle = (
-    <style>{`
-      .combo-highlight {
-        box-shadow: 0 0 0 3px rgba(99,102,241,0.18);
-        transition: box-shadow 220ms ease;
-      }
-    `}</style>
-  )
-
-  const loadingStyle = (
-    <style>{`
-      .loading-overlay {
-        position: fixed;
-        top: 0; 
-        left: 0; 
-        right: 0; 
-        bottom: 0;
-        background-color: rgba(255, 255, 255, 0.85); /* Putih transparan */
-        z-index: 9999;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        backdrop-filter: blur(2px); /* Efek blur halus */
-      }
-      .spinner {
-        width: 48px;
-        height: 48px;
-        border: 5px solid #e5e7eb;
-        border-top: 5px solid #F97316; /* Ganti warna sesuai tema (misal: Orange) */
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-        margin-bottom: 16px;
-      }
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-      .loading-text {
-        font-weight: 600;
-        color: #374151;
-        font-size: 16px;
-        animation: pulse 1.5s infinite;
-      }
-      @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.6; }
-      }
-    `}</style>
-  )
-
   return (
     <div className={styles.page}>
-      {/* Inject CSS Styles */}
-      {highlightStyle}
-      {loadingStyle} 
-
       {/* --- UI LOADING OVERLAY --- */}
       {loadingCombo && (
-        <div className="loading-overlay">
-          <div className="spinner"></div>
-          <div className="loading-text">
+        <div className={styles.loadingOverlay}>
+          <div className={styles.spinner}></div>
+          <div className={styles.loadingText}>
              {fromCheckout && editingIndex != null ? 'Menyiapkan Data Pesanan...' : 'Memuat Paket...'}
           </div>
         </div>
@@ -1220,251 +1195,266 @@ export default function ComboDetail({ combo: propCombo = null }) {
         </div>
       </div>
 
-      <div style={{ display: 'block', gap: 12, padding: 12 }}>
-        {/* Left: groups summary */}
-        <div style={{ flex: '0 0 320px', borderRight: '1px solid #eee', paddingRight: 12 }}>
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>Pilih Paket</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {(comboState.comboGroups || []).map((g, idx) => {
-              const key = getGroupKey(g)
-              const selProd = selectedProducts[key]
-              const selProdObj = selProd && String(selProd) !== NO_ADDON_CODE ? findProductInGroup(g, selProd) : null
-              const expanded = expandedGroup === key
-              const isSelected = selProd && String(selProd) !== NO_ADDON_CODE
+      <div style={{ padding: 12 }}>
+        <div style={{ fontWeight: 700, marginBottom: 12 }}>Pilih Paket</div>
 
-              // determine default product to scroll to (first product or NO_ADDON_CODE)
-              const defaultProduct = (Array.isArray(g.products) && g.products.length) ? (g.products[0].code ?? g.products[0].id) : NO_ADDON_CODE
+        {(comboState.comboGroups || []).map((group, idx) => {
+          const groupKey = getGroupKey(group)
+          const selectedProductCode = selectedProducts[groupKey]
+          const selectedProduct =
+            selectedProductCode && selectedProductCode !== NO_ADDON_CODE
+              ? findProductInGroup(group, selectedProductCode)
+              : null
+          const isOpen = openGroups[groupKey] === true
 
-              return (
-                <div key={key} style={{ 
-                  borderRadius: 10,
-                  overflow: 'hidden', 
-                  // 🔥 BORDER ORANGE JIKA SUDAH DIPILIH
-                  border: isSelected
-                    ? '2px solid #f97316'
-                    : expanded
-                      ? '1px solid #e2e8f0'
-                      : '1px solid transparent',
-              
-                  // 🔥 BACKGROUND ORANGE TERANG
-                  background: isSelected
-                    ? '#fff7ed'        // orange-50
-                    : expanded
-                      ? '#fff'
-                      : 'transparent',
-                  boxShadow: isSelected
-                    ? '0 0 0 2px rgba(249, 115, 22, 0.25)'
-                    : 'none',              
-                  transition: 'all 0.2s ease'
-                  }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px' }}>
-                    <div>
-                      <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {g.name}
-                        {isSelected && (
-                          <span
-                            style={{
-                              fontSize: 11,
-                              background: '#f97316',
-                              color: '#fff',
-                              padding: '2px 6px',
-                              borderRadius: 999
-                            }}
-                          >
-                            Dipilih
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 13, color: '#666' }}>
-                        {selProdObj ? selProdObj.name : (selectedProducts[key] === NO_ADDON_CODE ? 'Tanpa Add On' : (g.allowSkip ? 'Boleh dikosongkan' : 'Belum dipilih'))}
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <button
-                        onClick={() => {
-                          // open group and scroll to its first product
-                          setExpandedGroup(key)
-                          const prodToScroll = defaultProduct
-                          scrollToProduct(prodToScroll, key)
-                        }}
-                        type="button"
-                        style={{
-                          background: '#efefef',
-                          border: 'none',
-                          padding: '6px 10px',
-                          borderRadius: 8,
-                          cursor: 'pointer',
-                          fontSize: 13
-                        }}
-                        aria-label={`Pilih paket ${g.name}`}
-                      >
-                        Pilih Paket
-                      </button>
-
-                      <div style={{ marginLeft: 8, color: '#666' }}>{idx + 1}</div>
-                    </div>
+          return (
+            <div
+              key={groupKey}
+              style={{
+                border: '1px solid #e5e7eb',
+                borderRadius: 12,
+                padding: 12,
+                marginBottom: 16,
+                background: selectedProduct ? '#fff7ed' : '#fff',
+                transition: 'all .2s'
+              }}
+            >
+              {/* ================= HEADER PAKET ================= */}
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', cursor: 'pointer' }}
+                onClick={() =>
+                  setOpenGroups(prev => ({
+                    ...prev,
+                    [groupKey]: !prev[groupKey]
+                  }))
+                }
+              >
+                <div>
+                  <div style={{ fontWeight: 600 }}>{group.name}</div>
+                  <div style={{ fontSize: 13, color: '#666' }}>
+                    {selectedProduct
+                      ? selectedProduct.name
+                      : group.allowSkip
+                      ? 'Boleh dikosongkan'
+                      : 'Belum dipilih'}
                   </div>
                 </div>
-              )
-            })}
-          </div>
-        </div>
 
-        {/* Right: expanded group */}
-        <div style={{ flex: 1 }}>
-          {!expandedGroup && <div style={{ padding: 12, color: '#666' }}>Klik sebuah paket di sebelah kiri lalu pilih produk untuk setiap paket.</div>}
+                <div style={{ fontSize: 13, color: '#999' }}>{idx + 1}</div>
+              </div>
+                      
+              {/* ================= PRODUCT ================= */}
+              {isOpen && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 8 }}>
+                    Pilih Product
+                  </div>
 
-          {expandedGroup && (() => {
-            const grp = findComboGroupByKey(expandedGroup)
-            if (!grp) return <div style={{ padding: 12 }}>Paket tidak ditemukan.</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {(group.products || []).map(p => {
+                      const pCode = p.code ?? String(p.id)
+                      const checked = selectedProductCode === pCode
+                      const isOOS = p.outOfStock === true
 
-            // use fallback products if grp.products is empty
-            const products = (Array.isArray(grp.products) && grp.products.length)
-              ? grp.products
-              : (fallbackProductsRef.current[getGroupKey(grp)] || [])
+                      return (
+                        <div
+                          key={pCode}
+                          className={`${styles.card} ${
+                            checked ? styles.cardSelected : ''
+                          }`}
+                          style={{
+                            opacity: isOOS ? 0.4 : 1,
+                            pointerEvents: isOOS ? 'none' : 'auto'
+                          }}
+                          onClick={() =>
+                            handleSelectProduct(groupKey, pCode)
+                          }
+                        >
+                          <div className={styles.cardImage}>
+                            {p.imagePath && (
+                              <Image
+                                src={p.imagePath}
+                                alt={p.name}
+                                fill
+                                style={{ objectFit: 'contain' }}
+                              />
+                            )}
+                          </div>
 
-            const isToppingGroup = String((grp.code || '').toUpperCase()) === 'KIDS-TOPPING-ALL' ||
-                                   String((grp.name || '').toLowerCase()).includes('add on topping')
+                          <div className={styles.cardText}>
+                            <div className={styles.cardTitle}>{p.name}</div>
+                            {p.description && (
+                              <div className={styles.cardDesc}>
+                                {p.description}
+                              </div>
+                            )}
+                          </div>
 
-            const noAddonOption = {
-              code: NO_ADDON_CODE,
-              name: 'Tanpa Add On',
-              description: '',
-              imagePath: null,
-              price: 0,
-              isNoAddon: true
-            }
+                          <div className={styles.cardRight}>
+                            <div className={styles.cardPrice}>
+                              {formatRp(p.maskingprice * p.qty)}
+                            </div>
+                            <input
+                              type="radio"
+                              checked={checked}
+                              readOnly
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
-            const productsToShow = isToppingGroup ? [noAddonOption, ...products] : products
+              {/* ================= ADD ON ================= */}
+              {isOpen && selectedProduct?.condimentGroups?.length > 0 && (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 8 }}>
+                    Pilih Add On
+                  </div>
 
-            return (
-              <div>
-                <div style={{ marginBottom: 12, marginTop: 12, fontWeight: 700 }}>{grp.name}</div>
+                  {selectedProduct.condimentGroups.map(cg => {
+                    const cgKey = cg.code || cg.name || String(cg.id)
+                    const selectedAddon =
+                      selectedCondiments[groupKey]?.condiments?.[cgKey]
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {productsToShow.map(p => {
-                    const pCode = p.code ?? String(p.id)
-                    const checked = selectedProducts[getGroupKey(grp)] === pCode
-                    const isOOS = p.outOfStock === true
                     return (
                       <div
-                        key={pCode}
-                        ref={el => { if (el) productRefs.current[String(pCode)] = el }}
+                        key={cgKey}
                         style={{
-                          display: 'grid',
-                          gridTemplateColumns: '64px 1fr auto',
-                          alignItems: 'center',
-                          gap: 12,
-                          padding: 10,
-                          minHeight: 84,
-                          borderRadius: 8,
-                          background: '#fff',
-                          border: checked ? '1.5px solid #f97316' : '1px solid #e5e7eb',
-                          opacity: isOOS ? 0.45 : 1,
-                          filter: isOOS ? 'grayscale(1)' : 'none',
-                          pointerEvents: isOOS ? 'none' : 'auto'
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 8,
+                          marginBottom: 12
                         }}
                       >
-                        {/* IMAGE COLUMN */}
-                        <div
-                          style={{
-                            width: 64,
-                            height: 64,
-                            position: 'relative',
-                            borderRadius: 8,
-                            overflow: 'hidden',
-                            background: 'transparant'
-                          }}
-                        >
-                          {p.imagePath && (
-                            <Image
-                              src={p.imagePath}
-                              alt={p.name}
-                              fill
-                              style={{ objectFit: 'contain' }}
-                            />
-                          )}
-                        </div>
-
-                        {/* TEXT COLUMN */}
-                        <div style={{ overflow: 'hidden' }}>
+                        {/* TANPA ADDON */}
+                        {cg.allowSkip && (
                           <div
-                            style={{
-                              fontWeight: 600,
-                              fontSize: 14,
-                              lineHeight: '18px',
-                              display: '-webkit-box',
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: 'vertical',
-                              overflow: 'hidden'
-                            }}
+                            className={`${styles.card} ${
+                              selectedAddon === NONE_OPTION_ID
+                                ? styles.cardSelected
+                                : ''
+                            }`}
+                            onClick={() =>
+                              handleSelectAddon(
+                                groupKey,
+                                selectedProduct,
+                                cgKey,
+                                NONE_OPTION_ID
+                              )
+                            }
                           >
-                            {p.name}
-                          </div>
-
-                          {p.description && (
                             <div
                               style={{
-                                fontSize: 12,
-                                color: '#6b7280',
-                                lineHeight: '16px',
-                                marginTop: 2,
-                                display: '-webkit-box',
-                                WebkitLineClamp: 2,
-                                WebkitBoxOrient: 'vertical',
-                                overflow: 'hidden'
+                                width: 64,
+                                height: 64,
+                                borderRadius: 8,
+                                background: '#f3f4f6'
                               }}
-                            >
-                              {p.description}
+                            />
+                            <div className={styles.cardText}>
+                              <div className={styles.cardTitle}>
+                                Tanpa Add On
+                              </div>
                             </div>
-                          )}
-
-                          {isOOS && (
-                            <div
-                              style={{
-                                marginTop: 4,
-                                fontSize: 12,
-                                fontWeight: 700,
-                                color: '#dc2626' // red-600
-                              }}
-                            >
-                              Out Of Stock
+                            <div className={styles.cardRight}>
+                              <div className={styles.cardPrice}>Rp 0</div>
+                              <input
+                                type="radio"
+                                checked={selectedAddon === NONE_OPTION_ID}
+                                readOnly
+                              />
                             </div>
-                          )}
-                        </div>
-
-                        {/* PRICE + RADIO COLUMN */}
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 12,
-                            minWidth: 110,
-                            justifyContent: 'flex-end'
-                          }}
-                        >
-                          <div style={{ fontWeight: 600, fontSize: 13 }}>
-                            {formatRp(p.maskingprice * p.qty)}
                           </div>
+                        )}
 
-                          <input
-                            type="radio"
-                            name={`prod-${getGroupKey(grp)}`}
-                            checked={checked}
-                            disabled={isOOS}
-                            onChange={() => handleSelectProduct(getGroupKey(grp), pCode)}
-                          />
-                        </div>
+                        {/* ADDON OPTIONS */}
+                        {cg.products.map(opt => {
+                          const optCode = opt.code ?? String(opt.id)
+                          const checked = selectedAddon === optCode
+                          const isOOS = opt.isOutOfStock === true
+
+                          return (
+                            <div
+                              key={optCode}
+                              className={`${styles.card} ${
+                                checked ? styles.cardSelected : ''
+                              }`}
+                              style={{
+                                opacity: isOOS ? 0.4 : 1,
+                                pointerEvents: isOOS ? 'none' : 'auto',
+                                backgroundColor: isOOS ? '#f3f4f6' : undefined
+                              }}
+                              onClick={() => {
+                                if (isOOS) return
+                                handleSelectAddon(
+                                  groupKey,
+                                  selectedProduct,
+                                  cgKey,
+                                  optCode
+                                )
+                              }}
+                            >
+                              <div className={styles.cardImage}>
+                                {opt.imagePath && (
+                                  <Image
+                                    src={opt.imagePath}
+                                    alt={opt.name}
+                                    fill
+                                    style={{ objectFit: 'contain' }}
+                                  />
+                                )}
+                              </div>
+
+                              <div className={styles.cardText}>
+                                <div className={styles.cardTitle}>{opt.name}</div>
+
+                                {opt.description && (
+                                  <div className={styles.cardDesc}>
+                                    {opt.description}
+                                  </div>
+                                )}
+
+                                {isOOS && (
+                                  <div
+                                    style={{
+                                      marginTop: 4,
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      color: '#dc2626' // merah
+                                    }}
+                                  >
+                                    Out of Stock
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className={styles.cardRight}>
+                                <div className={styles.cardPrice}>
+                                  {formatRp(opt.price)}
+                                </div>
+                                <input
+                                  type="radio"
+                                  checked={checked}
+                                  readOnly
+                                  disabled={isOOS}
+                                />
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
                     )
                   })}
                 </div>
-              </div>
-            )
-          })()}
-        </div>
+              )}
+            </div>
+          )
+        })}
       </div>
+
 
       {/* Sticky Cart Bar */}
       {!fullscreenImg && (

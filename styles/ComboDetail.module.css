@@ -1,0 +1,496 @@
+/* ===== Highlight ===== */
+.comboHighlight {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+  transition: box-shadow 220ms ease;
+}
+
+/* ===== Loading Overlay ===== */
+.loadingOverlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(255, 255, 255, 0.85);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(2px);
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 5px solid #e5e7eb;
+  border-top: 5px solid #f97316;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loadingText {
+  font-weight: 600;
+  color: #374151;
+  font-size: 16px;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  50% { opacity: 0.6; }
+}
+
+.card {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+}
+
+.cardSelected {
+  border: 1.5px solid #f97316;
+  background: #fff7ed;
+}
+
+.cardImage {
+  width: 64px;
+  height: 64px;
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f3f4f6;
+}
+
+.cardText {
+  overflow: hidden;
+}
+
+.cardTitle {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 18px;
+}
+
+.cardDesc {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.cardRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 110px;
+  justify-content: flex-end;
+}
+
+.cardPrice {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.groupCard {
+  border-radius: 10px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.groupSelected {
+  border: 2px solid #f97316;
+  background: #fff7ed;
+  box-shadow: 0 0 0 2px rgba(249,115,22,0.25);
+}
+
+.groupExpanded {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.groupBadge {
+  font-size: 11px;
+  background: #f97316;
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+
+.groupSubtitle {
+  font-size: 13px;
+  color: #666;
+}
+
+.groupAddon {
+  font-size: 12px;
+  color: #6b7280;
+  margin-left: 6px;
+}
+
+.fullscreenOverlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0,0,0,0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  cursor: zoom-out;
+}
+
+.fullscreenImage {
+  max-width: 95%;
+  max-height: 95%;
+  border-radius: 8px;
+}
+
+/* styles/ItemDetail.module.css */
+.page {
+  min-height: 100vh;
+  padding-bottom: 9rem; /* reserve for sticky bar */
+  background: #ffffff;
+  color: #111827;
+  -webkit-font-smoothing: antialiased;
+}
+
+.headerArea {
+  position: relative;
+  width: 100%;
+  background: #f9fafb;
+}
+
+.iconBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,0.06);
+  background: rgba(255,255,255,0.95);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+
+.btnLeft {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  z-index: 30;
+}
+
+.btnRight {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 30;
+}
+
+/* responsive image wrapper:
+   - keep aspect ratio ~1:1 (square)
+   - max height 390px on wide screens
+   - on small screens use full viewport width (100vw) so image scales down
+*/
+.imageWrapper {
+  width: 100%;
+  height: min(390px, 100vw);
+  position: relative;
+  overflow: hidden;
+  background: #ffffff; /* background untuk area kosong */
+}
+
+.image {
+  object-fit: contain;  /* gambar TIDAK terpotong */
+  background-color: #ffffff;
+}
+
+
+/* detail box */
+.detailBox {
+  width: 100%;
+  max-width: 390px;
+  margin: 0 auto;
+  padding: 24px 20px;
+  box-sizing: border-box;
+}
+
+.detailRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.titleWrap {
+  padding-right: 16px;
+  flex: 1;
+}
+
+.title {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  font-weight: 700;
+  font-size: 18px;
+  line-height: 1.4;
+}
+
+.description {
+  margin-top: 8px;
+  color: #6b7280;
+  font-family: Inter;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.priceWrap {
+  min-width: 96px;
+  text-align: right;
+}
+
+.priceText {
+  font-family: Inter;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+/* addons */
+.addonsWrap {
+  width: 100%;
+  max-width: 390px;
+  margin: 0 auto;
+}
+
+.addonGroup {
+  background: #fff;
+  border-top: 1px solid #f3f4f6;
+}
+
+.groupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+}
+
+.groupTitle {
+  font-family: Inter;
+  font-weight: 600;
+  font-size: 14px;
+  text-transform: uppercase;
+}
+
+.groupSub {
+  font-family: Inter;
+  font-weight: 400;
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.optionLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  cursor: pointer;
+}
+
+.optionName {
+  font-family: Inter;
+  font-weight: 400;
+  font-size: 14px;
+  color: #111827;
+}
+
+.optionRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.optionPrice {
+  font-family: Inter;
+  font-weight: 300;
+  font-size: 14px;
+  color: #374151;
+}
+
+/* radio */
+.radio {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  accent-color: #FC661A;
+  border: 1px solid #D1D5DB;
+}
+
+/* no options text */
+.noOptions {
+  padding: 16px 20px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+/* notes */
+.notesWrap {
+  width: 100%;
+  max-width: 390px;
+  margin: 0 auto;
+  padding: 16px 20px;
+  box-sizing: border-box;
+}
+
+.notesTitle {
+  font-family: Inter;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.textarea {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid #E5E7EB;
+  padding: 12px;
+  min-height: 86px;
+  font-family: Inter;
+  font-size: 14px;
+  resize: none;
+}
+
+.spacer {
+  height: 140px; /* keep content above sticky bar */
+}
+
+/* sticky outer */
+.stickyOuter {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+}
+
+.stickyInner {
+  width: 100%;
+  max-width: 100%; /* let inner control width */
+  margin: 0 auto;
+  padding: 12px;
+  box-sizing: border-box;
+  background: transparent;
+}
+
+/* small toast shown after add */
+.addToast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 110px; /* above sticky area */
+  background: rgba(17,24,39,0.96);
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 6px 22px rgba(2,6,23,0.2);
+  z-index: 1600;
+  animation: toastInOut 820ms ease;
+  pointer-events: none;
+}
+
+@keyframes toastInOut {
+  0% { opacity: 0; transform: translateX(-50%) translateY(6px) scale(.98); }
+  15% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  85% { opacity: 1; transform: translateX(-50%) translateY(-6px) scale(1); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-12px) scale(.98); }
+}
+
+/* --- Modal "Menu Ditambahkan" popup --- */
+.addModalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.36);
+  z-index: 1700;
+  backdrop-filter: blur(2px);
+}
+
+.addModal {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1750;
+  width: min(360px, calc(100% - 40px));
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(2,6,23,0.18);
+  background: linear-gradient(180deg, #fff 0%, #fff 60%);
+  overflow: hidden;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.addModalContent {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.addModalIcon {
+  margin-top: 6px;
+  width: 96px;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.addModalTitle {
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  font-weight: 700;
+  font-size: 18px;
+  color: #111827;
+  text-align: center;
+  padding-top: 4px;
+}
+
+.addModalActions {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 12px 8px 20px;
+}
+
+.addModalCloseBtn {
+  min-width: 120px;
+  height: 40px;
+  border-radius: 9999px;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(2,6,23,0.06);
+}
+
+/* ensure modal is accessible on very small screens */
+@media (max-width: 420px) {
+  .addModal {
+    width: calc(100% - 28px);
+  }
+  .addModalIcon {
+    width: 80px;
+    height: 80px;
+  }
+  .addModalTitle {
+    font-size: 16px;
+  }
+}

@@ -58,7 +58,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     price: q.price ? Number(q.price) : (propItem.price ?? 0),
     taxes: q.taxes || propItem.taxes || propItem.taxes || '',
     image: q.image || propItem.imagePath || propItem.image || '',
-    description: q.description || propItem.description || propItem.itemName || ''
+    description: q.description || propItem.description || ''
   }
 
   useEffect(() => {
@@ -85,7 +85,7 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
     taxes: prev.taxes || parsed.taxes || prev.Taxes,
     price: prev.price || (parsed.price != null ? Number(parsed.price) : prev.price),
     image: prev.image || parsed.image || prev.image,
-    description: prev.description || parsed.description || prev.description
+    description: prev.description || parsed.description || ''
     }));
     } catch (e) {
     // silent fail

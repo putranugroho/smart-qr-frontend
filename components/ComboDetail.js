@@ -665,7 +665,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
         handleSelectProduct(gKey, pCode)
         // ❗ tidak setOpenGroups → tetap tertutup
-        focusNextUnselectedGroup(groupKey)
+        focusNextUnselectedGroup(gKey)
       }
     })
   }, [comboState])
@@ -731,7 +731,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
       g => getGroupKey(g) === groupKey
     )
 
-    if (group?.activeCondiment === false) {
+    if (!product.activeCondiment || !product.condimentGroups?.length) {
       // langsung pindah ke paket berikutnya
       setTimeout(() => {
         focusNextUnselectedGroup(groupKey)
@@ -795,30 +795,27 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
   }
 
-  const focusNextUnselectedGroup = (currentGroupKey) => {
-    const groups = comboState.comboGroups || []
+  function focusNextUnselectedGroup(currentGroupKey) {
+    if (!comboState?.comboGroups) return
 
-    const currentIndex = groups.findIndex(
+    const groups = comboState.comboGroups
+    const currentIdx = groups.findIndex(
       g => getGroupKey(g) === currentGroupKey
     )
 
     // cari paket berikutnya yang belum dipilih
-    const nextGroup = groups.slice(currentIndex + 1).find(g => {
-      const gKey = getGroupKey(g)
-      return !selectedProducts[gKey]
-    })
+    for (let i = currentIdx + 1; i < groups.length; i++) {
+      const nextKey = getGroupKey(groups[i])
 
-    if (!nextGroup) return // tidak ada → stay
+      if (!selectedProducts[nextKey]) {
+        // 🔥 buka hanya paket ini, auto-hide lainnya
+        setOpenGroups({ [nextKey]: true })
+        return
+      }
+    }
 
-    const nextKey = getGroupKey(nextGroup)
-
-    setOpenGroups(prev => ({
-      ...Object.keys(prev).reduce((acc, k) => {
-        acc[k] = false
-        return acc
-      }, {}),
-      [nextKey]: true
-    }))
+    // 🔥 JIKA SEMUA SUDAH TERPILIH → TUTUP SEMUA
+    setOpenGroups({})
   }
 
   // =======================

@@ -737,15 +737,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
     setMissingAddons(null)
 
-    // 🧠 JIKA ADA ADDON → STOP & MINTA PILIH ADDON
-    if (Array.isArray(prod.condimentGroups) && prod.condimentGroups.length > 0) {
-      setActiveCondimentProduct({
-        groupKey,
-        product: prod
-      })
-      return
-    }
-
     // 🚀 JIKA TIDAK ADA ADDON → BOLEH NEXT
     const idx = comboState.comboGroups.findIndex(
       g => getGroupKey(g) === groupKey

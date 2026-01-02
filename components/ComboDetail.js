@@ -226,7 +226,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
   // reset guards when editingIndex changes (new edit flow)
   useEffect(() => {
-    injectedCondimentsRef.current = false
     fetchedFullRef.current = false
     prefilledRef.current = false
     setOriginalClientInstanceId(null)
@@ -598,55 +597,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
           })
         }
 
-        // inject condimentGroups from entry into comboState so UI renders addon options (guarded by ref)
-        try {
-          if (!injectedCondimentsRef.current) {
-            // build a map <productCode> => condiments array (raw) from cart entry
-            const prodMapFromEntry = {};
-            if (Array.isArray(firstCombo?.products)) {
-              firstCombo.products.forEach(p => {
-                const pCode = p.code ?? p.id;
-                if (pCode) prodMapFromEntry[String(pCode)] = p.condiments || [];
-              });
-            }
-
-            const hasAnyEntryCondiments = Object.values(prodMapFromEntry).some(arr => Array.isArray(arr) && arr.length > 0);
-
-            if (hasAnyEntryCondiments && comboState && Array.isArray(comboState.comboGroups)) {
-              // compute whether we actually need to modify comboState
-              let changed = false;
-              const cs = JSON.parse(JSON.stringify(comboState)); // clone to modify safely
-
-              cs.comboGroups.forEach(g => {
-                if (!Array.isArray(g.products)) return;
-                g.products.forEach(prod => {
-                  const pCode = prod.code ?? prod.id;
-                  const entryConds = prodMapFromEntry[String(pCode)] || []
-                  const prodHasConds = Array.isArray(prod.condimentGroups) && prod.condimentGroups.length > 0
-                  if (!prodHasConds && entryConds.length) {
-                    prod.condimentGroups = [{
-                      id: `gen_cond_${pCode}`,
-                      code: `gen_cond_${pCode}`,
-                      name: 'Add On',
-                      allowSkip: true,
-                      products: []
-                    }];
-                    changed = true;
-                  }
-                });
-              });
-
-              if (changed) {
-                setComboState(cs);
-              }
-            }
-
-            injectedCondimentsRef.current = true; // mark done for this edit flow
-          }
-        } catch (e) {
-          console.warn('inject condimentGroups failed', e)
-        }
-
         setSelectedProducts(sp)
         setSelectedCondiments(sc)
       }
@@ -661,17 +611,35 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
     comboState.comboGroups.forEach(group => {
       const gKey = getGroupKey(group)
+      const prodCode = selectedProducts[gKey]
+      if (!prodCode) return
 
-      if (selectedProducts[gKey]) return
+      if (group.activeCondiment === false) {
+        setOpenGroups(prev => ({ ...prev, [gKey]: false }))
+        return
+      }
 
-      if (Array.isArray(group.products) && group.products.length === 1) {
-        const p = group.products[0]
-        const pCode = p.code ?? String(p.id)
+      const prod = group.products.find(p => p.code === prodCode)
+      const cgs = prod?.condimentGroups || []
 
-        handleSelectProduct(gKey, pCode)
+      // 🔑 jika tidak ada addon → auto hide
+      if (cgs.length === 0) {
+        setOpenGroups(prev => ({ ...prev, [gKey]: false }))
+        return
+      }
+
+      const selected = selectedCondiments[gKey]?.condiments || {}
+
+      const done = cgs.every(cg => {
+        const cgKey = cg.code || cg.name || String(cg.id)
+        return selected[cgKey] !== undefined
+      })
+
+      if (done) {
+        setOpenGroups(prev => ({ ...prev, [gKey]: false }))
       }
     })
-  }, [comboState])
+  }, [selectedProducts, selectedCondiments, comboState])
 
   // AUTO SELECT SINGLE PRODUCT (NEW COMBO ONLY)
   useEffect(() => {

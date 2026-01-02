@@ -1338,6 +1338,18 @@ export default function ComboDetail({ combo: propCombo = null }) {
                                 {p.description}
                               </div>
                             )}
+                            {isOOS && (
+                              <div
+                                style={{
+                                  marginTop: 4,
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  color: '#dc2626'
+                                }}
+                              >
+                                Out of Stock
+                              </div>
+                            )}
                           </div>
 
                           <div className={styles.cardRight}>

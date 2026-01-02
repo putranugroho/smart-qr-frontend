@@ -332,7 +332,24 @@ export default function ItemDetail({ productCode: propProductCode, item: propIte
 
           return cleaned
         })
-        setNoCondiments(groups.length === 0)
+
+        // cek apakah ada minimal 1 opsi condiment
+        const hasAnyOption = groups.some(
+          g => Array.isArray(g.options) && g.options.length > 0
+        )
+
+        if (!hasAnyOption) {
+          // Anggap NO CONDIMENT
+          setAddons([])
+          setNoCondiments(true)
+          setSelected(prev => ({
+            ...prev,
+            ["__NO_ADDONS__"]: NONE_OPTION_ID
+          }))
+        } else {
+          setAddons(groups)
+          setNoCondiments(false)
+        }
 
         setItem(prev => (({
           code: prev.code || product.code || productCode,

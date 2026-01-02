@@ -207,10 +207,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
   const comboGroups = useMemo(() => (comboState && Array.isArray(comboState.comboGroups) ? comboState.comboGroups : []), [comboState])
 
   // refs
-  const productRefs = useRef({})
-  const injectedCondimentsRef = useRef(false)    // ensure we inject condiments once per edit flow
   const fetchedFullRef = useRef(false)          // ensure we fetch full data once per edit flow
-  const fallbackProductsRef = useRef({})        // store fallback products per groupKey from cart entry
   const prefilledRef = useRef(false)
 
   const editingCID =
@@ -623,7 +620,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
       const cgs = prod?.condimentGroups || []
 
       // 🔑 jika tidak ada addon → auto hide
-      if (cgs.length === 0) {
+      if (!hasValidAddon(prod)) {
         setOpenGroups(prev => ({ ...prev, [gKey]: false }))
         return
       }
@@ -674,6 +671,15 @@ export default function ComboDetail({ combo: propCombo = null }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comboState])
 
+  function hasValidAddon(product) {
+    if (!product) return false
+    if (!Array.isArray(product.condimentGroups)) return false
+
+    return product.condimentGroups.some(cg =>
+      Array.isArray(cg.products) && cg.products.length > 0
+    )
+  }
+
   function getGroupKey(g) {
     return g.code ?? g.name ?? String(g.id)
   }
@@ -708,8 +714,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
     const noAddonNeeded =
       grp?.activeCondiment === false ||
-      !Array.isArray(prod.condimentGroups) ||
-      prod.condimentGroups.length === 0
+      !hasValidAddon(prod)
 
     if (noAddonNeeded) {
       setTimeout(() => focusNextUnselectedGroup(groupKey), 0)
@@ -1353,7 +1358,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
               )}
 
               {/* ================= ADD ON ================= */}
-              {isCondimentActive && isOpen && selectedProduct?.condimentGroups?.length > 0 && (
+              {isCondimentActive && isOpen && selectedProduct && hasValidAddon(selectedProduct) && (
                 <div style={{ marginTop: 16 }}>
                   <div style={{ fontWeight: 600, marginBottom: 8 }}>
                     Pilih Add On

@@ -312,13 +312,20 @@ export default function ComboDetail({ combo: propCombo = null }) {
             }
 
             if (Array.isArray(p.condiments) && p.condiments.length > 0) {
-              sc[p.code] = {}
+              sc[finalKey] = {
+                productCode: p.code,
+                condiments: {}
+              }
+
               p.condiments.forEach(c => {
-                const cg = c.comboGroupCode || c.group || c.comboGroup || null
-                if (cg) sc[p.code][cg] = c.code ?? c.name ?? null
-                else {
-                  sc[p.code][String(c.code ?? c.name ?? c.id ?? '')] = c.code ?? c.name ?? null
-                }
+                const cgKey =
+                  c.comboGroupCode ||
+                  c.group ||
+                  c.comboGroup ||
+                  String(c.id)
+
+                sc[finalKey].condiments[cgKey] =
+                  c.code ?? c.id ?? c.name
               })
             }
           })
@@ -572,13 +579,20 @@ export default function ComboDetail({ combo: propCombo = null }) {
             if (finalKey && p.code) sp[finalKey] = p.code
 
             if (Array.isArray(p.condiments) && p.condiments.length > 0) {
-              sc[p.code] = {}
+              sc[finalKey] = {
+                productCode: p.code,
+                condiments: {}
+              }
+
               p.condiments.forEach(c => {
-                const cg = c.comboGroupCode || c.group || c.comboGroup || null
-                if (cg) sc[p.code][cg] = c.code ?? c.name ?? null
-                else {
-                  sc[p.code][String(c.code ?? c.name ?? c.id ?? '')] = c.code ?? c.name ?? null
-                }
+                const cgKey =
+                  c.comboGroupCode ||
+                  c.group ||
+                  c.comboGroup ||
+                  String(c.id)
+
+                sc[finalKey].condiments[cgKey] =
+                  c.code ?? c.id ?? c.name
               })
             }
           })
@@ -610,19 +624,12 @@ export default function ComboDetail({ combo: propCombo = null }) {
                   const entryConds = prodMapFromEntry[String(pCode)] || []
                   const prodHasConds = Array.isArray(prod.condimentGroups) && prod.condimentGroups.length > 0
                   if (!prodHasConds && entryConds.length) {
-                    // inject generated condimentGroup
                     prod.condimentGroups = [{
                       id: `gen_cond_${pCode}`,
                       code: `gen_cond_${pCode}`,
                       name: 'Add On',
                       allowSkip: true,
-                      products: entryConds.map(c => ({
-                        id: c.code ?? c.id ?? c.name,
-                        code: c.code ?? c.id ?? c.name,
-                        name: c.name ?? c.itemName ?? '',
-                        price: c.price ?? 0,
-                        taxes: c.taxes || []
-                      }))
+                      products: []
                     }];
                     changed = true;
                   }
@@ -723,7 +730,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
       [groupKey]: productCode
     }))
 
-    // INIT SLOT CONDIMENT
     setSelectedCondiments(prev => ({
       ...prev,
       [groupKey]: prev[groupKey] ?? {
@@ -732,16 +738,13 @@ export default function ComboDetail({ combo: propCombo = null }) {
       }
     }))
 
-    setMissingAddons(null)
-
-    if (
+    const noAddonNeeded =
       grp?.activeCondiment === false ||
-      !prod.condimentGroups ||
+      !Array.isArray(prod.condimentGroups) ||
       prod.condimentGroups.length === 0
-    ) {
-      setTimeout(() => {
-        focusNextUnselectedGroup(groupKey)
-      }, 0)
+
+    if (noAddonNeeded) {
+      setTimeout(() => focusNextUnselectedGroup(groupKey), 0)
     }
   }
 
@@ -770,16 +773,13 @@ export default function ComboDetail({ combo: propCombo = null }) {
         }
       }
 
-      // ✅ HITUNG DARI NEXT STATE (BUKAN STATE LAMA)
       const allSelected = product.condimentGroups.every(cg => {
         const key = cg.code || cg.name || String(cg.id)
         return next[groupKey].condiments[key] !== undefined
       })
 
       if (allSelected) {
-        setTimeout(() => {
-          focusNextUnselectedGroup(groupKey)
-        }, 0)
+        setTimeout(() => focusNextUnselectedGroup(groupKey), 0)
       }
 
       return next
@@ -798,11 +798,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
       const nextKey = getGroupKey(groups[i])
 
       if (!selectedProducts[nextKey]) {
-        setOpenGroups(prev => ({
-          ...prev,
-          [currentGroupKey]: false,
+        setOpenGroups({
           [nextKey]: true
-        }))
+        })
         return
       }
     }

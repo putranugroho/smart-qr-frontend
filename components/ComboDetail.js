@@ -1209,9 +1209,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
           )
           console.log('[ADDON RENDER]', {
             groupKey,
-            productCode: product.code,
+            productCode: group.products.code,
             cgKey,
-            optCode: opt.code,
             selectedCondiments,
           })
           const isCondimentActive = group.activeCondiment !== false

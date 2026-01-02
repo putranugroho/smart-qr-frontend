@@ -709,41 +709,39 @@ export default function OrderStatus() {
   console.log("visibleItems", visibleItems);
 
   const computeItemTotal = (item) => {
-    // COMBO → subtotal dari backend
-    console.log("item total", item);
-    
     if (item.type === 'combo') {
       const cb = item.combos?.[0]
       if (!cb) return 0
 
-      const products = cb.products || []
+      const comboQty = Number(item.qty || cb.qty || 1)
 
-      return products.reduce((sum, p) => {
-        return sum + (Number(p.price) * Number(p.qty || 1))
+      const comboUnitTotal = (cb.products || []).reduce((sum, p) => {
+        const productBase =
+          Number(p.price || 0) * Number(p.qty || 1)
+
+        const condimentTotal = (p.condiments || []).reduce((cs, c) => {
+          return cs + (Number(c.price || 0) * Number(c.qty || 1))
+        }, 0)
+
+        return sum + productBase + condimentTotal
       }, 0)
+
+      return comboUnitTotal * comboQty
     }
 
-    // MENUS
+    // ===== MENU BIASA =====
     if (item.type === 'menu') {
-      const mn = item
-      if (!mn) return 0
-  
-      const qty = Number(mn.qty || 1)
-      const basePrice = Number(mn.price || 0)
-      console.log("qty", qty);
-      console.log("basePrice", basePrice);
-  
-      let addonTotal = 0
-      if (Array.isArray(mn.condiments)) {
-        addonTotal = mn.condiments.reduce((sum, c) => {
-          console.log("addonTotal", addonTotal);
-          return sum + Number(c.price || 0) * Number(c.qty || 1)
-        }, 0)
-      }
-  
-    
+      const qty = Number(item.qty || 1)
+      const basePrice = Number(item.price || 0)
+
+      const addonTotal = (item.condiments || []).reduce((sum, c) => {
+        return sum + Number(c.price || 0) * Number(c.qty || 1)
+      }, 0)
+
       return (basePrice * qty) + addonTotal
     }
+
+    return 0
   }
 
   const MERCHANT_PHONE = '+628123456789'
@@ -876,11 +874,18 @@ export default function OrderStatus() {
                           <div className={styles.itemAddon}>
                             {it.type === 'combo' ? (
                               <>
-                                {it.qty || 1}x •{' '}
-                                {it.combos?.[0]?.products
-                                  ?.map(p => p.name)
-                                  .filter(Boolean)
-                                  .join(' + ') || 'Combo'}
+                                {(it.qty || 1)}x •{' '}
+                                {it.combos?.[0]?.products?.map(p => (
+                                  <div key={p.code}>
+                                    <div>{p.name}</div>
+
+                                    {p.condiments?.length > 0 && (
+                                      <div style={{ fontSize: 12, opacity: 0.8 }}>
+                                        + {p.condiments.map(c => c.name).join(', ')}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
                               </>
                             ) : (
                               <>

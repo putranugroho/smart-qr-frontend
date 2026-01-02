@@ -139,6 +139,20 @@ export default function BillPage() {
     return parts[1] ? parts[1].trim() : "";
   }
 
+  function computeComboTotal(cb, comboQty = 1) {
+    return (cb.products || []).reduce((sum, p) => {
+      const base =
+        Number(p.price || 0) * Number(p.qty || 1)
+
+      const condimentTotal = (p.condiments || []).reduce(
+        (cs, c) => cs + Number(c.price || 0) * Number(c.qty || 1),
+        0
+      )
+
+      return sum + base + condimentTotal
+    }, 0) * comboQty
+  }
+
   // Normalisasi item
   const itemsFromPayload = useMemo(() => {
     if (!doOrderRaw) return [];
@@ -216,77 +230,6 @@ export default function BillPage() {
   /* GROUP DI / TA */
   const dineInItems = items.filter((it) => it.orderType === "DI");
   const takeAwayItems = items.filter((it) => it.orderType === "TA");
-
-  // ================================
-  // FINAL TOTALS — BACKEND ONLY
-  // ================================
-
-  function addTax(acc, taxName, amount) {
-    const name = String(taxName || '').toUpperCase()
-    if (name === 'PB1') acc.pb1 += amount
-    if (name === 'PPN') acc.ppn += amount
-  }
-
-  function computeTaxesFromRealData(data) {
-    let pb1 = 0
-    let ppn = 0
-  
-    /* ======================
-       COMBOS
-    ====================== */
-    if (Array.isArray(data?.combos)) {
-      data.combos.forEach(combo => {
-        const comboQty = Number(combo.qty || 1)
-  
-        combo.products?.forEach(p => {
-          const price = Number(p.price || 0)
-  
-          p.taxes?.forEach(tx => {
-            const pct = Number(tx.taxPercentage || 0)
-            const taxValue = Math.round(price * pct / 100 * comboQty)
-            addTax({ pb1, ppn }, tx.taxName, taxValue)
-            if (tx.taxName === 'PB1') pb1 += taxValue
-            if (tx.taxName === 'PPN') ppn += taxValue
-          })
-        })
-      })
-    }
-  
-    /* ======================
-       MENUS
-    ====================== */
-    if (Array.isArray(data?.menus)) {
-      data.menus.forEach(menu => {
-        const qty = Number(menu.qty || 1)
-        const basePrice = Number(menu.detailMenu?.price || 0)
-  
-        // menu utama
-        menu.taxes?.forEach(tx => {
-          const pct = Number(tx.taxPercentage || 0)
-          const taxValue = Math.round(basePrice * pct / 100 * qty)
-          if (tx.taxName === 'PB1') pb1 += taxValue
-          if (tx.taxName === 'PPN') ppn += taxValue
-        })
-  
-        // condiment menu
-        menu.condiments?.forEach(c => {
-          const cPrice = Number(c.price || 0)
-  
-          c.taxes?.forEach(tx => {
-            const pct = Number(tx.taxPercentage || 0)
-            const taxValue = Math.round(cPrice * pct / 100 * qty)
-            if (tx.taxName === 'PB1') pb1 += taxValue
-            if (tx.taxName === 'PPN') ppn += taxValue
-          })
-        })
-      })
-    }
-  
-    return {
-      pb1: Math.round(pb1),
-      ppn: Math.round(ppn)
-    }
-  }
 
   const hasBackendTotals =
     doOrderRaw &&
@@ -401,7 +344,8 @@ export default function BillPage() {
             {dineInItems.map((it, i) => {
               if (it.type === "combo") {
                 const products = it.combos[0].products ?? [];
-                const total  = products.reduce((t, p) => t + Number(p.price || 0) * Number(p.qty || 1), 0);
+                const comboQty = Number(it.qty || 1)
+                const total = computeComboTotal(it.combos[0], comboQty)
 
                 return (
                   <div key={i} className={styles.itemRow}>
@@ -413,6 +357,11 @@ export default function BillPage() {
                       {products.map((p, idx) => (
                         <div key={idx} className={styles.itemAddon}>
                           • {p.itemName}
+                          {p.condiments?.length > 0 && (
+                            <div style={{ marginLeft: 12, fontSize: 12 }}>
+                              + {p.condiments.map(c => c.itemName || c.name).join(', ')}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -426,16 +375,16 @@ export default function BillPage() {
               const base = Number(it.detailMenu?.price || 0) * Number(it.qty || 1);
               const qty = Number(it.qty || 1);
               const addonTotal = (it.condiments ?? []).reduce(
-                (t, c) => t + Number(c.Price ?? 0),
+                (t, c) => t + Number(c.price || c.Price || 0) * Number(c.qty || 1),
                 0
-              );
+              )
 
               const taxTotal = (it.taxes || []).reduce(
                 (t, tx) => t + Number(tx.taxAmount || 0),
                 0
               );
 
-              const menuTotal = base + taxTotal;
+              const menuTotal = base + taxTotal + addonTotal
 
               return (
                 <div key={i} className={styles.itemRow}>
@@ -470,10 +419,8 @@ export default function BillPage() {
             {takeAwayItems.map((it, i) => {
               if (it.type === "combo") {
                 const products = it.combos[0].products ?? [];
-                const total = products.reduce(
-                  (t, p) => t + Number(p.price || 0) * Number(p.qty || 1),
-                  0
-                );
+                const comboQty = Number(it.qty || 1)
+                const total = computeComboTotal(it.combos[0], comboQty)
 
                 return (
                   <div key={i} className={styles.itemRow}>
@@ -485,6 +432,11 @@ export default function BillPage() {
                       {products.map((p, idx) => (
                         <div key={idx} className={styles.itemAddon}>
                           • {p.itemName}
+                          {p.condiments?.length > 0 && (
+                            <div style={{ marginLeft: 12, fontSize: 12 }}>
+                              + {p.condiments.map(c => c.itemName || c.name).join(', ')}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -498,16 +450,16 @@ export default function BillPage() {
               const base = Number(it.detailMenu?.price || 0) * Number(it.qty || 1);
               const qty = Number(it.qty || 1);
               const addonTotal = (it.condiments ?? []).reduce(
-                (t, c) => t + Number(c.Price ?? c.price ?? 0),
+                (t, c) => t + Number(c.price || c.Price || 0) * Number(c.qty || 1),
                 0
-              );
+              )
 
               const taxTotal = (it.taxes || []).reduce(
                 (t, tx) => t + Number(tx.taxAmount || 0),
                 0
               );
 
-              const menuTotal = base + taxTotal;
+              const menuTotal = base + taxTotal + addonTotal
 
               return (
                 <div key={i} className={styles.itemRow}>

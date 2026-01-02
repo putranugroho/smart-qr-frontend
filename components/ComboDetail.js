@@ -1361,19 +1361,11 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
                   {selectedProduct.condimentGroups.map(cg => {
                     const cgKey = cg.code || cg.name || String(cg.id)
-                    const selectedAddon =
-                      selectedCondiments[groupKey]?.condiments?.[cgKey]
-          console.log('[ADDON RENDER]', {
-            groupKey,
-            productCode: group.products.code,
-            cgKey,
-            optCode: cg.products.code,
-            selectedCondiments,
-          })
-          console.log('[CG KEY CHECK]', {
-            cgKeyFromUI: cg.code || cg.name || cg.id,
-            selectedCondimentsForGroup: selectedCondiments[groupKey]
-          })
+
+                    // 🔑 AMBIL SEMUA addon code yang tersimpan (TANPA peduli cgKey)
+                    const selectedAddonCodes = Object.values(
+                      selectedCondiments[groupKey]?.condiments || {}
+                    )
 
                     return (
                       <div
@@ -1389,7 +1381,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                         {cg.allowSkip && (
                           <div
                             className={`${styles.card} ${
-                              selectedAddon === NONE_OPTION_ID
+                              selectedAddonCodes.includes(NONE_OPTION_ID)
                                 ? styles.cardSelected
                                 : ''
                             }`}
@@ -1419,7 +1411,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                               <div className={styles.cardPrice}>Rp 0</div>
                               <input
                                 type="radio"
-                                checked={selectedAddon === NONE_OPTION_ID}
+                                checked={selectedAddonCodes.includes(NONE_OPTION_ID)}
                                 readOnly
                               />
                             </div>
@@ -1429,7 +1421,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                         {/* ADDON OPTIONS */}
                         {cg.products.map(opt => {
                           const optCode = opt.code ?? String(opt.id)
-                          const checked = selectedAddon === optCode
+                          const checked = selectedAddonCodes.includes(optCode)
                           const isOOS = opt.isOutOfStock === true
 
                           return (
@@ -1465,7 +1457,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
                               </div>
 
                               <div className={styles.cardText}>
-                                <div className={styles.cardTitle}>{opt.name}</div>
+                                <div className={styles.cardTitle}>
+                                  {opt.name}
+                                </div>
 
                                 {opt.description && (
                                   <div className={styles.cardDesc}>
@@ -1479,7 +1473,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                                       marginTop: 4,
                                       fontSize: 12,
                                       fontWeight: 600,
-                                      color: '#dc2626' // merah
+                                      color: '#dc2626'
                                     }}
                                   >
                                     Out of Stock

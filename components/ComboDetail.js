@@ -1207,12 +1207,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
           const isSelected = Boolean(
             selectedProductCode && selectedProductCode !== NO_ADDON_CODE
           )
-          console.log('[ADDON RENDER]', {
-            groupKey,
-            productCode: group.products.code,
-            cgKey,
-            selectedCondiments,
-          })
           const isCondimentActive = group.activeCondiment !== false
 
           return (
@@ -1369,6 +1363,13 @@ export default function ComboDetail({ combo: propCombo = null }) {
                     const cgKey = cg.code || cg.name || String(cg.id)
                     const selectedAddon =
                       selectedCondiments[groupKey]?.condiments?.[cgKey]
+          console.log('[ADDON RENDER]', {
+            groupKey,
+            productCode: group.products.code,
+            cgKey,
+            optCode: cg.products.code,
+            selectedCondiments,
+          })
           console.log('[CG KEY CHECK]', {
             cgKeyFromUI: cg.code || cg.name || cg.id,
             selectedCondimentsForGroup: selectedCondiments[groupKey]

@@ -102,6 +102,34 @@ export default function PaymentPage() {
     }
   }
 
+  function getOrderHistoryStorage() {
+    try {
+      const raw = localStorage.getItem("orderHistory");
+      if (!raw) {
+        return {
+          dataUser: [],
+          dataHistory: []
+        };
+      }
+
+      const parsed = JSON.parse(raw);
+
+      return {
+        dataUser: Array.isArray(parsed.dataUser) ? parsed.dataUser : [],
+        dataHistory: Array.isArray(parsed.dataHistory) ? parsed.dataHistory : []
+      };
+    } catch {
+      return {
+        dataUser: [],
+        dataHistory: []
+      };
+    }
+  }
+
+  function saveOrderHistoryStorage(data) {
+    localStorage.setItem("orderHistory", JSON.stringify(data));
+  }
+
   useEffect(() => {
     const latestCart = getLatestCart();
     const sessionStore = sessionStorage.getItem("yoshi_store_code") || "";
@@ -125,6 +153,20 @@ export default function PaymentPage() {
   
     calculateTaxFromAPI(dataUser.tableNumber)
       .finally(() => setIsMounted(true));
+
+    try {
+      const stored = getOrderHistoryStorage();
+      if (Array.isArray(stored?.dataUser) && stored.dataUser.length > 0) {
+        const user = stored.dataUser[0];
+        setCustomer({
+          first_name: user.nama || "",
+          phone: user.noTelp || ""
+        });
+      }
+
+    } catch (e) {
+      console.warn("Failed to autofill user data", e);
+    }
   
   }, []);
 
@@ -392,6 +434,33 @@ export default function PaymentPage() {
         name: customer.first_name,
         phone: phoneNumber
       })
+
+      // ================================
+      // SAVE USER + ORDER HISTORY
+      // ================================
+      try {
+        const storage = getOrderHistoryStorage();
+
+        // 1. Update data user
+        storage.dataUser = [
+          {
+            nama: customer.first_name,
+            noTelp: customer.phone
+          }
+        ];
+
+        // 2. Append order history
+        storage.dataHistory.unshift({
+          orderCode: doOrderData.data.orderCode,
+          orderDate: new Date().toISOString(),
+          totalPayment: Number(grossAmount),
+          storeLocation: "Yoshinoya Mall Grand Indonesia"
+        });
+
+        saveOrderHistoryStorage(storage);
+      } catch (e) {
+        console.error("Failed saving orderHistory", e);
+      }
 
       // clear client cart (calls clearCart -> localStorage)
       clearCart();

@@ -772,7 +772,7 @@ export default function OrderStatus() {
     <div className={styles.page}>
       {/* HEADER */}
       <header className={styles.header}>
-        <button className={styles.backBtn} onClick={() => router.push('/')}>&larr;</button>
+        <button className={styles.backBtn} onClick={() => router.back()}>&larr;</button>
         <div className={styles.headerTitle}>Detail Pesanan</div>
       </header>
 

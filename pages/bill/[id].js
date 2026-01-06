@@ -139,7 +139,7 @@ export default function BillPage() {
     return parts[1] ? parts[1].trim() : "";
   }
 
-  function computeComboTotal(cb, comboQty = 1) {
+  function computeComboTotal(cb) {
     return (cb.products || []).reduce((sum, p) => {
       const base =
         Number(p.price || 0) * Number(p.qty || 1)
@@ -150,7 +150,7 @@ export default function BillPage() {
       )
 
       return sum + base + condimentTotal
-    }, 0) * comboQty
+    }, 0)
   }
 
   // Normalisasi item
@@ -345,7 +345,7 @@ export default function BillPage() {
               if (it.type === "combo") {
                 const products = it.combos[0].products ?? [];
                 const comboQty = Number(it.qty || 1)
-                const total = computeComboTotal(it.combos[0], comboQty)
+                const total = computeComboTotal(it.combos[0])
 
                 return (
                   <div key={i} className={styles.itemRow}>
@@ -420,7 +420,7 @@ export default function BillPage() {
               if (it.type === "combo") {
                 const products = it.combos[0].products ?? [];
                 const comboQty = Number(it.qty || 1)
-                const total = computeComboTotal(it.combos[0], comboQty)
+                const total = computeComboTotal(it.combos[0])
 
                 return (
                   <div key={i} className={styles.itemRow}>

@@ -29,6 +29,7 @@ export default function Header() {
         position: "sticky",
         top: 0,
         zIndex: 1000,
+        background: "#fff",
         boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
       }}
     >

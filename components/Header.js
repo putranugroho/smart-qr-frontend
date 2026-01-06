@@ -48,7 +48,7 @@ export default function Header() {
 
         {/* Right Menu */}
         <div style={{ position: "relative" }} ref={menuRef}>
-          <button
+          {/* <button
             onClick={() => setShowMenu(!showMenu)}
             aria-label="Menu lainnya"
             style={{
@@ -60,7 +60,7 @@ export default function Header() {
             }}
           >
             ⋮
-          </button>
+          </button> */}
 
           {showMenu && (
             <div

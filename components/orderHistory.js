@@ -116,7 +116,7 @@ export default function OrderHistory() {
       }}
     >
       <h2 style={{ textAlign: "center", marginBottom: 16 }}>
-        Order History
+        Riwayat Pesanan
       </h2>
 
       {orders.length === 0 ? (

@@ -457,6 +457,8 @@ export default function PaymentPage() {
           storeLocation: "Yoshinoya Mall Grand Indonesia"
         });
 
+        console.log("after build:", storage);
+
         saveOrderHistoryStorage(storage);
       } catch (e) {
         console.error("Failed saving orderHistory", e);
@@ -465,7 +467,14 @@ export default function PaymentPage() {
       // clear client cart (calls clearCart -> localStorage)
       clearCart();
 
-      router.push('/paymentstatus');
+      // 🔒 pastikan storage benar-benar tersimpan
+      const verify = localStorage.getItem("orderHistory");
+      console.log("orderHistory saved:", verify);
+
+      // beri waktu 1 tick browser
+      setTimeout(() => {
+        router.push('/paymentstatus');
+      }, 0);
 
     } catch (err) {
       console.error(err);

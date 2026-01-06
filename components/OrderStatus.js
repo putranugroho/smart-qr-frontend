@@ -713,20 +713,16 @@ export default function OrderStatus() {
       const cb = item.combos?.[0]
       if (!cb) return 0
 
-      const comboQty = Number(item.qty || cb.qty || 1)
-
-      const comboUnitTotal = (cb.products || []).reduce((sum, p) => {
+      return (cb.products || []).reduce((sum, p) => {
         const productBase =
           Number(p.price || 0) * Number(p.qty || 1)
 
         const condimentTotal = (p.condiments || []).reduce((cs, c) => {
-          return cs + (Number(c.price || 0) * Number(c.qty || 1))
+          return cs + Number(c.price || 0) * Number(c.qty || 1)
         }, 0)
 
         return sum + productBase + condimentTotal
       }, 0)
-
-      return comboUnitTotal * comboQty
     }
 
     // ===== MENU BIASA =====

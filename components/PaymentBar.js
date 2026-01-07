@@ -14,7 +14,7 @@ export default function PaymentBar() {
           </span>
 
           <span className={styles.iconWrap}>
-            <Image src="/images/pay-shopee.png" alt="shopee" width={55} height={14} className={styles.iconImg} />
+            <Image src="/images/pay-shopeepay.png" alt="shopee" width={55} height={14} className={styles.iconImg} />
           </span>
 
           <span className={styles.iconWrap}>

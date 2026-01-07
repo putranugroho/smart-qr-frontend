@@ -32,7 +32,7 @@ export default async function handler(req, res) {
   }
 
   const payload = {
-    payment_type: selectedMethod === 'gopay' ? 'gopay' : 'qris',
+    payment_type: selectedMethod,
     transaction_details: {
       order_id: orderId,
       gross_amount: finalGrossAmount
@@ -44,6 +44,10 @@ export default async function handler(req, res) {
     if (selectedMethod === 'gopay') {
       payload.gopay = {
         enable_callback: true,
+        callback_url: `${URLCallback}/?orderCode=${orderId}`
+      };
+    } else if (selectedMethod === 'shopeepay') {
+      payload.shopeepay = {
         callback_url: `${URLCallback}/?orderCode=${orderId}`
       };
     }

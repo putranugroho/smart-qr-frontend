@@ -1,6 +1,6 @@
 // pages/paymentpage.js
 import { useRouter } from 'next/router'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import styles from '../styles/PaymentPage.module.css'
 import Image from 'next/image'
 import { clearCart } from '../lib/cart'
@@ -51,6 +51,8 @@ export default function PaymentPage() {
     rounding: 0,
     taxes: []
   });  
+
+  const payLockRef = useRef(false);
 
   // validation state
   const [errors, setErrors] = useState({
@@ -282,6 +284,9 @@ export default function PaymentPage() {
   }
 
   async function handlePayNow() {
+    if (payLockRef.current) return; // 🔒 hard lock
+    payLockRef.current = true;
+
     if (isBlocking) return
     // clear previous errors
     setErrors({ first_name: '', phone: '', tableNumber: '' });
@@ -343,8 +348,10 @@ export default function PaymentPage() {
 
       if (selectedMethod.includes("gopay")) {
         payload.payment = "GOPAY"
-      } if (selectedMethod.includes("qris")) {
+      } else if (selectedMethod.includes("qris")) {
         payload.payment = "QRISOTHERS"
+      } else if (selectedMethod.includes("shopeepay")) {
+        payload.payment = "SHOPEEPAY"
       } 
 
       payload.customerName = customer.first_name || "";
@@ -533,8 +540,8 @@ export default function PaymentPage() {
   const total = payloadPreview.grandTotal || 0;
 
   // Payment method list and disabled set
-  const methods = ['qris','shopee','gopay','ovo','dana'];
-  const disabledMethods = new Set(['ovo','dana','shopee']); // these will be shown as under maintenance
+  const methods = ['qris','shopeepay','gopay','ovo','dana'];
+  const disabledMethods = new Set(['ovo','dana']); // these will be shown as under maintenance
 
   return (
     <div className={styles.page}>

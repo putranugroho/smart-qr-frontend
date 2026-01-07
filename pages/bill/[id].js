@@ -125,6 +125,7 @@ export default function BillPage() {
     const s = String(source).toLowerCase();
 
     if (s.includes("gopay")) return "/images/pay-gopay.png";
+    if (s.includes("shopeepay")) return "/images/pay-shopeepay.png";
     if (s.includes("qris")) return "/images/pay-qris.png";
 
     return "";

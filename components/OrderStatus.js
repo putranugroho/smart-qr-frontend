@@ -217,6 +217,7 @@ export default function OrderStatus() {
       const s = String(source).toLowerCase()
 
       if (s.includes("gopay")) return "/images/pay-gopay.png"
+      if (s.includes("shopeepay")) return "/images/pay-shopeepay.png"
       if (s.includes("qris")) return "/images/pay-qris.png"
 
       return ""
@@ -668,6 +669,8 @@ export default function OrderStatus() {
         setUrlLogo("/images/pay-gopay.png")
       } else if (realData?.payment?.toLowerCase()?.includes("qris")) {
         setUrlLogo("/images/pay-qris.png")
+      } else if (realData?.payment?.toLowerCase()?.includes("shopeepay")) {
+        setUrlLogo("/images/pay-shopeepay.png")
       }
       } catch (err) {
         console.warn('checkOrder error', err)
@@ -987,17 +990,19 @@ export default function OrderStatus() {
       </div>
 
       {/* Hoverbar */}
-      <div className={styles.hoverBarWrap} role="region" aria-label="Aksi pesanan">
-        <div className={styles.hoverBar}>
-          <button className={styles.btnDownload} onClick={() => router.push(`/bill/${displayOrderId || id}`)} aria-label="Download bill" type="button">
-            <span>View Bill</span>
-          </button>
+      {paymentAccepted && (
+        <div className={styles.hoverBarWrap} role="region" aria-label="Aksi pesanan">
+          <div className={styles.hoverBar}>
+            <button className={styles.btnDownload} onClick={() => router.push(`/bill/${displayOrderId || id}`)} aria-label="Download bill" type="button">
+              <span>View Bill</span>
+            </button>
 
-          {/* <button className={styles.btnContact} onClick={contactMerchant} aria-label="Kontak merchant" type="button">
-            <span>Kontak</span>
-          </button> */}
+            {/* <button className={styles.btnContact} onClick={contactMerchant} aria-label="Kontak merchant" type="button">
+              <span>Kontak</span>
+            </button> */}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Payment redirect modal (appears 1x) */}
       {showPaymentRedirectModal && (

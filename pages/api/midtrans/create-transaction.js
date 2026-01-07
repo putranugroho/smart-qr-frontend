@@ -48,6 +48,7 @@ export default async function handler(req, res) {
       };
     } else if (selectedMethod === 'shopeepay') {
       payload.shopeepay = {
+        enable_callback: true,
         callback_url: `${URLCallback}/?orderCode=${orderId}`
       };
     }

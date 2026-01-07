@@ -53,6 +53,9 @@ export default async function handler(req, res) {
       };
     }
 
+    console.log("payload midtrans", payload);
+    
+
   try {
     const auth = Buffer.from(`${SERVER_KEY}:`).toString('base64');
     const r = await fetch(MIDTRANS_API, {

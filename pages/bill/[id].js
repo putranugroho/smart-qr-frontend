@@ -69,6 +69,7 @@ export default function BillPage() {
   const printRef = useRef();
   const [doOrderRaw, setDoOrderRaw] = useState(null);
   const [dateString, setDateString] = useState("");
+  const [dateNow, setDateNow] = useState("");
   const [paymentFromStorage, setPaymentFromStorage] = useState({
     items: [],
     paymentTotal: 0,
@@ -100,20 +101,26 @@ export default function BillPage() {
         const data = parsed.data ?? parsed;
 
         const createdAtRaw = data.orderCreatedAt;
-        console.log(createdAtRaw);
+        
+        if (createdAtRaw) {
+          const date = new Date(createdAtRaw);
+          
+          const h = String(date.getHours()).padStart(2, "0");
+          const m = String(date.getMinutes()).padStart(2, "0");
+          const d = String(date.getDate()).padStart(2, "0");
+          const mo = String(date.getMonth() + 1).padStart(2, "0");
+          const y = date.getFullYear();
+          
+          setDateString(`${h}:${m} ${d}/${mo}/${y}`);
+        }
+        const now = new Date();
+        const h = String(now.getHours()).padStart(2, "0");
+        const m = String(now.getMinutes()).padStart(2, "0");
+        const d = String(now.getDate()).padStart(2, "0");
+        const mo = String(now.getMonth() + 1).padStart(2, "0");
+        const y = now.getFullYear();
 
-          if (createdAtRaw) {
-            const date = new Date(createdAtRaw);
-            
-
-            const h = String(date.getHours()).padStart(2, "0");
-            const m = String(date.getMinutes()).padStart(2, "0");
-            const d = String(date.getDate()).padStart(2, "0");
-            const mo = String(date.getMonth() + 1).padStart(2, "0");
-            const y = date.getFullYear();
-
-            setDateString(`${h}:${m} ${d}/${mo}/${y}`);
-          }
+        setDateNow(`${h}:${m} ${d}/${mo}/${y}`)
 
         setDoOrderRaw(data);
       }
@@ -321,17 +328,22 @@ export default function BillPage() {
           </div>
 
           {/* DATETIME */}
-          <div className={styles.orderDate}>{dateString}</div>
+          <div className={styles.orderDate}>{dateNow}</div>
         </div>
 
         {/* NOMOR BILL */}
         <div className={styles.billNumberRow}>
+          <div>
           <div className={styles.billLabel}>Nomor Bill</div>
+          </div>
+          <div>
           <div className={styles.billValue}>
             {id}
-            <div className={styles.billValue}>
-            {}
           </div>
+          <div className={styles.billValue}>
+            {dateString}
+          </div>
+
           </div>
         </div>
 

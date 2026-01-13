@@ -99,7 +99,7 @@ export default function BillPage() {
         const parsed = JSON.parse(raw);
         const data = parsed.data ?? parsed;
 
-        const createdAtRaw = data.data?.orderCreatedAt;
+        const createdAtRaw = data.orderCreatedAt;
         console.log(createdAtRaw);
 
           if (createdAtRaw) {

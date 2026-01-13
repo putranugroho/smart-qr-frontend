@@ -83,15 +83,6 @@ export default function BillPage() {
   }, [doOrderRaw]);
 
   useEffect(() => {
-    const now = new Date();
-    const h = String(now.getHours()).padStart(2, "0");
-    const m = String(now.getMinutes()).padStart(2, "0");
-    const d = String(now.getDate()).padStart(2, "0");
-    const mo = String(now.getMonth() + 1).padStart(2, "0");
-    const y = now.getFullYear();
-
-    setDateString(`${h}:${m} ${d}/${mo}/${y}`)
-
     try {
       const gp = getPayment() || {};
       setPaymentFromStorage({
@@ -107,6 +98,22 @@ export default function BillPage() {
       if (raw) {
         const parsed = JSON.parse(raw);
         const data = parsed.data ?? parsed;
+
+        const createdAtRaw = data.data?.orderCreatedAt;
+        console.log(createdAtRaw);
+
+          if (createdAtRaw) {
+            const date = new Date(createdAtRaw);
+            
+
+            const h = String(date.getHours()).padStart(2, "0");
+            const m = String(date.getMinutes()).padStart(2, "0");
+            const d = String(date.getDate()).padStart(2, "0");
+            const mo = String(date.getMonth() + 1).padStart(2, "0");
+            const y = date.getFullYear();
+
+            setDateString(`${h}:${m} ${d}/${mo}/${y}`);
+          }
 
         setDoOrderRaw(data);
       }
@@ -322,6 +329,9 @@ export default function BillPage() {
           <div className={styles.billLabel}>Nomor Bill</div>
           <div className={styles.billValue}>
             {id}
+            <div className={styles.billValue}>
+            {}
+          </div>
           </div>
         </div>
 

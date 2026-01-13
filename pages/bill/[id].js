@@ -333,18 +333,14 @@ export default function BillPage() {
 
         {/* NOMOR BILL */}
         <div className={styles.billNumberRow}>
-          <div>
           <div className={styles.billLabel}>Nomor Bill</div>
-          </div>
-          <div>
           <div className={styles.billValue}>
             {id}
           </div>
-          <div className={styles.billValue}>
-            {dateString}
-          </div>
+        </div>
 
-          </div>
+        <div className={styles.billDate}>
+          {dateString}
         </div>
 
         {/* TABLE NUMBER */}

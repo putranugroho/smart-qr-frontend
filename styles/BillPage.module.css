@@ -43,6 +43,12 @@
   gap: 24px;
 }
 
+.billDate{
+    font-size: 16px;
+    font-weight: 400;
+    align-self: center;
+}
+
 /* =============== NOMOR BILL ROW =============== */
 .billNumberRow {
   width: 100%;

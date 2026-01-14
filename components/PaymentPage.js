@@ -61,6 +61,12 @@ export default function PaymentPage() {
     tableNumber: ''
   });
 
+  function unlockPay() {
+    payLockRef.current = false;
+    setIsBlocking(false);
+    setIsLoading(false);
+  }
+
   async function calculateTaxFromAPI(explicitTableNumber = null) {
     setIsBlocking(true)
   
@@ -284,17 +290,21 @@ export default function PaymentPage() {
   }
 
   async function handlePayNow() {
-    if (payLockRef.current) return; // 🔒 hard lock
+    // 🔒 HARD LOCK (anti spam click)
+    if (payLockRef.current) return;
     payLockRef.current = true;
 
-    if (isBlocking) return
+    // UI feedback
+    setIsBlocking(true);
+    setIsLoading(true);
+
     // clear previous errors
     setErrors({ first_name: '', phone: '', tableNumber: '' });
 
     // validate inline, no popup
     const ok = validateAll(true);
     if (!ok) {
-      // don't proceed
+      unlockPay();
       return;
     }
 
@@ -485,13 +495,11 @@ export default function PaymentPage() {
 
     } catch (err) {
       console.error(err);
-      setIsLoading(false);
-      setIsBlocking(false);
       alert('Error pembayaran: ' + (err.message || err));
       return;
     } finally {
-      setIsLoading(false);
-      setIsBlocking(false);
+      // 🔓 WAJIB dibuka di FINALLY
+      unlockPay();
     }
   }
 

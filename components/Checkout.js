@@ -165,7 +165,39 @@ export default function CheckoutPage() {
     }
   }
 
-  
+  function applyMacro(combo) {
+    if (!combo) return;
+
+    // 🔑 clientInstanceId WAJIB
+    const clientInstanceId = `macro-${combo.id}-${Date.now()}`;
+
+    // Simpan payload yang DIPAHAMI ComboDetail
+    sessionStorage.setItem(
+      "yoshi_combo_macro",
+      JSON.stringify({
+        type: "combo",
+        from: "macro",
+        clientInstanceId,
+        detailCombo: {
+          id: combo.id,
+          code: combo.code,
+          name: combo.name,
+          image: combo.imagePath
+        },
+        combos: [
+          {
+            ...combo,
+            qty: 1
+          }
+        ]
+      })
+    );
+
+    router.push(
+      `/combo-detail?from=macro&cid=${clientInstanceId}`
+    );
+  }
+
   useEffect(() => {
     if (!cartLoaded) return
     debouncedRecalculate(cart)
@@ -746,12 +778,10 @@ export default function CheckoutPage() {
       {showMacroPopup && macroData && (
         <MacroPopup
           data={macroData}
-          onSkip={() => {
+          onSkip={() => setShowMacroPopup(false)}
+          onSelect={(combo) => {
             setShowMacroPopup(false);
-          }}
-          onSelectPromo={(item) => {
-            console.log("Selected macro:", item);
-            setShowMacroPopup(false);
+            applyMacro(combo);
           }}
         />
       )}

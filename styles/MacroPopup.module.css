@@ -1,0 +1,95 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.popup {
+  background: #fff;
+  width: 360px;
+  max-width: 90%;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+}
+
+.title {
+  text-align: center;
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+
+.subtitle {
+  text-align: center;
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 16px;
+}
+
+.list {
+  margin-bottom: 12px;
+}
+
+.item {
+  width: 100%;
+  display: flex;
+  gap: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 10px;
+  background: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.item:hover {
+  background: #f9fafb;
+}
+
+.imageWrap {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.image {
+  object-fit: cover;
+}
+
+.itemText {
+  text-align: left;
+}
+
+.itemTitle {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.itemDesc {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.skipBtn {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.skipBtn:hover {
+  background: #f3f4f6;
+}

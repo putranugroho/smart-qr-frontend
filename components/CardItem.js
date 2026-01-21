@@ -15,7 +15,7 @@ export default function CardItem({ item, onAdd, mode = "grid" }) {
   // item may have `categoryId` or `category` name; we prefer numeric id if available
   const categoryId = item.categoryId ?? item.categoryIdRaw ?? item.menuCategoryId ?? null
   const categoryName = item.category ?? null
-  const isOutOfStock = item.outOfStock === true;
+  const isOutOfStock = false;
   // If item is a combo (has comboGroups) -> open ComboDetail
   const isCombo = Array.isArray(item.comboGroups) && item.comboGroups.length > 0;
 

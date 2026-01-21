@@ -4,6 +4,7 @@ import { useRouter } from 'next/router'
 import Image from 'next/image'
 import styles from '../styles/Checkout.module.css'
 import AddPopup from './AddPopup'
+import MacroPopup from './MacroPopup'
 import { getCart, updateCart, removeFromCartByIndex, savePayment } from '../lib/cart'
 import { getUser } from '../lib/auth'
 import { mapDoOrderPayload } from '../lib/order'
@@ -52,6 +53,10 @@ export default function CheckoutPage() {
   const [showAddPopup, setShowAddPopup] = useState(false)
   const addBtnRef = useRef(null)
   const recalcTimerRef = useRef(null)
+
+  const [showMacroPopup, setShowMacroPopup] = useState(false);
+  const [macroData, setMacroData] = useState<any>(null);
+  const [loadingMacro, setLoadingMacro] = useState(false);
 
   // delete confirmation modal state
   const [confirmDeleteIndex, setConfirmDeleteIndex] = useState(null)
@@ -104,6 +109,22 @@ export default function CheckoutPage() {
     }
   }
 
+  async function calculateMacro(payload) {
+    const res = await fetch("/api/order/macro", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      throw new Error("Failed calculate macro");
+    }
+
+    return res.json();
+  }
+
   function debouncedRecalculate(latestCart, delay = 400) {
     setIsCalculating(true)
   
@@ -115,10 +136,38 @@ export default function CheckoutPage() {
       recalculateFromAPI(latestCart)
     }, delay)
   }
+
+  const handleMacro = async () => {
+    try {
+      setLoadingMacro(true);
+
+      const payload = mapDoOrderPayload(
+        latestCart,
+        null,
+        'qris',
+        {
+          posId: 'QR',
+          orderType: user.orderType || 'DI',
+          tableNumber: user.orderType === 'TA' ? '' : (user.tableNumber || '')
+        }
+      )
+
+      const result = await calculateMacro(payload);
+
+      setMacroData(result);
+      setShowMacroPopup(true);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingMacro(false);
+    }
+  };
+
   
   useEffect(() => {
     if (!cartLoaded) return
     debouncedRecalculate(cart)
+    handleMacro()
   }, [cart])
 
   useEffect(() => {
@@ -686,6 +735,22 @@ export default function CheckoutPage() {
         autoHideMs={0}
       >
       </AddPopup>
+
+      {/* Popup Macro */}
+      {showMacroPopup && (
+        <MacroPopup
+          data={macroData}
+          onSkip={() => {
+            setShowMacroPopup(false);
+            proceedToPayment();
+          }}
+          onSelectPromo={(item) => {
+            applyMacro(item);
+            setShowMacroPopup(false);
+          }}
+        />
+      )}
+
 
       {/* Delete confirmation modal */}
       {showConfirmDelete && (

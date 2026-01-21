@@ -137,7 +137,7 @@ export default function CheckoutPage() {
     }, delay)
   }
 
-  const handleMacro = async () => {
+  function handleMacro (latestCart) {
     try {
       setLoadingMacro(true);
 
@@ -152,7 +152,7 @@ export default function CheckoutPage() {
         }
       )
 
-      const result = await calculateMacro(payload);
+      const result = calculateMacro(payload);
 
       setMacroData(result);
       setShowMacroPopup(true);
@@ -167,7 +167,7 @@ export default function CheckoutPage() {
   useEffect(() => {
     if (!cartLoaded) return
     debouncedRecalculate(cart)
-    handleMacro()
+    handleMacro(cart)
   }, [cart])
 
   useEffect(() => {

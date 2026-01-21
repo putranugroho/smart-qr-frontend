@@ -137,7 +137,7 @@ export default function CheckoutPage() {
     }, delay)
   }
 
-  function handleMacro (latestCart) {
+  async function handleMacro(latestCart) {
     try {
       setLoadingMacro(true);
 
@@ -150,25 +150,31 @@ export default function CheckoutPage() {
           orderType: user.orderType || 'DI',
           tableNumber: user.orderType === 'TA' ? '' : (user.tableNumber || '')
         }
-      )
+      );
 
-      const result = calculateMacro(payload);
+      const result = await calculateMacro(payload);
 
-      setMacroData(result);
-      setShowMacroPopup(true);
+      if (result?.success && Array.isArray(result?.data) && result.data.length > 0) {
+        setMacroData(result);
+        setShowMacroPopup(true);
+      }
     } catch (e) {
-      console.error(e);
+      console.error("Macro error:", e);
     } finally {
       setLoadingMacro(false);
     }
-  };
+  }
 
   
   useEffect(() => {
     if (!cartLoaded) return
     debouncedRecalculate(cart)
-    handleMacro(cart)
   }, [cart])
+
+  useEffect(() => {
+    if (!cartLoaded || cart.length === 0) return;
+    handleMacro(cart);
+  }, [cartLoaded]);
 
   useEffect(() => {
     return () => {
@@ -737,20 +743,18 @@ export default function CheckoutPage() {
       </AddPopup>
 
       {/* Popup Macro */}
-      {showMacroPopup && (
+      {showMacroPopup && macroData && (
         <MacroPopup
           data={macroData}
           onSkip={() => {
             setShowMacroPopup(false);
-            proceedToPayment();
           }}
           onSelectPromo={(item) => {
-            applyMacro(item);
+            console.log("Selected macro:", item);
             setShowMacroPopup(false);
           }}
         />
       )}
-
 
       {/* Delete confirmation modal */}
       {showConfirmDelete && (

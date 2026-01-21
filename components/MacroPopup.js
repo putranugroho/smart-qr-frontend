@@ -4,20 +4,20 @@ import styles from '../styles/MacroPopup.module.css'
 import { normalizeMacroToComboDetail } from '../lib/macro'
 
 export function MacroPopup({ data, onSkip }) {
-  // const router = useRouter()
+  const router = useRouter()
 
   const macros = Array.isArray(data?.data) ? data.data : []
 
   const handleSelect = (macro, combo) => {
     const normalized = normalizeMacroToComboDetail(combo, macro)
 
-    // router.push({
-    //   pathname: '/combo-detail',
-    //   query: {
-    //     combo: JSON.stringify(normalized),
-    //     from: 'macro'
-    //   }
-    // })
+    router.push({
+      pathname: '/combo-detail',
+      query: {
+        combo: JSON.stringify(normalized),
+        from: 'macro'
+      }
+    })
   }
 
   return (
@@ -46,13 +46,13 @@ export function MacroPopup({ data, onSkip }) {
                   onClick={() => handleSelect(macro, combo)}
                 >
                   <div className={styles.imageWrap}>
-                    {/* <Image
+                    <Image
                       src={image}
                       alt={combo?.name || 'Promo'}
                       fill
                       sizes="80px"
                       className={styles.image}
-                    /> */}
+                    />
                   </div>
 
                   <div className={styles.itemText}>

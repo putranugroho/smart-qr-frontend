@@ -168,34 +168,24 @@ export default function CheckoutPage() {
   function applyMacro(combo) {
     if (!combo) return;
 
-    // 🔑 clientInstanceId WAJIB
-    const clientInstanceId = `macro-${combo.id}-${Date.now()}`;
+    if (!Array.isArray(combo.comboGroups)) {
+      alert("Data combo macro tidak lengkap");
+      return;
+    }
 
-    // Simpan payload yang DIPAHAMI ComboDetail
-    sessionStorage.setItem(
-      "yoshi_combo_macro",
-      JSON.stringify({
-        type: "combo",
-        from: "macro",
-        clientInstanceId,
-        detailCombo: {
-          id: combo.id,
-          code: combo.code,
-          name: combo.name,
-          image: combo.imagePath
-        },
-        combos: [
-          {
-            ...combo,
-            qty: 1
-          }
-        ]
-      })
-    );
+    const comboPayload = {
+      id: combo.id,
+      code: combo.code,
+      name: combo.name,
+      description: combo.description,
+      imagePath: combo.imagePath,
+      image: combo.imagePath,
+      comboGroups: combo.comboGroups
+    };
 
-    router.push(
-      `/combo-detail?from=macro&cid=${clientInstanceId}`
-    );
+    const encoded = encodeURIComponent(JSON.stringify(comboPayload));
+
+    router.push(`/combo-detail?combo=${encoded}`);
   }
 
   useEffect(() => {

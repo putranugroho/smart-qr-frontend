@@ -1,11 +1,15 @@
+import Image from 'next/image'
 import { useRouter } from 'next/router'
-import { normalizeMacroToComboDetail } from '../lib/macro'
+import styles from '../styles/MacroPopup.module.css'
+import { normalizeMacroToComboDetail } from '@/utils/normalizeMacroToCombo'
 
 export function MacroPopup({ data, onSkip }) {
   const router = useRouter()
 
-  const handleSelect = (macro, macroCombo) => {
-    const normalized = normalizeMacroToComboDetail(macroCombo, macro)
+  const macros = Array.isArray(data?.data) ? data.data : []
+
+  const handleSelect = (macro, combo) => {
+    const normalized = normalizeMacroToComboDetail(combo, macro)
 
     router.push({
       pathname: '/combo-detail',
@@ -23,33 +27,40 @@ export function MacroPopup({ data, onSkip }) {
           Sebelum pembayaran, cek penawaran ini!
         </h3>
 
+        <p className={styles.subtitle}>
+          Klaim promo jika ada atau tambah produk.
+        </p>
+
         <div className={styles.list}>
-          {data?.data?.map((macro, midx) =>
-            macro?.combosGet?.map((combo, cidx) => {
+          {macros.map((macro, midx) =>
+            (macro?.combosGet || []).map((combo, cidx) => {
               const image =
-                combo.imagePath || '/images/no-image-available.jpg'
+                combo?.imagePath && typeof combo.imagePath === 'string'
+                  ? combo.imagePath
+                  : '/images/no-image-available.jpg'
 
               return (
                 <button
-                  key={`${midx}-${cidx}`}
+                  key={`macro-${midx}-combo-${cidx}`}
                   className={styles.item}
                   onClick={() => handleSelect(macro, combo)}
                 >
                   <div className={styles.imageWrap}>
                     <Image
                       src={image}
-                      alt={combo.name}
+                      alt={combo?.name || 'Promo'}
                       fill
+                      sizes="80px"
                       className={styles.image}
                     />
                   </div>
 
                   <div className={styles.itemText}>
                     <div className={styles.itemTitle}>
-                      {combo.name}
+                      {combo?.name}
                     </div>
                     <div className={styles.itemDesc}>
-                      {macro.macroName}
+                      {macro?.macroName}
                     </div>
                   </div>
                 </button>

@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import { useRouter } from 'next/router'
 import styles from '../styles/MacroPopup.module.css'
-import { normalizeMacroToComboDetail } from '@/utils/normalizeMacroToCombo'
+import { normalizeMacroToComboDetail } from '../lib/macro'
 
 export function MacroPopup({ data, onSkip }) {
   const router = useRouter()

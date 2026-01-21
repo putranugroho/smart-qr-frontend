@@ -55,7 +55,7 @@ export default function CheckoutPage() {
   const recalcTimerRef = useRef(null)
 
   const [showMacroPopup, setShowMacroPopup] = useState(false);
-  const [macroData, setMacroData] = useState<any>(null);
+  const [macroData, setMacroData] = useState(null);
   const [loadingMacro, setLoadingMacro] = useState(false);
 
   // delete confirmation modal state

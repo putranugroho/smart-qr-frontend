@@ -4,7 +4,6 @@ import { useRouter } from 'next/router'
 import Image from 'next/image'
 import styles from '../styles/Checkout.module.css'
 import AddPopup from './AddPopup'
-import MacroPopup from './MacroPopup'
 import { getCart, updateCart, removeFromCartByIndex, savePayment } from '../lib/cart'
 import { getUser } from '../lib/auth'
 import { mapDoOrderPayload } from '../lib/order'
@@ -53,10 +52,6 @@ export default function CheckoutPage() {
   const [showAddPopup, setShowAddPopup] = useState(false)
   const addBtnRef = useRef(null)
   const recalcTimerRef = useRef(null)
-
-  const [showMacroPopup, setShowMacroPopup] = useState(false);
-  const [macroData, setMacroData] = useState(null);
-  const [loadingMacro, setLoadingMacro] = useState(false);
 
   // delete confirmation modal state
   const [confirmDeleteIndex, setConfirmDeleteIndex] = useState(null)
@@ -109,22 +104,6 @@ export default function CheckoutPage() {
     }
   }
 
-  async function calculateMacro(payload) {
-    const res = await fetch("/api/order/macro", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      throw new Error("Failed calculate macro");
-    }
-
-    return res.json();
-  }
-
   function debouncedRecalculate(latestCart, delay = 400) {
     setIsCalculating(true)
   
@@ -136,67 +115,11 @@ export default function CheckoutPage() {
       recalculateFromAPI(latestCart)
     }, delay)
   }
-
-  async function handleMacro(latestCart) {
-    try {
-      setLoadingMacro(true);
-
-      const payload = mapDoOrderPayload(
-        latestCart,
-        null,
-        'qris',
-        {
-          posId: 'QR',
-          orderType: user.orderType || 'DI',
-          tableNumber: user.orderType === 'TA' ? '' : (user.tableNumber || '')
-        }
-      );
-
-      const result = await calculateMacro(payload);
-
-      if (result?.success && Array.isArray(result?.data) && result.data.length > 0) {
-        setMacroData(result);
-        setShowMacroPopup(true);
-      }
-    } catch (e) {
-      console.error("Macro error:", e);
-    } finally {
-      setLoadingMacro(false);
-    }
-  }
-
-  function applyMacro(combo) {
-    if (!combo) return;
-
-    if (!Array.isArray(combo.comboGroups)) {
-      alert("Data combo macro tidak lengkap");
-      return;
-    }
-
-    const comboPayload = {
-      id: combo.id,
-      code: combo.code,
-      name: combo.name,
-      description: combo.description,
-      imagePath: combo.imagePath,
-      image: combo.imagePath,
-      comboGroups: combo.comboGroups
-    };
-
-    const encoded = encodeURIComponent(JSON.stringify(comboPayload));
-
-    router.push(`/combo-detail?combo=${encoded}`);
-  }
-
+  
   useEffect(() => {
     if (!cartLoaded) return
     debouncedRecalculate(cart)
   }, [cart])
-
-  useEffect(() => {
-    if (!cartLoaded || cart.length === 0) return;
-    handleMacro(cart);
-  }, [cartLoaded]);
 
   useEffect(() => {
     return () => {
@@ -763,18 +686,6 @@ export default function CheckoutPage() {
         autoHideMs={0}
       >
       </AddPopup>
-
-      {/* Popup Macro */}
-      {showMacroPopup && macroData && (
-        <MacroPopup
-          data={macroData}
-          onSkip={() => setShowMacroPopup(false)}
-          onSelect={(combo) => {
-            setShowMacroPopup(false);
-            applyMacro(combo);
-          }}
-        />
-      )}
 
       {/* Delete confirmation modal */}
       {showConfirmDelete && (

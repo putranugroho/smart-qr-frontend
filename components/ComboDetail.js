@@ -1534,6 +1534,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
             onAdd={handleAddToCart}
             addAnimating={addAnimating}
             addLabel={addBtnLabel}
+            maxQuantityCanGet={comboState.maxQuantityCanGet}
             isEditing={fromCheckout && editingIndex != null}
           />
         </div>

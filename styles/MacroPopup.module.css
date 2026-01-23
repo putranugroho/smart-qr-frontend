@@ -1,42 +1,66 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  z-index: 999;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 9999;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .popup {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 90%;
+  width: 100%;
   max-width: 360px;
   background: #ffffff;
   border-radius: 20px;
-  padding: 24px 20px 20px;
-  z-index: 1000;
+  padding: 20px 18px 18px;
   text-align: center;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+
+  animation: scaleIn 0.2s ease-out;
 }
 
-.icon {
+@keyframes scaleIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.iconWrap {
   display: flex;
   justify-content: center;
   margin-bottom: 12px;
+}
+
+.iconCircle {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #f97316;
+  color: #fff;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 28px;
 }
 
 .title {
   font-size: 16px;
   font-weight: 700;
   margin-bottom: 6px;
-  color: #111827;
 }
 
 .subtitle {
   font-size: 13px;
-  color: #6b7280;
-  margin-bottom: 18px;
+  color: #555;
+  margin-bottom: 16px;
 }
 
 .list {
@@ -50,58 +74,51 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px;
+
+  border: 1.5px solid #111;
   border-radius: 14px;
-  border: 1.5px solid #e5e7eb;
-  background: #ffffff;
+  padding: 10px;
+  background: #fff;
   cursor: pointer;
+
   transition: all 0.15s ease;
-  text-align: left;
 }
 
 .item:hover {
-  border-color: #10b981;
-  background: #f0fdf4;
+  background: #f9fafb;
 }
 
-.itemImage {
-  position: relative;
+.imageWrap {
   width: 48px;
   height: 48px;
-  border-radius: 10px;
-  overflow: hidden;
+  position: relative;
   flex-shrink: 0;
-  background: #f3f4f6;
+}
+
+.image {
+  object-fit: contain;
 }
 
 .itemText {
-  flex: 1;
+  text-align: left;
 }
 
 .itemTitle {
   font-size: 13px;
   font-weight: 700;
-  color: #111827;
 }
 
 .itemDesc {
   font-size: 11px;
-  color: #6b7280;
-  margin-top: 2px;
+  color: #666;
 }
 
 .skipBtn {
   width: 100%;
-  margin-top: 6px;
   padding: 10px;
-  border-radius: 999px;
-  border: 1.5px solid #e5e7eb;
-  background: #ffffff;
-  font-size: 13px;
+  border-radius: 14px;
+  border: 1.5px solid #111;
+  background: #fff;
   font-weight: 600;
   cursor: pointer;
-}
-
-.skipBtn:hover {
-  background: #f9fafb;
 }

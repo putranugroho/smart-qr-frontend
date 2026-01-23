@@ -215,10 +215,13 @@ export default function CheckoutPage() {
     if (!macro) return;
 
     const combo = macro.combosGet?.[0];
-    if (!Array.isArray(combo?.comboGroups)) {
-      alert("Data combo macro tidak lengkap");
-      return;
-    }
+    console.log("combo ", combo);
+    console.log("combogroups ", combo?.comboGroups);
+    
+    // if (!Array.isArray(combo?.comboGroups)) {
+    //   alert("Data combo macro tidak lengkap");
+    //   return;
+    // }
 
     const comboPayload = {
       ...combo,

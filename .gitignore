@@ -2,3 +2,8 @@
 /json
 .next
 .env
+/components/Checkout_copy.js
+/components/ComboDetail_copy.js
+/components/PaymentPage_copy.js
+/components/PaymentStatus_copy.js
+/components/test.json

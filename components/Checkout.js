@@ -32,6 +32,21 @@ function getItemOrderType(item) {
   return item.menus?.[0]?.orderType || null
 }
 
+function getMacroItemsFromCart(cart = []) {
+  return cart.filter(i => i.isMacro && i.macroCode)
+}
+
+function getMacroQtyMap(cart = []) {
+  const map = {}
+  cart.forEach(i => {
+    if (i.isMacro && i.macroCode) {
+      map[i.macroCode] = (map[i.macroCode] || 0) + Number(i.qty || 1)
+    }
+  })
+  return map
+}
+
+
 export default function CheckoutPage() {
   const router = useRouter()
 
@@ -109,6 +124,24 @@ export default function CheckoutPage() {
     }
   }
 
+  function debouncedRecalculate(latestCart, delay = 400) {
+    setIsCalculating(true)
+    
+    if (recalcTimerRef.current) {
+      clearTimeout(recalcTimerRef.current)
+    }
+    
+    recalcTimerRef.current = setTimeout(() => {
+      recalculateFromAPI(latestCart)
+    }, delay)
+  }
+
+  function getMacroCodesInCart(cart = []) {
+    return cart
+      .filter(i => i.isMacro && i.macroCode)
+      .map(i => i.macroCode)
+  }
+
   async function calculateMacro(payload) {
     const res = await fetch("/api/order/macro", {
       method: "POST",
@@ -123,18 +156,6 @@ export default function CheckoutPage() {
     }
 
     return res.json();
-  }
-
-  function debouncedRecalculate(latestCart, delay = 400) {
-    setIsCalculating(true)
-  
-    if (recalcTimerRef.current) {
-      clearTimeout(recalcTimerRef.current)
-    }
-  
-    recalcTimerRef.current = setTimeout(() => {
-      recalculateFromAPI(latestCart)
-    }, delay)
   }
 
   async function handleMacro(latestCart) {
@@ -153,11 +174,36 @@ export default function CheckoutPage() {
       );
 
       const result = await calculateMacro(payload);
+      if (!result?.success || !Array.isArray(result?.data)) return;
 
-      if (result?.success && Array.isArray(result?.data) && result.data.length > 0) {
-        setMacroData(result);
+      const macroQtyMap = getMacroQtyMap(latestCart);
+
+      const filtered = result.data.filter(m => {
+        const takenQty = macroQtyMap[m.macroCode] || 0
+
+        // ❌ sudah mencapai max
+        if (
+          Number(m.maxQuantityCanGet) > 0 &&
+          takenQty >= Number(m.maxQuantityCanGet)
+        ) {
+          return false
+        }
+
+        // ❌ tidak boleh ambil lebih dari satu
+        if (!m.isAllowGetAnother && takenQty > 0) {
+          return false
+        }
+
+        return true
+      });
+
+      if (filtered.length > 0) {
+        setMacroData({ ...result, data: filtered });
         setShowMacroPopup(true);
+      } else {
+        setShowMacroPopup(false);
       }
+
     } catch (e) {
       console.error("Macro error:", e);
     } finally {
@@ -165,38 +211,51 @@ export default function CheckoutPage() {
     }
   }
 
-  function applyMacro(combo) {
-    if (!combo) return;
+  function applyMacro(macro) {
+    if (!macro) return;
 
-    if (!Array.isArray(combo.comboGroups)) {
+    const combo = macro.combosGet?.[0];
+    if (!combo || !Array.isArray(combo.comboGroups)) {
       alert("Data combo macro tidak lengkap");
       return;
     }
 
     const comboPayload = {
-      id: combo.id,
-      code: combo.code,
-      name: combo.name,
-      description: combo.description,
-      imagePath: combo.imagePath,
-      image: combo.imagePath,
-      comboGroups: combo.comboGroups
+      ...combo,
+
+      // 🔑 CONTEXT MACRO (PENTING UNTUK STEP BERIKUTNYA)
+      isMacro: true,
+      macroCode: macro.macroCode,
+      macroName: macro.macroName,
+      maxQuantityCanGet: macro.maxQuantityCanGet,
+      isAllowGetAnother: macro.isAllowGetAnother
     };
 
     const encoded = encodeURIComponent(JSON.stringify(comboPayload));
-
     router.push(`/combo-detail?combo=${encoded}`);
   }
 
   useEffect(() => {
     if (!cartLoaded) return
     debouncedRecalculate(cart)
+    handleMacro(cart)
   }, [cart])
 
   useEffect(() => {
-    if (!cartLoaded || cart.length === 0) return;
-    handleMacro(cart);
-  }, [cartLoaded]);
+    if (!cartLoaded || !macroData?.data) return
+
+    const validMacroCodes = macroData.data.map(m => m.macroCode)
+
+    const cleaned = cart.filter(item => {
+      if (!item.isMacro) return true
+      return validMacroCodes.includes(item.macroCode)
+    })
+
+    if (cleaned.length !== cart.length) {
+      setCart(cleaned)
+      localStorage.setItem("yoshi_cart_v1", JSON.stringify(cleaned))
+    }
+  }, [macroData])
 
   useEffect(() => {
     return () => {
@@ -252,7 +311,14 @@ export default function CheckoutPage() {
       let newQty = currentQty
 
       if (action === 'minus') newQty = Math.max(1, currentQty - 1)
-      if (action === 'plus') newQty = currentQty + 1
+      if (action === 'plus') {
+        if (item.isMacro && Number(item.maxQuantityCanGet) > 0) {
+          if (currentQty >= Number(item.maxQuantityCanGet)) {
+            return prev // 🚫 STOP
+          }
+        }
+        newQty = currentQty + 1
+      }
 
       // ===== SET QTY UTAMA =====
       item.qty = newQty

@@ -35,16 +35,12 @@ export default function StickyCartBar({
   const reachedMax = isLimited && qty >= maxQty
 
   function handleMinus() {
-    setQty(q => Math.max(1, q - 1))
+    setQty(Math.max(1, qty - 1))
   }
 
   function handlePlus() {
-    setQty(q => {
-      if (isLimited && q >= maxQty) {
-        return q // 🚫 STOP di max
-      }
-      return q + 1
-    })
+    if (isLimited && qty >= maxQty) return
+    setQty(qty + 1)
   }
 
   return (

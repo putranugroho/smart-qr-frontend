@@ -1030,7 +1030,24 @@ export default function ComboDetail({ combo: propCombo = null }) {
     return { ok: true }
   }
 
+  function handleSetQty(nextQty) {
+    let finalQty = Number(nextQty || 1)
+
+    if (isMacroCombo && Number(comboState.maxQuantityCanGet) > 0) {
+      finalQty = Math.min(finalQty, Number(comboState.maxQuantityCanGet))
+    }
+
+    if (finalQty < 1) finalQty = 1
+    setQty(finalQty)
+  }
+
   function handleAddToCart() {
+    if (isMacroCombo && Number(comboState.maxQuantityCanGet) > 0) {
+      if (qty > Number(comboState.maxQuantityCanGet)) {
+        alert(`Maksimal ${comboState.maxQuantityCanGet} item untuk promo ini`)
+        return
+      }
+    }
     try {
       const v = validateSelectionBeforeAdd()
       if (!v.ok) {
@@ -1529,7 +1546,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         <div className={styles.stickyInner}>
           <StickyCartBar
             qty={qty}
-            setQty={setQty}
+            setQty={handleSetQty}
             subtotal={subtotalForDisplay}
             onAdd={handleAddToCart}
             addAnimating={addAnimating}

@@ -211,10 +211,10 @@ export default function CheckoutPage() {
   }
 
   function applyMacro(combo) {
-    if (!combo) return;
-
-    console.log("combo from macro popup:", combo);
-    console.log("comboGroups:", combo.comboGroups);
+    if (!combo || !Array.isArray(macro.comboGroups)) {
+      alert("Data combo macro tidak lengkap");
+      return;
+    }
 
     const comboPayload = {
       ...combo,

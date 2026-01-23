@@ -46,6 +46,7 @@ export default function MacroPopup({ data, onSelect, onSkip }) {
                     onSelect({
                       ...combo,
                       macroCode: m.macroCode,
+                      macroName: m.macroName,
                       maxQuantityCanGet: m.maxQuantityCanGet,
                       isAllowGetAnother: m.isAllowGetAnother,
                     })

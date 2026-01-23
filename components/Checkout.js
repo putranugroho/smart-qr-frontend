@@ -211,27 +211,21 @@ export default function CheckoutPage() {
     }
   }
 
-  function applyMacro(macro) {
-    if (!macro) return;
+  function applyMacro(combo) {
+    if (!combo) return;
 
-    const combo = macro.combosGet?.[0];
-    console.log("combo ", combo);
-    console.log("combogroups ", combo?.comboGroups);
-    
-    // if (!Array.isArray(combo?.comboGroups)) {
-    //   alert("Data combo macro tidak lengkap");
-    //   return;
-    // }
+    console.log("combo from macro popup:", combo);
+    console.log("comboGroups:", combo.comboGroups);
 
     const comboPayload = {
       ...combo,
 
-      // 🔑 CONTEXT MACRO (PENTING UNTUK STEP BERIKUTNYA)
+      // 🔑 CONTEXT MACRO
       isMacro: true,
-      macroCode: macro.macroCode,
-      macroName: macro.macroName,
-      maxQuantityCanGet: macro.maxQuantityCanGet,
-      isAllowGetAnother: macro.isAllowGetAnother
+      macroCode: combo.macroCode,
+      macroName: combo.macroName, // optional kalau mau
+      maxQuantityCanGet: combo.maxQuantityCanGet,
+      isAllowGetAnother: combo.isAllowGetAnother
     };
 
     const encoded = encodeURIComponent(JSON.stringify(comboPayload));

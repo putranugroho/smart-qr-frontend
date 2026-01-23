@@ -1073,7 +1073,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
       console.warn("payload combo", payload);
       
       if (!payload) {
-        alert('Payload combo tidak valid.')
+        console.warn('Payload combo tidak valid.')
         return
       }
 

@@ -71,6 +71,7 @@ export default function CheckoutPage() {
   const [showMacroPopup, setShowMacroPopup] = useState(false);
   const [macroData, setMacroData] = useState(null);
   const [loadingMacro, setLoadingMacro] = useState(false);
+  const [macroCheckedOnce, setMacroCheckedOnce] = useState(false)
 
   // delete confirmation modal state
   const [confirmDeleteIndex, setConfirmDeleteIndex] = useState(null)
@@ -234,25 +235,12 @@ export default function CheckoutPage() {
   useEffect(() => {
     if (!cartLoaded) return
     debouncedRecalculate(cart)
-    handleMacro(cart)
-  }, [cart])
 
-  useEffect(() => {
-    if (!cartLoaded || !macroData?.data) return
-    if (!Array.isArray(macroData?.data)) return
-
-    const validMacroCodes = macroData.data.map(m => m.macroCode)
-
-    const cleaned = cart.filter(item => {
-      if (!item.isMacro) return true
-      return validMacroCodes.includes(item.macroCode)
-    })
-
-    if (cleaned.length !== cart.length) {
-      setCart(cleaned)
-      localStorage.setItem("yoshi_cart_v1", JSON.stringify(cleaned))
+    if (!macroCheckedOnce) {
+      handleMacro(cart)
+      setMacroCheckedOnce(true)
     }
-  }, [macroData])
+  }, [cartLoaded])
 
   useEffect(() => {
     return () => {

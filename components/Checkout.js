@@ -240,7 +240,7 @@ export default function CheckoutPage() {
       handleMacro(cart)
       setMacroCheckedOnce(true)
     }
-  }, [cartLoaded])
+  }, [cart])
 
   useEffect(() => {
     return () => {

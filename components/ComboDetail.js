@@ -270,6 +270,14 @@ export default function ComboDetail({ combo: propCombo = null }) {
           )
         )
 
+        const macroContextFromCart = entry.isMacro ? {
+          isMacro: true,
+          macroCode: entry.macroCode,
+          macroName: entry.macroName,
+          maxQuantityCanGet: Number(entry.maxQuantityCanGet || 0),
+          isAllowGetAnother: Boolean(entry.isAllowGetAnother)
+        } : null
+
         if (!entry) {
           console.warn('[ComboDetail] Combo edit not found by CID:', editingCID)
           router.replace('/checkout')
@@ -334,6 +342,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
         let sessionDataIncomplete = true; // Default asumsi tidak lengkap agar fetch jalan
 
         if (comboCode) {
+          console.log("comboCode ",comboCode);
+          
           try {
             const key = `combo_${String(comboCode)}`
             const raw = sessionStorage.getItem(key)
@@ -366,6 +376,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
         // 2) try fetch API (JIKA session gagal atau data tidak lengkap)
         // ============================================================
         if (comboCode) {
+          console.log("comboCode2 ",comboCode);
+          
           try {
             const url = `/api/proxy/combo-list?orderCategoryCode=${resolvedOrderType}&storeCode=${encodeURIComponent(storeCode)}&pageSize=1000`
             const r = await fetch(url)

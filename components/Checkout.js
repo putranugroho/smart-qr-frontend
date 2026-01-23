@@ -215,7 +215,7 @@ export default function CheckoutPage() {
     if (!macro) return;
 
     const combo = macro.combosGet?.[0];
-    if (!combo) {
+    if (!Array.isArray(combo?.comboGroups)) {
       alert("Data combo macro tidak lengkap");
       return;
     }

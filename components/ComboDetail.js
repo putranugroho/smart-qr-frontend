@@ -342,7 +342,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
         let sessionDataIncomplete = true; // Default asumsi tidak lengkap agar fetch jalan
 
         if (comboCode) {
-          console.log("comboCode ",comboCode);
           
           try {
             const key = `combo_${String(comboCode)}`
@@ -376,7 +375,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
         // 2) try fetch API (JIKA session gagal atau data tidak lengkap)
         // ============================================================
         if (comboCode) {
-          console.log("comboCode2 ",comboCode);
           
           try {
             const url = `/api/proxy/combo-list?orderCategoryCode=${resolvedOrderType}&storeCode=${encodeURIComponent(storeCode)}&pageSize=1000`
@@ -461,8 +459,11 @@ export default function ComboDetail({ combo: propCombo = null }) {
             code: comboCode || null,
             name: (entry.detailCombo && entry.detailCombo.name) || 'Combo',
             // ...
-            comboGroups: groupsArr
+            comboGroups: groupsArr,
+            ...macroContextFromCart
           }
+          console.log("minimal ",minimal);
+          
           setComboState(minimal)
           setSelectedProducts(sp)
           setSelectedCondiments(sc)

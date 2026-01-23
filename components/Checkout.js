@@ -75,6 +75,7 @@ export default function CheckoutPage() {
   const [showAddPopup, setShowAddPopup] = useState(false)
   const addBtnRef = useRef(null)
   const recalcTimerRef = useRef(null)
+  const macroTimerRef = useRef(null)
 
   const [showMacroPopup, setShowMacroPopup] = useState(false);
   const [macroData, setMacroData] = useState(null);
@@ -167,6 +168,7 @@ export default function CheckoutPage() {
 
   async function handleMacro(latestCart) {
     try {
+      if (loadingMacro) return
       setLoadingMacro(true)
 
       const payload = mapDoOrderPayload(
@@ -190,10 +192,12 @@ export default function CheckoutPage() {
       // ===============================
       const syncedCart = syncMacroWithCart(latestCart, result.data)
 
+      let cartChanged = false
+
       if (syncedCart.length !== latestCart.length) {
+        cartChanged = true
         setCart(syncedCart)
         localStorage.setItem("yoshi_cart_v1", JSON.stringify(syncedCart))
-        return // ⛔ STOP di sini agar tidak popup dobel
       }
 
       // ===============================
@@ -252,10 +256,20 @@ export default function CheckoutPage() {
     router.push(`/combo-detail?combo=${encoded}`);
   }
 
+  function debouncedHandleMacro(cart, delay = 500) {
+    if (macroTimerRef.current) {
+      clearTimeout(macroTimerRef.current)
+    }
+
+    macroTimerRef.current = setTimeout(() => {
+      handleMacro(cart)
+    }, delay)
+  }
+
   useEffect(() => {
     if (!cartLoaded) return
     debouncedRecalculate(cart)
-    handleMacro(cart)
+    debouncedHandleMacro(cart)
   }, [cart])
 
   useEffect(() => {

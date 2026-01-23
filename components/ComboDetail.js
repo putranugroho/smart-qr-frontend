@@ -205,6 +205,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
   const storeCode = user.storeLocation
 
   const comboGroups = useMemo(() => (comboState && Array.isArray(comboState.comboGroups) ? comboState.comboGroups : []), [comboState])
+  const isMacroCombo = Boolean(comboState?.isMacro || comboState?.macroCode)
 
   // refs
   const fetchedFullRef = useRef(false)          // ensure we fetch full data once per edit flow

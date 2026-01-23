@@ -46,16 +46,6 @@ function getMacroQtyMap(cart = []) {
   return map
 }
 
-function getMacroQtyMap(cart = []) {
-  const map = {}
-  cart.forEach(i => {
-    if (i.isMacro && i.macroCode) {
-      map[i.macroCode] = (map[i.macroCode] || 0) + Number(i.qty || 1)
-    }
-  })
-  return map
-}
-
 export default function CheckoutPage() {
   const router = useRouter()
 

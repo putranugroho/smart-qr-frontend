@@ -46,6 +46,15 @@ function getMacroQtyMap(cart = []) {
   return map
 }
 
+function getMacroQtyMap(cart = []) {
+  const map = {}
+  cart.forEach(i => {
+    if (i.isMacro && i.macroCode) {
+      map[i.macroCode] = (map[i.macroCode] || 0) + Number(i.qty || 1)
+    }
+  })
+  return map
+}
 
 export default function CheckoutPage() {
   const router = useRouter()
@@ -176,7 +185,7 @@ export default function CheckoutPage() {
       const result = await calculateMacro(payload);
       if (!result?.success || !Array.isArray(result?.data)) return;
 
-      const macroQtyMap = getMacroQtyMap(latestCart);
+      const macroQtyMap = getMacroQtyMap(latestCart)
 
       const filtered = result.data.filter(m => {
         const takenQty = macroQtyMap[m.macroCode] || 0
@@ -189,7 +198,7 @@ export default function CheckoutPage() {
           return false
         }
 
-        // ❌ tidak boleh ambil lebih dari satu
+        // ❌ sudah pernah ambil & tidak boleh ambil lagi
         if (!m.isAllowGetAnother && takenQty > 0) {
           return false
         }
@@ -240,6 +249,7 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (!cartLoaded || !macroData?.data) return
+    if (!Array.isArray(macroData?.data)) return
 
     const validMacroCodes = macroData.data.map(m => m.macroCode)
 
@@ -307,12 +317,22 @@ export default function CheckoutPage() {
       const currentQty = Number(item.qty || 1)
       let newQty = currentQty
 
-      if (action === 'minus') newQty = Math.max(1, currentQty - 1)
+      const macroQtyMap = getMacroQtyMap(prev)
+      const takenQty = item.isMacro
+        ? macroQtyMap[item.macroCode] || 0
+        : 0
+
+      if (action === 'minus') {
+        newQty = Math.max(1, currentQty - 1)
+      }
+
       if (action === 'plus') {
-        if (item.isMacro && Number(item.maxQuantityCanGet) > 0) {
-          if (currentQty >= Number(item.maxQuantityCanGet)) {
-            return prev // 🚫 STOP
-          }
+        if (
+          item.isMacro &&
+          Number(item.maxQuantityCanGet) > 0 &&
+          takenQty >= Number(item.maxQuantityCanGet)
+        ) {
+          return prev // 🚫 TOTAL macro sudah max
         }
         newQty = currentQty + 1
       }
@@ -322,12 +342,7 @@ export default function CheckoutPage() {
 
       // ===== NORMALIZE COMBO =====
       if (item.type === 'combo' && Array.isArray(item.combos)) {
-        item.combos = item.combos.map(cb => {
-          return {
-            ...cb,
-            qty: newQty, // qty combo ikut user
-          }
-        })
+        item.combos = item.combos.map(cb => ({ ...cb, qty: newQty }))
       }
 
       // ===== MENU BIASA (LEGACY) =====
@@ -336,20 +351,14 @@ export default function CheckoutPage() {
           ...m,
           qty: newQty,
           condiments: Array.isArray(m.condiments)
-            ? m.condiments.map(c => ({
-                ...c,
-                qty: newQty
-              }))
+            ? m.condiments.map(c => ({ ...c, qty: newQty }))
             : []
         }))
       }
 
       // ===== ADDONS =====
       if (Array.isArray(item.addons)) {
-        item.addons = item.addons.map(a => ({
-          ...a,
-          qty: newQty
-        }))
+        item.addons = item.addons.map(a => ({ ...a, qty: newQty }))
       }
 
       next[index] = item

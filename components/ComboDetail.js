@@ -959,6 +959,10 @@ export default function ComboDetail({ combo: propCombo = null }) {
           image: comboState.imagePath || comboState.image || null
         },
         isFromMacro: true,
+        macroCode: comboState.macroCode || null,
+        maxQuantityCanGet: Number(comboState.maxQuantityCanGet || 0),
+        isAllowGetAnother: Boolean(comboState.isAllowGetAnother),
+
         orderType: resolvedOrderType,
         products: productsPayload,
         qty: Number(qty || 1),
@@ -968,6 +972,14 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
     const cartEntry = {
       type: 'combo',
+
+      // 🔥 MACRO CONTEXT (WAJIB)
+      isMacro: Boolean(comboState.macroCode),
+      macroCode: comboState.macroCode || null,
+      macroName: comboState.macroName || comboState.name || null,
+      maxQuantityCanGet: Number(comboState.maxQuantityCanGet || 0),
+      isAllowGetAnother: Boolean(comboState.isAllowGetAnother),
+
       combos: combosForCart,
       qty: Number(qty || 1),
       detailCombo: combosForCart[0].detailCombo,

@@ -4,7 +4,6 @@ import { useRouter } from 'next/router'
 import Image from 'next/image'
 import styles from '../styles/Checkout.module.css'
 import AddPopup from './AddPopup'
-import MacroPopup from './MacroPopup'
 import { getCart, updateCart, removeFromCartByIndex, savePayment } from '../lib/cart'
 import { getUser } from '../lib/auth'
 import { mapDoOrderPayload } from '../lib/order'
@@ -32,28 +31,6 @@ function getItemOrderType(item) {
   return item.menus?.[0]?.orderType || null
 }
 
-function syncMacroWithCart(cart, macroResponse) {
-  const validMacroCodes = macroResponse.map(m => m.macroCode)
-
-  return cart.filter(item => {
-    // non macro → aman
-    if (!item.isMacro) return true
-
-    // macro tapi sudah tidak valid
-    return validMacroCodes.includes(item.macroCode)
-  })
-}
-
-function getMacroQtyMap(cart = []) {
-  const map = {}
-  cart.forEach(i => {
-    if (i.isMacro && i.macroCode) {
-      map[i.macroCode] = (map[i.macroCode] || 0) + Number(i.qty || 1)
-    }
-  })
-  return map
-}
-
 export default function CheckoutPage() {
   const router = useRouter()
 
@@ -75,11 +52,6 @@ export default function CheckoutPage() {
   const [showAddPopup, setShowAddPopup] = useState(false)
   const addBtnRef = useRef(null)
   const recalcTimerRef = useRef(null)
-  const macroTimerRef = useRef(null)
-
-  const [showMacroPopup, setShowMacroPopup] = useState(false);
-  const [macroData, setMacroData] = useState(null);
-  const [loadingMacro, setLoadingMacro] = useState(false);
 
   // delete confirmation modal state
   const [confirmDeleteIndex, setConfirmDeleteIndex] = useState(null)
@@ -134,142 +106,19 @@ export default function CheckoutPage() {
 
   function debouncedRecalculate(latestCart, delay = 400) {
     setIsCalculating(true)
-    
+  
     if (recalcTimerRef.current) {
       clearTimeout(recalcTimerRef.current)
     }
-    
+  
     recalcTimerRef.current = setTimeout(() => {
       recalculateFromAPI(latestCart)
     }, delay)
   }
-
-  function getMacroCodesInCart(cart = []) {
-    return cart
-      .filter(i => i.isMacro && i.macroCode)
-      .map(i => i.macroCode)
-  }
-
-  async function calculateMacro(payload) {
-    const res = await fetch("/api/order/macro", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      throw new Error("Failed calculate macro");
-    }
-
-    return res.json();
-  }
-
-  async function handleMacro(latestCart) {
-    try {
-      if (loadingMacro) return
-      setLoadingMacro(true)
-
-      const payload = mapDoOrderPayload(
-        latestCart,
-        null,
-        'qris',
-        {
-          posId: 'QR',
-          orderType: user.orderType || 'DI',
-          tableNumber: user.orderType === 'TA'
-            ? ''
-            : (user.tableNumber || '')
-        }
-      )
-
-      const result = await calculateMacro(payload)
-      if (!result?.success || !Array.isArray(result?.data)) return
-
-      // ===============================
-      // 1️⃣ SYNC CART DENGAN RESPONSE MACRO
-      // ===============================
-      const syncedCart = syncMacroWithCart(latestCart, result.data)
-
-      let cartChanged = false
-
-      if (syncedCart.length !== latestCart.length) {
-        cartChanged = true
-        setCart(syncedCart)
-        localStorage.setItem("yoshi_cart_v1", JSON.stringify(syncedCart))
-      }
-
-      // ===============================
-      // 2️⃣ FILTER MACRO YANG MASIH BISA DIAMBIL
-      // ===============================
-      const macroQtyMap = getMacroQtyMap(latestCart)
-
-      const filtered = result.data.filter(m => {
-        const takenQty = macroQtyMap[m.macroCode] || 0
-
-        if (
-          Number(m.maxQuantityCanGet) > 0 &&
-          takenQty >= Number(m.maxQuantityCanGet)
-        ) return false
-
-        if (!m.isAllowGetAnother && takenQty > 0) return false
-
-        return true
-      })
-
-      // ===============================
-      // 3️⃣ TAMPILKAN POPUP JIKA ADA
-      // ===============================
-      if (filtered.length > 0) {
-        setMacroData({ ...result, data: filtered })
-        setShowMacroPopup(true)
-      } else {
-        setShowMacroPopup(false)
-      }
-
-    } catch (e) {
-      console.error("Macro error:", e)
-    } finally {
-      setLoadingMacro(false)
-    }
-  }
-
-  function applyMacro(combo) {
-    if (!combo || !Array.isArray(combo.comboGroups)) {
-      alert("Data combo macro tidak lengkap");
-      return;
-    }
-
-    const comboPayload = {
-      ...combo,
-
-      // 🔑 CONTEXT MACRO
-      isMacro: true,
-      macroCode: combo.macroCode,
-      macroName: combo.macroName, // optional kalau mau
-      maxQuantityCanGet: combo.maxQuantityCanGet,
-      isAllowGetAnother: combo.isAllowGetAnother
-    };
-
-    const encoded = encodeURIComponent(JSON.stringify(comboPayload));
-    router.push(`/combo-detail?combo=${encoded}`);
-  }
-
-  function debouncedHandleMacro(cart, delay = 500) {
-    if (macroTimerRef.current) {
-      clearTimeout(macroTimerRef.current)
-    }
-
-    macroTimerRef.current = setTimeout(() => {
-      handleMacro(cart)
-    }, delay)
-  }
-
+  
   useEffect(() => {
     if (!cartLoaded) return
     debouncedRecalculate(cart)
-    debouncedHandleMacro(cart)
   }, [cart])
 
   useEffect(() => {
@@ -325,32 +174,20 @@ export default function CheckoutPage() {
       const currentQty = Number(item.qty || 1)
       let newQty = currentQty
 
-      const macroQtyMap = getMacroQtyMap(prev)
-      const takenQty = item.isMacro
-        ? macroQtyMap[item.macroCode] || 0
-        : 0
-
-      if (action === 'minus') {
-        newQty = Math.max(1, currentQty - 1)
-      }
-
-      if (action === 'plus') {
-        if (
-          item.isMacro &&
-          Number(item.maxQuantityCanGet) > 0 &&
-          takenQty >= Number(item.maxQuantityCanGet)
-        ) {
-          return prev // 🚫 TOTAL macro sudah max
-        }
-        newQty = currentQty + 1
-      }
+      if (action === 'minus') newQty = Math.max(1, currentQty - 1)
+      if (action === 'plus') newQty = currentQty + 1
 
       // ===== SET QTY UTAMA =====
       item.qty = newQty
 
       // ===== NORMALIZE COMBO =====
       if (item.type === 'combo' && Array.isArray(item.combos)) {
-        item.combos = item.combos.map(cb => ({ ...cb, qty: newQty }))
+        item.combos = item.combos.map(cb => {
+          return {
+            ...cb,
+            qty: newQty, // qty combo ikut user
+          }
+        })
       }
 
       // ===== MENU BIASA (LEGACY) =====
@@ -359,14 +196,20 @@ export default function CheckoutPage() {
           ...m,
           qty: newQty,
           condiments: Array.isArray(m.condiments)
-            ? m.condiments.map(c => ({ ...c, qty: newQty }))
+            ? m.condiments.map(c => ({
+                ...c,
+                qty: newQty
+              }))
             : []
         }))
       }
 
       // ===== ADDONS =====
       if (Array.isArray(item.addons)) {
-        item.addons = item.addons.map(a => ({ ...a, qty: newQty }))
+        item.addons = item.addons.map(a => ({
+          ...a,
+          qty: newQty
+        }))
       }
 
       next[index] = item
@@ -843,18 +686,6 @@ export default function CheckoutPage() {
         autoHideMs={0}
       >
       </AddPopup>
-
-      {/* Popup Macro */}
-      {showMacroPopup && macroData && (
-        <MacroPopup
-          data={macroData}
-          onSkip={() => setShowMacroPopup(false)}
-          onSelect={(combo) => {
-            setShowMacroPopup(false);
-            applyMacro(combo);
-          }}
-        />
-      )}
 
       {/* Delete confirmation modal */}
       {showConfirmDelete && (

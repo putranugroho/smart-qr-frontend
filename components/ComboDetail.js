@@ -205,7 +205,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
   const storeCode = user.storeLocation
 
   const comboGroups = useMemo(() => (comboState && Array.isArray(comboState.comboGroups) ? comboState.comboGroups : []), [comboState])
-  const isMacroCombo = Boolean(comboState?.isMacro || comboState?.macroCode)
 
   // refs
   const fetchedFullRef = useRef(false)          // ensure we fetch full data once per edit flow
@@ -269,14 +268,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
             it.combos?.[0]?.clientInstanceId === editingCID
           )
         )
-
-        const macroContextFromCart = entry.isMacro ? {
-          isMacro: true,
-          macroCode: entry.macroCode,
-          macroName: entry.macroName,
-          maxQuantityCanGet: Number(entry.maxQuantityCanGet || 0),
-          isAllowGetAnother: Boolean(entry.isAllowGetAnother)
-        } : null
 
         if (!entry) {
           console.warn('[ComboDetail] Combo edit not found by CID:', editingCID)
@@ -342,7 +333,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
         let sessionDataIncomplete = true; // Default asumsi tidak lengkap agar fetch jalan
 
         if (comboCode) {
-          
           try {
             const key = `combo_${String(comboCode)}`
             const raw = sessionStorage.getItem(key)
@@ -375,7 +365,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
         // 2) try fetch API (JIKA session gagal atau data tidak lengkap)
         // ============================================================
         if (comboCode) {
-          
           try {
             const url = `/api/proxy/combo-list?orderCategoryCode=${resolvedOrderType}&storeCode=${encodeURIComponent(storeCode)}&pageSize=1000`
             const r = await fetch(url)
@@ -459,11 +448,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
             code: comboCode || null,
             name: (entry.detailCombo && entry.detailCombo.name) || 'Combo',
             // ...
-            comboGroups: groupsArr,
-            ...macroContextFromCart
+            comboGroups: groupsArr
           }
-          console.log("minimal ",minimal);
-          
           setComboState(minimal)
           setSelectedProducts(sp)
           setSelectedCondiments(sc)
@@ -972,10 +958,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
           image: comboState.imagePath || comboState.image || null
         },
         isFromMacro: true,
-        macroCode: comboState.macroCode || null,
-        maxQuantityCanGet: Number(comboState.maxQuantityCanGet || 0),
-        isAllowGetAnother: Boolean(comboState.isAllowGetAnother),
-
         orderType: resolvedOrderType,
         products: productsPayload,
         qty: Number(qty || 1),
@@ -985,14 +967,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
     const cartEntry = {
       type: 'combo',
-
-      // 🔥 MACRO CONTEXT (WAJIB)
-      isMacro: Boolean(comboState.macroCode),
-      macroCode: comboState.macroCode || null,
-      macroName: comboState.macroName || comboState.name || null,
-      maxQuantityCanGet: Number(comboState.maxQuantityCanGet || 0),
-      isAllowGetAnother: Boolean(comboState.isAllowGetAnother),
-
       combos: combosForCart,
       qty: Number(qty || 1),
       detailCombo: combosForCart[0].detailCombo,
@@ -1056,24 +1030,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
     return { ok: true }
   }
 
-  function handleSetQty(nextQty) {
-    let finalQty = Number(nextQty || 1)
-
-    if (isMacroCombo && Number(comboState.maxQuantityCanGet) > 0) {
-      finalQty = Math.min(finalQty, Number(comboState.maxQuantityCanGet))
-    }
-
-    if (finalQty < 1) finalQty = 1
-    setQty(finalQty)
-  }
-
   function handleAddToCart() {
-    if (isMacroCombo && Number(comboState.maxQuantityCanGet) > 0) {
-      if (qty > Number(comboState.maxQuantityCanGet)) {
-        alert(`Maksimal ${comboState.maxQuantityCanGet} item untuk promo ini`)
-        return
-      }
-    }
     try {
       const v = validateSelectionBeforeAdd()
       if (!v.ok) {
@@ -1086,7 +1043,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
       console.warn("payload combo", payload);
       
       if (!payload) {
-        console.warn('Payload combo tidak valid.')
+        alert('Payload combo tidak valid.')
         return
       }
 
@@ -1572,12 +1529,11 @@ export default function ComboDetail({ combo: propCombo = null }) {
         <div className={styles.stickyInner}>
           <StickyCartBar
             qty={qty}
-            setQty={handleSetQty}
+            setQty={setQty}
             subtotal={subtotalForDisplay}
             onAdd={handleAddToCart}
             addAnimating={addAnimating}
             addLabel={addBtnLabel}
-            maxQuantityCanGet={comboState.maxQuantityCanGet}
             isEditing={fromCheckout && editingIndex != null}
           />
         </div>

@@ -473,8 +473,7 @@ export default function PaymentPage() {
       const phoneNumber = "0" + (customer.phone || "")
       saveOrderSession({
         sessionId,
-        // orderCode: doOrderData.data.orderCode,
-        orderCode: order_code,
+        orderCode: doOrderData.data.orderCode,
         name: customer.first_name,
         phone: phoneNumber
       })
@@ -495,8 +494,7 @@ export default function PaymentPage() {
 
         // 2. Append order history
         storage.dataHistory.unshift({
-          // orderCode: doOrderData.data.orderCode,
-          orderCode: order_code,
+          orderCode: doOrderData.data.orderCode,
           orderDate: new Date().toISOString(),
           totalPayment: Number(grossAmount),
           storeLocation: "Yoshinoya Mall Grand Indonesia"

@@ -22,13 +22,19 @@ export default function MacroPopup({ data, onSelect, onSkip }) {
         </div>
 
         {/* TITLE */}
-        <h3 className={styles.title}>
-          Sebelum pembayaran, cek penawaran ini!
-        </h3>
+        <h1 className={styles.title}>
+          <b>
+            Sebelum pembayaran, cek penawaran ini!
+          </b>
+        </h1>
 
         {/* SUBTITLE */}
         <p className={styles.subtitle}>
           Klaim promo jika ada atau tambah produk.
+        </p>
+
+        <p className={styles.subtitle}>
+          Lewati untuk melanjutkan pembicaraan
         </p>
 
         {/* LIST MACRO */}

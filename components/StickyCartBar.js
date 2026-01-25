@@ -9,16 +9,6 @@ function formatRp(n) {
   return 'Rp' + new Intl.NumberFormat('id-ID').format(v)
 }
 
-/**
- * StickyCartBar
- * props:
- *  - qty
- *  - setQty
- *  - subtotal
- *  - onAdd
- *  - addAnimating (bool) -> apply visual pulse to the button
- *  - addLabel (string) -> label shown on the button (default: 'Tambah Pesanan')
- */
 export default function StickyCartBar({
   qty = 1,
   setQty = () => {},
@@ -27,9 +17,31 @@ export default function StickyCartBar({
   style = {},
   addAnimating = false,
   addLabel = 'Tambah Pesanan',
-  disabled = false
+  disabled = false,
+  maxQuantityCanGet = 0 // 0 / null = unlimited
 }) {
   const hasItems = Number(subtotal) > 0
+
+  // ===============================
+  // 🔐 MAX QTY LOGIC (MACRO SAFE)
+  // ===============================
+  const isLimited =
+    Number(maxQuantityCanGet) > 0
+
+  const maxQty = isLimited
+    ? Number(maxQuantityCanGet)
+    : Infinity
+
+  const reachedMax = isLimited && qty >= maxQty
+
+  function handleMinus() {
+    setQty(Math.max(1, qty - 1))
+  }
+
+  function handlePlus() {
+    if (isLimited && qty >= maxQty) return
+    setQty(qty + 1)
+  }
 
   return (
     <div className={styles.container}>
@@ -44,7 +56,7 @@ export default function StickyCartBar({
           <div className={styles.qtyRow}>
             <button
               aria-label="Kurangi jumlah"
-              onClick={() => setQty(Math.max(1, qty - 1))}
+              onClick={handleMinus}
               className={styles.qtyBtnMinus}
             >
               <svg width="10" height="2" viewBox="0 0 10 2" fill="none">
@@ -56,8 +68,13 @@ export default function StickyCartBar({
 
             <button
               aria-label="Tambah jumlah"
-              onClick={() => setQty(qty + 1)}
+              onClick={handlePlus}
+              disabled={reachedMax}
               className={styles.qtyBtnPlus}
+              style={{
+                opacity: reachedMax ? 0.4 : 1,
+                cursor: reachedMax ? 'not-allowed' : 'pointer'
+              }}
             >
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
                 <path
@@ -72,6 +89,20 @@ export default function StickyCartBar({
           </div>
         </div>
 
+        {/* INFO MAX QTY */}
+        {reachedMax && (
+          <div
+            style={{
+              marginTop: 4,
+              fontSize: 11,
+              color: '#dc2626',
+              textAlign: 'right'
+            }}
+          >
+            Maksimal {maxQty} item promo
+          </div>
+        )}
+
         {/* ROW 2 — BUTTON ADD */}
         <div className={styles.rowBottom}>
           <button
@@ -85,16 +116,25 @@ export default function StickyCartBar({
           >
             {/* Icon */}
             <div className={styles.cartIcon}>
-              <Image src="/images/cart-icon.png" alt="cart" width={20} height={20} />
+              <Image
+                src="/images/cart-icon.png"
+                alt="cart"
+                width={20}
+                height={20}
+              />
             </div>
 
             {/* Price + Label */}
             <div className={styles.addTextWrap}>
-              <div className={styles.addPrice}>{formatRp(subtotal)}</div>
-              <div className={styles.addLabel}>{addLabel}</div>
+              <div className={styles.addPrice}>
+                {formatRp(subtotal)}
+              </div>
+              <div className={styles.addLabel}>
+                {addLabel}
+              </div>
             </div>
 
-            <div style={{ width: 8 }} /> {/* spacer kanan */}
+            <div style={{ width: 8 }} />
           </button>
         </div>
 

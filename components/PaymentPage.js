@@ -13,6 +13,27 @@ function formatRp(n) {
   return 'Rp' + new Intl.NumberFormat('id-ID').format(Number(n || 0))
 }
 
+function generateOrderId(user, isTakeAway) {
+  const prefix = user.orderType === 'DI' ? 'DI' : (isTakeAway ? 'TA' : 'DI')
+
+  const now = new Date()
+
+  const pad = (n) => n.toString().padStart(2, '0')
+
+  const hh = pad(now.getHours())
+  const mm = pad(now.getMinutes())
+  const ss = pad(now.getSeconds())
+  const dd = pad(now.getDate())
+  const MM = pad(now.getMonth() + 1)
+  const yy = now.getFullYear().toString().slice(-2)
+
+  // random number 100 (0–99 atau 1–100, pilih salah satu)
+  const random100 = Math.floor(Math.random() * 100) // 0–99
+  // const random100 = Math.floor(Math.random() * 100) + 1 // 1–100
+
+  return `${prefix}${hh}${mm}${ss}${dd}${MM}${yy}${random100}`
+}
+
 export default function PaymentPage() {
   const router = useRouter();
   const [isBlocking, setIsBlocking] = useState(false)
@@ -334,6 +355,9 @@ export default function PaymentPage() {
       payload.rounding = taxResult.rounding;
       payload.taxes = taxResult.taxes;
 
+      // generate orderId that will be used as Midtrans order_id (displayOrderId)
+      const orderId = generateOrderId(user, isTakeAway)
+
       if (selectedMethod.includes("gopay")) {
         payload.payment = "GOPAY"
       } else if (selectedMethod.includes("qris")) {
@@ -349,6 +373,9 @@ export default function PaymentPage() {
       // ensure payload.tableNumber is the formatted one
       payload.tableNumber = finalTableForPayload;
       payload.table_number = finalTableForPayload;
+      
+      // CHANGED: attach displayOrderId (Midtrans order_id we generated)
+      payload.displayOrderId = orderId;
 
       console.log("payload (do-order) :", payload);
 

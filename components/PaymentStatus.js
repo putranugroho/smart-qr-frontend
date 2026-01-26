@@ -20,8 +20,6 @@
     const [tx, setTx] = useState(null)
     const [orderMeta, setOrderMeta] = useState(null)
     const [timeLeft, setTimeLeft] = useState(15 * 60)
-    const [checking, setChecking] = useState(false)
-    const [statusMessage, setStatusMessage] = useState('')
     const [redirecting, setRedirecting] = useState(false)
     const [isMounted, setIsMounted] = useState(false)
     const [orderCode, setOrderCode] = useState(null)
@@ -32,8 +30,6 @@
 
     const [paymentSuccess, setPaymentSuccess] = useState(false)
     const leaveResolveRef = useRef(null)
-
-    const [statusLogs, setStatusLogs] = useState([])
 
     useEffect(() => {
       const s = sessionStorage.getItem('midtrans_tx')
@@ -79,9 +75,7 @@
     }, [])
 
     function getNormalizedMethod(txObj) {
-      if (!txObj) return ''
-      const raw = (txObj.method || txObj.payment_type || txObj.core_response?.payment_type || '').toString()
-      return raw.toLowerCase()
+      return (txObj?.method || '').toLowerCase()
     }
 
     function findAction(actions = [], names = []) {
@@ -139,19 +133,19 @@
       }
     }
 
-    function pushLog(entry) {
-      const ts = new Date().toISOString()
-      const full = { ts, ...entry }
-      setStatusLogs(prev => {
-        const next = [full, ...prev]
-        if (next.length > 50) next.length = 50
-        return next
-      })
-    }
+    const isSnapPayment = (tx) => tx?.type === 'snap'
+
+    const isCoreQRIS = (payload) => {
+      return payload?.payment === 'QRISOTHERS';
+    };
+
+    const isCoreDeeplink = (payload) => {
+      return ['GOPAY', 'SHOPEEPAY'].includes(payload?.payment);
+    };
 
     useEffect(() => {
       async function check() {
-        const orderId = tx?.order_id || tx?.orderId || orderMeta?.orderId || tx?.raw?.order_id
+        const orderId = tx?.order_id
         if (!orderId) return
 
         try {
@@ -215,104 +209,64 @@
       }
     }
 
+    async function generateFromQrString(qrString) {
+      if (!qrString) return null
+      try {
+        setQrError(null)
+        setQrLoading(true)
+
+        const dataUrl = await QRCode.toDataURL(qrString, {
+          errorCorrectionLevel: 'H',
+          margin: 1,
+          width: 800,
+        })
+
+        setQrDataUri(dataUrl)
+        return dataUrl
+      } catch (err) {
+        console.warn('[QR] QR generate error', err)
+        setQrError(String(err))
+        return null
+      } finally {
+        setQrLoading(false)
+      }
+    }
+
     useEffect(() => {
-      let mounted = true
-
-      async function fetchQrDataUri(imgUrl) {
-        if (!imgUrl) return null
-        try {
-          setQrError(null)
-          setQrLoading(true)
-          const api = `/api/convert-image-to-base64?imageUrl=${encodeURIComponent(imgUrl)}&mode=datauri`
-          const r = await fetch(api)
-          const txt = await r.text().catch(() => null)
-          let j = null
-          try { j = txt ? JSON.parse(txt) : null } catch (e) { j = null }
-          if (!r.ok) {
-            return null
-          }
-          const dataUri = (j && (j.dataUri || (j.data && j.data.Base64Image ? `data:image/pngbase64,${j.data.Base64Image}` : null))) || null
-          if (!dataUri) {
-            return null
-          }
-          if (!mounted) return null
-          setQrDataUri(dataUri)
-          return dataUri
-        } catch (err) {
-          console.warn('[QR] fetchQrDataUri error', err)
-          if (mounted) setQrError(String(err))
-          return null
-        } finally {
-          if (mounted) setQrLoading(false)
-        }
-      }
-
-      async function generateFromQrString(qrString) {
-        if (!qrString) return null
-        try {
-          setQrError(null)
-          setQrLoading(true)
-          const dataUrl = await QRCode.toDataURL(qrString, {
-            errorCorrectionLevel: 'H',
-            margin: 1,
-            width: 800
-          })
-          if (!mounted) return null
-          setQrDataUri(dataUrl)
-          return dataUrl
-        } catch (err) {
-          console.warn('[QR] QR generate error', err)
-          if (mounted) setQrError(String(err))
-          return null
-        } finally {
-          if (mounted) setQrLoading(false)
-        }
-      }
-
-      if (!tx) return () => { mounted = false }
+      if (!tx) return
 
       const method = getNormalizedMethod(tx)
-      if (method !== 'qris') {
-        return () => { mounted = false }
+      if (method !== 'qris') return
+
+      const raw = getTxRaw(tx)
+      const actions = getTxActions(tx)
+
+      // PRIORITAS 1: qr_string
+      if (raw.qr_string) {
+        generateFromQrString(raw.qr_string)
+        return
       }
 
-      const actions = tx.actions || tx.core_response?.actions || []
-
-      const qrString = tx.qr_string || tx.core_response?.qr_string || tx.raw?.qr_string || null
-      if (qrString) {
-        generateFromQrString(qrString)
-        return () => { mounted = false }
-      }
-
-      const qrV1 = findAction(actions, ['generate-qr-code'])
+      // PRIORITAS 2: QR URL
       const qrV2 = findAction(actions, ['generate-qr-code-v2'])
-      const qrUrlFromResp = tx.qr_url || tx.qrUrl || tx.qr_image || null
-      const redirectUrl = tx.redirect_url || tx.raw?.redirect_url || null
+      const qrV1 = findAction(actions, ['generate-qr-code'])
 
-      const imgUrl = (qrV1 && qrV1.url) || (qrV2 && qrV2.url) || qrUrlFromResp || redirectUrl || null
-
-
-      setQrDataUri(null)
-      setQrError(null)
+      const imgUrl =
+        qrV2?.url ||
+        qrV1?.url ||
+        raw.redirect_url ||
+        null
 
       if (imgUrl) {
-        (async () => {
-          const dataUri = await fetchQrDataUri(imgUrl)
-          if (!dataUri) {
-            console.warn('[QR] converter returned no usable dataUri for', imgUrl)
-          }
-        })()
+        fetchQrDataUri(imgUrl)
       } else {
-        console.warn('[QR] no imgUrl found to convert')
-        setQrError('No QR URL available to convert.')
+        setQrError('QRIS data tidak tersedia')
       }
-
-      return () => { mounted = false }
     }, [tx])
 
     function openDeeplinkManually() {
       if (!tx) return
-      const actions = tx.actions || tx.core_response?.actions || []
+      const actions = getTxActions(tx)
       const deeplinkAction = findAction(actions, ['deeplink-redirect', 'deeplink'])
       const urlAction = findAction(actions, ['mobile_deeplink_web', 'mobile_web_checkout_url', 'url'])
       const deeplinkUrl = deeplinkAction?.url || urlAction?.url || tx.deeplink_url || tx.core_response?.deeplink_url || null
@@ -368,9 +322,9 @@
       if (!tx) return
 
       const method = getNormalizedMethod(tx)
-      if (!['gopay', 'ovo', 'shopeepay'].includes(method)) return
+      if (!['gopay', 'shopeepay'].includes(method)) return
 
-      const actions = tx.actions || tx.core_response?.actions || []
+      const actions = getTxActions(tx)
       const deeplinkAction = findAction(actions, ['deeplink-redirect', 'deeplink'])
       const urlAction = findAction(actions, ['mobile_deeplink_web', 'mobile_web_checkout_url', 'url'])
       const deeplinkUrl =
@@ -412,6 +366,34 @@
     }, [tx, orderMeta])
     /* ====================== PATCH END ======================= */
 
+    useEffect(() => {
+      if (!tx) return
+      if (tx.type !== 'snap') return
+
+      const snapUrl = tx.snap_redirect_url
+      if (!snapUrl) return
+
+      const orderId = tx.order_id || tx.orderId
+      if (!orderId) return
+
+      const flagKey = `midtrans_snap_redirected:${orderId}`
+      if (sessionStorage.getItem(flagKey)) return
+
+      try {
+        sessionStorage.setItem(flagKey, 'true')
+      } catch (e) {}
+
+      console.warn('[paymentstatus] auto SNAP redirect →', snapUrl)
+
+      setRedirecting(true)
+
+      const t = setTimeout(() => {
+        window.location.href = snapUrl
+      }, 300)
+
+      return () => clearTimeout(t)
+    }, [tx])
+
     const minutes = String(Math.floor(timeLeft / 60)).padStart(2, '0')
     const seconds = String(timeLeft % 60).padStart(2, '0')
 
@@ -443,19 +425,32 @@
       )
     }
 
+    function getTxRaw(tx) {
+      return tx?.raw || {}
+    }
+
+    function getTxActions(tx) {
+      return tx?.raw?.actions || tx?.actions || tx?.core_response?.actions || []
+    }
+
     function renderPaymentArea() {
       if (!tx) return <div className={styles.qrLoading}></div>
 
       const method = getNormalizedMethod(tx)
-      const actions = tx.actions || tx.core_response?.actions || []
 
       if (method === 'qris') {
+        const raw = getTxRaw(tx)
+        const actions = getTxActions(tx)
+
         const qrV2 = findAction(actions, ['generate-qr-code-v2'])
         const qrV1 = findAction(actions, ['generate-qr-code'])
-        const qrUrlFromResp = tx.qr_url || tx.qrUrl || tx.qr_image || null
-        const redirectUrl = tx.redirect_url || tx.raw?.redirect_url || null
 
-        const imgUrl = qrV2?.url || qrV1?.url || qrUrlFromResp || redirectUrl
+        const imgUrl =
+          qrV2?.url ||
+          qrV1?.url ||
+          raw.redirect_url ||
+          null
+
         const isLikelyImage = imgUrl && imgUrl.match(/\.(png|jpg|jpeg|svg|webp)(\?|$)/i)
 
         if (imgUrl) {
@@ -515,14 +510,21 @@
         return <div>QRIS: kode QR tidak tersedia (silakan coba kembali).</div>
       }
 
-      if (method === 'gopay' || method === 'ovo' || method === 'shopeepay') {
-        const deeplinkAction = findAction(actions, ['deeplink-redirect', 'deeplink'])
-        const urlAction = findAction(actions, ['mobile_deeplink_web', 'mobile_web_checkout_url', 'url'])
-        const deeplinkUrl = deeplinkAction?.url || urlAction?.url || tx.deeplink_url || tx.core_response?.deeplink_url
+      if (method === 'gopay' || method === 'shopeepay') {
+        const raw = getTxRaw(tx)
+        const actions = getTxActions(tx)
+
+        const deeplinkAction = findAction(actions, ['deeplink', 'deeplink-redirect'])
+        const urlAction = findAction(actions, ['mobile_web_checkout_url', 'url'])
+
+        const deeplinkUrl =
+          deeplinkAction?.url ||
+          urlAction?.url ||
+          raw.redirect_url ||
+          null
 
         const orderId = orderMeta?.orderId || tx.order_id || tx.orderId || tx.raw?.order_id
         const flagKey = orderId ? `midtrans_deeplink_attempted:${orderId}` : null
-        const alreadyAttempted = flagKey ? sessionStorage.getItem(flagKey) : null
 
         return (
           <div style={{ textAlign: 'center' }}>
@@ -540,6 +542,34 @@
             ) : (
               <div>Tautan pembayaran tidak tersedia. Silakan gunakan tombol Check Status.</div>
             )}
+          </div>
+        )
+      }
+
+      if (tx.type === 'snap') {
+        const snapUrl = tx.snap_redirect_url
+
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ marginBottom: 12 }}>
+              Silakan selesaikan pembayaran melalui{' '}
+              <strong>{tx.method.toUpperCase()}</strong>
+            </div>
+
+            {snapUrl ? (
+              <button
+                className={styles.checkBtn}
+                onClick={() => window.location.href = snapUrl}
+              >
+                {redirecting ? 'Mengarahkan...' : 'Lanjutkan Pembayaran'}
+              </button>
+            ) : (
+              <div>Tautan pembayaran SNAP tidak tersedia.</div>
+            )}
+
+            <div style={{ marginTop: 12, fontSize: 12, color: '#666' }}>
+              Jika tidak otomatis terbuka, tekan tombol di atas
+            </div>
           </div>
         )
       }

@@ -289,8 +289,6 @@ export default function PaymentPage() {
     return s;
   }
 
-  const isSnapMethod = (method) => ['dana', 'ovo'].includes(method);
-
   async function handlePayNow() {
     // 🔒 HARD LOCK (anti spam click)
     if (payLockRef.current) return;
@@ -364,8 +362,6 @@ export default function PaymentPage() {
         payload.payment = "QRISOTHERS"
       } else if (selectedMethod.includes("shopeepay")) {
         payload.payment = "SHOPEEPAY"
-      } else if (selectedMethod.includes("dana")) {
-        payload.payment = "DANA"
       } 
 
       payload.customerName = customer.first_name || "";
@@ -411,13 +407,7 @@ export default function PaymentPage() {
       };
 
       // === 2. Create Midtrans Transaction ===
-      const isSnap = isSnapMethod(selectedMethod)
-
-      const midtransEndpoint = isSnap
-        ? '/api/midtrans/create-snap-transaction'
-        : '/api/midtrans/create-transaction';
-
-      const resp = await fetch(midtransEndpoint, {
+      const resp = await fetch('/api/midtrans/create-transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload_midtrans)
@@ -426,24 +416,8 @@ export default function PaymentPage() {
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Gagal membuat transaksi');
 
-      // ================================
-      // NORMALIZED MIDTRANS STORAGE (FINAL)
-      // ================================
-      const midtransTx = {
-        type: isSnap ? 'snap' : 'core',
-        method: selectedMethod,                 // qris | gopay | shopeepay | ovo | dana
-        order_id: payload_midtrans.orderId,     // SINGLE SOURCE OF TRUTH
-        created_at: Date.now(),
-
-        // SNAP
-        snap_token: isSnap ? data.snap_token || null : null,
-        snap_redirect_url: isSnap ? data.snap_redirect_url || null : null,
-
-        // CORE (raw disimpan, UI tidak wajib pakai)
-        raw: isSnap ? null : data
-      };
-
-      sessionStorage.setItem('midtrans_tx', JSON.stringify(midtransTx));
+      // persist raw midtrans response for PaymentStatus usage
+      sessionStorage.setItem("midtrans_tx", JSON.stringify(data));
 
       // try to extract paymentLink (deeplink/url) from midtrans response (actions, core_response, deeplink_url)
       let paymentLink = null;
@@ -508,7 +482,7 @@ export default function PaymentPage() {
       }
 
       // clear client cart (calls clearCart -> localStorage)
-      // clearCart();
+      clearCart();
 
       // 🔒 pastikan storage benar-benar tersimpan
       const verify = localStorage.getItem("orderHistory");
@@ -575,7 +549,7 @@ export default function PaymentPage() {
 
   // Payment method list and disabled set
   const methods = ['qris','shopeepay','gopay','ovo','dana'];
-  const disabledMethods = new Set(['ovo']); // these will be shown as under maintenance
+  const disabledMethods = new Set(['ovo','dana']); // these will be shown as under maintenance
 
   return (
     <div className={styles.page}>

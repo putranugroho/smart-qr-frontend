@@ -141,6 +141,7 @@ export default function BillPage() {
     if (s.includes("gopay")) return "/images/pay-gopay.png";
     if (s.includes("shopeepay")) return "/images/pay-shopeepay.png";
     if (s.includes("qris")) return "/images/pay-qris.png";
+    if (s.includes("dana")) return "/images/pay-dana.png";
 
     return "";
   }

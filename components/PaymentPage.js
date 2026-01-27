@@ -575,7 +575,7 @@ export default function PaymentPage() {
 
   // Payment method list and disabled set
   const methods = ['qris','shopeepay','gopay','ovo','dana'];
-  const disabledMethods = new Set(['ovo','dana']); // these will be shown as under maintenance
+  const disabledMethods = new Set(['ovo']); // these will be shown as under maintenance
 
   return (
     <div className={styles.page}>

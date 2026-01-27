@@ -64,6 +64,8 @@ export default async function handler(req, res) {
 
         if (payment_type.includes("gopay")) PaymentCode = "GOPAY";
         else if (payment_type.includes("qris")) PaymentCode = "QRISOTHERS";
+        else if (payment_type.includes("dana")) PaymentCode = "DANA";
+        else if (payment_type.includes("shopeepay")) PaymentCode = "SHOPEEPAY";
         else if (payment_type.includes("credit_card")) PaymentCode = "CC";
         else PaymentCode = payment_type.toUpperCase();
 

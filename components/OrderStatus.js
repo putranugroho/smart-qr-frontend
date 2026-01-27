@@ -610,12 +610,10 @@ export default function OrderStatus() {
           setCurrentStep(4)
 
           const paymentLinkFromApi = (apiResp.data.PaymentLink ?? apiResp.data.paymentLink ?? apiResp.data.PaymentUrl ?? '') || ''
-          const displayOrderIdFromApi = apiResp.data.DisplayOrderId ?? apiResp.data.displayOrderId ?? null
-          const foundDisplayOrderId = displayOrderIdFromApi || parseOrderIdFromPaymentLink(paymentLinkFromApi) || sessionStorage.getItem('display_order_id')
 
-          if (foundDisplayOrderId) {
+          if (orderCodeToPoll) {
             try {
-              const stResp = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(foundDisplayOrderId)}`, {
+              const stResp = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(orderCodeToPoll)}`, {
                 cache: "no-store"
               })
               if (stResp.ok) {
@@ -671,6 +669,8 @@ export default function OrderStatus() {
         setUrlLogo("/images/pay-qris.png")
       } else if (realData?.payment?.toLowerCase()?.includes("shopeepay")) {
         setUrlLogo("/images/pay-shopeepay.png")
+      } else if (realData?.payment?.toLowerCase()?.includes("dana")) {
+        setUrlLogo("/images/pay-dana.png")
       }
       } catch (err) {
         console.warn('checkOrder error', err)

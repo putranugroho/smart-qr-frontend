@@ -2,7 +2,7 @@ import crypto from "crypto";
 
 export default async function handler(req, res) {
     if (req.method !== "POST") {
-        logger.warn("Method not allowed: " + req.method);
+        console.log("Method not allowed: " + req.method);
         return res.status(405).json({ ok: false, message: "Method not allowed" });
     }   
 
@@ -39,9 +39,9 @@ export default async function handler(req, res) {
         .digest("hex");
 
         if (expectedSignature !== signature_key) {
-        console.error("❌ INVALID MIDTRANS SIGNATURE");
-        console.error("Expected:", expectedSignature);
-        console.error("Received:", signature_key);
+        console.log("❌ INVALID MIDTRANS SIGNATURE");
+        console.log("Expected:", expectedSignature);
+        console.log("Received:", signature_key);
 
         return res.status(402).json({
             ok: false,

@@ -45,6 +45,7 @@ export default function PaymentPage() {
   const [user, setUser] = useState({})
   const [table, setTable] = useState('')
   const [tableNumber, setTableNumber] = useState('');
+  const [disabledMethods, setDisabledMethods] = useState(new Set());
   const [calcTax, setCalcTax] = useState({
     subTotal: 0,
     grandTotal: 0,
@@ -529,6 +530,18 @@ export default function PaymentPage() {
     }
   }
 
+  useEffect(() => {
+    const raw = process.env.NEXT_PUBLIC_DISABLED_PAYMENT_METHODS || '';
+    setDisabledMethods(
+      new Set(
+        raw
+          .split(',')
+          .map(s => s.trim().toLowerCase())
+          .filter(Boolean)
+      )
+    );
+  }, []);
+
   // when phone/name change, we clear related errors
   function handleNameChange(v) {
     // izinkan huruf semua bahasa dan spasi
@@ -575,7 +588,6 @@ export default function PaymentPage() {
 
   // Payment method list and disabled set
   const methods = ['qris','shopeepay','gopay','ovo','dana'];
-  const disabledMethods = new Set(['ovo','dana']); // these will be shown as under maintenance
 
   return (
     <div className={styles.page}>

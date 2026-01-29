@@ -250,11 +250,10 @@ export default function CheckoutPage() {
       // ===============================
       // 2️⃣ FILTER MACRO YANG MASIH BISA DIAMBIL
       // ===============================
-      const macroQtyMap = getMacroQtyMap(enforcedCart)
+      const macroCodesInCart = getMacroCodesInCart(enforcedCart)
 
       const filtered = result.data.filter(m => {
         if (macroCodesInCart.includes(m.macroCode)) return false
-
         return true
       })
 

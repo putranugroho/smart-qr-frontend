@@ -191,6 +191,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
   const [loadingCombo, setLoadingCombo] = useState(false)
 
   const [originalClientInstanceId, setOriginalClientInstanceId] = useState(null)
+  const originalCartEntryRef = useRef(null)
 
   const fromCheckout = String(router.query?.from || '') === 'checkout'
   const editIndexQuery = router.query?.index != null ? Number(router.query.index) : null
@@ -277,6 +278,11 @@ export default function ComboDetail({ combo: propCombo = null }) {
           maxQuantityCanGet: Number(entry.maxQuantityCanGet || 0),
           isAllowGetAnother: Boolean(entry.isAllowGetAnother)
         } : null
+
+        // 🔒 SIMPAN SNAPSHOT ASLI (HANYA SEKALI)
+        if (!originalCartEntryRef.current) {
+          originalCartEntryRef.current = JSON.parse(JSON.stringify(entry))
+        }
 
         if (!entry) {
           console.warn('[ComboDetail] Combo edit not found by CID:', editingCID)
@@ -1033,6 +1039,17 @@ export default function ComboDetail({ combo: propCombo = null }) {
       }))
     } catch (e) {}
 
+    // 🔒 EDIT MODE: KUNCI TOTAL DATA MACRO DARI CART ASLI
+    if (isEdit && originalCartEntryRef.current?.isMacro) {
+      const orig = originalCartEntryRef.current
+
+      cartEntry.isMacro = true
+      cartEntry.macroCode = orig.macroCode
+      cartEntry.macroName = orig.macroName
+      cartEntry.maxQuantityCanGet = orig.maxQuantityCanGet
+      cartEntry.isAllowGetAnother = orig.isAllowGetAnother
+    }
+
     return cartEntry
   }
 
@@ -1076,21 +1093,32 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
   function handleSetQty(nextQty) {
     let finalQty = Number(nextQty || 1)
+    if (finalQty < 1) finalQty = 1
 
-    if (isMacroCombo && Number(comboState.maxQuantityCanGet) > 0) {
+    // 🔐 VALIDASI MACRO HARUS DARI CART ASLI SAAT EDIT
+    if (isEdit && originalCartEntryRef.current?.isMacro) {
+      const max = Number(originalCartEntryRef.current.maxQuantityCanGet || 0)
+      if (max > 0) {
+        finalQty = Math.min(finalQty, max)
+      }
+    }
+    // 🟢 ADD BARU (non-edit)
+    else if (isMacroCombo && Number(comboState.maxQuantityCanGet) > 0) {
       finalQty = Math.min(finalQty, Number(comboState.maxQuantityCanGet))
     }
 
-    if (finalQty < 1) finalQty = 1
     setQty(finalQty)
   }
 
   function handleAddToCart() {
-    if (isMacroCombo && Number(comboState.maxQuantityCanGet) > 0) {
-      if (qty > Number(comboState.maxQuantityCanGet)) {
-        alert(`Maksimal ${comboState.maxQuantityCanGet} item untuk promo ini`)
-        return
-      }
+    const macroMax =
+      isEdit && originalCartEntryRef.current?.isMacro
+        ? Number(originalCartEntryRef.current.maxQuantityCanGet || 0)
+        : Number(comboState?.maxQuantityCanGet || 0)
+
+    if (macroMax > 0 && qty > macroMax) {
+      alert(`Maksimal ${macroMax} item untuk promo ini`)
+      return
     }
     try {
       const v = validateSelectionBeforeAdd()

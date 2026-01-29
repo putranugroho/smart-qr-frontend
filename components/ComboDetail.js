@@ -548,6 +548,16 @@ export default function ComboDetail({ combo: propCombo = null }) {
     } catch (e) {}
   }, [comboState, fromCheckout, editingIndex, q.comboCode])
 
+  useEffect(() => {
+    if (!comboState) return
+    if (!comboState.macroCode) return
+
+    const maxQty = Number(comboState.maxQuantityCanGet || 0)
+    if (maxQty > 0 && qty > maxQty) {
+      setQty(maxQty)
+    }
+  }, [comboState?.maxQuantityCanGet])
+
   // prefill selectedProducts / selectedCondiments and inject condimentGroups (guarded)
   useEffect(() => {
     if (!fromCheckout || editingIndex == null) return
@@ -564,7 +574,15 @@ export default function ComboDetail({ combo: propCombo = null }) {
       if (!item) return
       if (item.type === 'combo' && Array.isArray(item.combos) && item.combos.length > 0) {
         const firstCombo = item.combos[0]
-        setQty(Number(item.qty || 1))
+        const rawQty = Number(item.qty || 1)
+        const maxQty = Number(item.maxQuantityCanGet || item?.maxQuantityCanGet || 0)
+
+        let finalQty = rawQty
+        if (item.isMacro && maxQty > 0) {
+          finalQty = Math.min(rawQty, maxQty)
+        }
+
+        setQty(finalQty)
         setNote(item.note || '')
 
         const sp = {}

@@ -171,8 +171,27 @@ export default function CheckoutPage() {
       if (loadingMacro) return
       setLoadingMacro(true)
 
+      // ===============================
+      // 🔒 FILTER CART UNTUK HIT MACRO
+      // ===============================
+      const nonMacroCart = latestCart.filter(i => !i.isMacro)
+
+      // 🚫 Tidak ada item normal → hapus semua macro & stop
+      if (nonMacroCart.length === 0) {
+        const cleaned = latestCart.filter(i => !i.isMacro)
+
+        if (cleaned.length !== latestCart.length) {
+          setCart(cleaned)
+          localStorage.setItem("yoshi_cart_v1", JSON.stringify(cleaned))
+        }
+
+        setShowMacroPopup(false)
+        setLoadingMacro(false)
+        return
+      }
+
       const payload = mapDoOrderPayload(
-        latestCart,
+        nonMacroCart,
         null,
         'qris',
         {
@@ -194,16 +213,44 @@ export default function CheckoutPage() {
 
       let cartChanged = false
 
-      if (syncedCart.length !== latestCart.length) {
-        cartChanged = true
-        setCart(syncedCart)
-        localStorage.setItem("yoshi_cart_v1", JSON.stringify(syncedCart))
+      // ===============================
+      // 🔧 FORCE SYNC QTY MACRO
+      // ===============================
+      const enforcedCart = syncedCart.map(item => {
+        if (!item.isMacro) return item
+
+        const rule = result.data.find(r => r.macroCode === item.macroCode)
+        if (!rule) return item // sudah difilter sebelumnya
+
+        const max = Number(rule.maxQuantityCanGet || 0)
+        if (max > 0 && item.qty > max) {
+          const newQty = max
+
+          const cloned = JSON.parse(JSON.stringify(item))
+          cloned.qty = newQty
+
+          if (Array.isArray(cloned.combos)) {
+            cloned.combos = cloned.combos.map(cb => ({
+              ...cb,
+              qty: newQty
+            }))
+          }
+
+          return cloned
+        }
+
+        return item
+      })
+
+      if (JSON.stringify(enforcedCart) !== JSON.stringify(latestCart)) {
+        setCart(enforcedCart)
+        localStorage.setItem("yoshi_cart_v1", JSON.stringify(enforcedCart))
       }
 
       // ===============================
       // 2️⃣ FILTER MACRO YANG MASIH BISA DIAMBIL
       // ===============================
-      const macroQtyMap = getMacroQtyMap(latestCart)
+      const macroQtyMap = getMacroQtyMap(enforcedCart)
 
       const filtered = result.data.filter(m => {
         const takenQty = macroQtyMap[m.macroCode] || 0
@@ -325,10 +372,20 @@ export default function CheckoutPage() {
       const currentQty = Number(item.qty || 1)
       let newQty = currentQty
 
-      const macroQtyMap = getMacroQtyMap(prev)
-      const takenQty = item.isMacro
-        ? macroQtyMap[item.macroCode] || 0
-        : 0
+      let takenQty = 0
+
+      if (item.isMacro && item.macroCode) {
+        takenQty = prev.reduce((sum, it, i) => {
+          if (
+            i !== index &&
+            it.isMacro &&
+            it.macroCode === item.macroCode
+          ) {
+            return sum + Number(it.qty || 1)
+          }
+          return sum
+        }, 0)
+      }
 
       if (action === 'minus') {
         newQty = Math.max(1, currentQty - 1)

@@ -356,9 +356,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
         // ============================================================
         // 1) try from sessionStorage (DENGAN VALIDASI KELENGKAPAN DATA)
         // ============================================================
-        let sessionDataIncomplete = true; // Default asumsi tidak lengkap agar fetch jalan
-
-        if (comboCode) {
+          if (entry.isMacro) {
+            sessionDataIncomplete = true
+          } else if (comboCode) {
           
           try {
             const key = `combo_${String(comboCode)}`
@@ -391,7 +391,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         // ============================================================
         // 2) try fetch API (JIKA session gagal atau data tidak lengkap)
         // ============================================================
-        if (comboCode) {
+        if (comboCode && !entry.isMacro) {
           
           try {
             const url = `/api/proxy/combo-list?orderCategoryCode=${resolvedOrderType}&storeCode=${encodeURIComponent(storeCode)}&pageSize=1000`
@@ -418,9 +418,12 @@ export default function ComboDetail({ combo: propCombo = null }) {
                     // Kita gabungkan agar produk yang dipilih (sp) tetap aman
                     // Tapi base datanya adalah 'found' (yang lengkap)
                     try {
-                        const merged = mergeComboStates(prev || {}, found);
-                        // Pastikan selection diterapkan ulang jika perlu
-                        return merged;
+                      if (prev?.isMacro) {
+                        return prev
+                      }
+                      const merged = mergeComboStates(prev || {}, found);
+                      // Pastikan selection diterapkan ulang jika perlu
+                      return merged;
                     } catch (err) {
                         return found
                     }
@@ -443,7 +446,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         // ============================================================
         // 3) fallback (Hanya jika Fetch gagal total)
         // ============================================================
-        if (firstComboBlock && Array.isArray(firstComboBlock.products)) {
+        if (firstComboBlock && Array.isArray(firstComboBlock.products) && !entry.isMacro) {
           // ... (Kode fallback lama Anda tetap disini) ...
           // Kode fallback Anda sudah benar untuk menampilkan apa adanya
           // ...

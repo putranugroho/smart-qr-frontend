@@ -250,10 +250,32 @@ export default function CheckoutPage() {
       // ===============================
       // 2️⃣ FILTER MACRO YANG MASIH BISA DIAMBIL
       // ===============================
-      const macroCodesInCart = getMacroCodesInCart(enforcedCart)
+      const hasAnyMacroInCart = enforcedCart.some(i => i.isMacro)
+
+      // map qty macro (tetap berguna untuk rule max qty)
+      const macroQtyMap = getMacroQtyMap(enforcedCart)
 
       const filtered = result.data.filter(m => {
-        if (macroCodesInCart.includes(m.macroCode)) return false
+        const takenQty = macroQtyMap[m.macroCode] || 0
+        const max = Number(m.maxQuantityCanGet || 0)
+
+        // ❌ RULE UTAMA:
+        // jika sudah ada macro di cart,
+        // maka SEMUA macro isAllowGetAnother=false tidak boleh muncul
+        if (hasAnyMacroInCart && m.isAllowGetAnother === false) {
+          return false
+        }
+
+        // ❌ macro yang sama & sudah diambil
+        if (takenQty > 0 && m.isAllowGetAnother === false) {
+          return false
+        }
+
+        // ❌ sudah mencapai max qty
+        if (max > 0 && takenQty >= max) {
+          return false
+        }
+
         return true
       })
 

@@ -253,14 +253,7 @@ export default function CheckoutPage() {
       const macroQtyMap = getMacroQtyMap(enforcedCart)
 
       const filtered = result.data.filter(m => {
-        const takenQty = macroQtyMap[m.macroCode] || 0
-
-        if (
-          Number(m.maxQuantityCanGet) > 0 &&
-          takenQty >= Number(m.maxQuantityCanGet)
-        ) return false
-
-        if (!m.isAllowGetAnother && takenQty > 0) return false
+        if (macroCodesInCart.includes(m.macroCode)) return false
 
         return true
       })

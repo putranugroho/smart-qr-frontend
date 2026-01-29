@@ -197,6 +197,12 @@ export default function ComboDetail({ combo: propCombo = null }) {
   const editIndexQuery = router.query?.index != null ? Number(router.query.index) : null
   const [editingIndex, setEditingIndex] = useState(editIndexQuery != null ? editIndexQuery : null)
   const isEdit = fromCheckout && editingIndex != null
+  const isEditMacro =
+  isEdit &&
+  (
+    Boolean(comboState?.isMacro) ||
+    Boolean(originalCartEntryRef.current?.isMacro)
+  )
 
   const resolvedOrderType = useMemo(() => {
     return resolveOrderType({ isEdit, router, editingIndex })
@@ -496,6 +502,10 @@ export default function ComboDetail({ combo: propCombo = null }) {
     if (!comboState) return
     if (prefilledRef.current) return
     if (fetchedFullRef.current) return;
+    if (isEditMacro) {
+      fetchedFullRef.current = true
+      return
+    }
 
     try {
       // condition 1: no comboGroups at all -> need fetch
@@ -573,6 +583,10 @@ export default function ComboDetail({ combo: propCombo = null }) {
   useEffect(() => {
     if (!fromCheckout || editingIndex == null) return
     if (!comboState) return
+    if (isEditMacro) {
+      fetchedFullRef.current = true
+      return
+    }
     try {
       const keys = Object.keys(sessionStorage).filter(k => k.startsWith('combo_'))
       if (keys.length > 10) {

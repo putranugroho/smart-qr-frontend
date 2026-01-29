@@ -207,6 +207,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
   const comboGroups = useMemo(() => (comboState && Array.isArray(comboState.comboGroups) ? comboState.comboGroups : []), [comboState])
   const isMacroCombo = Boolean(comboState?.isMacro || comboState?.macroCode)
+  const [macroContext, setMacroContext] = useState(null)
 
   // refs
   const fetchedFullRef = useRef(false)          // ensure we fetch full data once per edit flow
@@ -278,6 +279,10 @@ export default function ComboDetail({ combo: propCombo = null }) {
           maxQuantityCanGet: Number(entry.maxQuantityCanGet || 0),
           isAllowGetAnother: Boolean(entry.isAllowGetAnother)
         } : null
+
+        if (macroContextFromCart) {
+          setMacroContext(macroContextFromCart)
+        }
 
         // 🔒 SIMPAN SNAPSHOT ASLI (HANYA SEKALI)
         if (!originalCartEntryRef.current) {
@@ -1623,7 +1628,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
             onAdd={handleAddToCart}
             addAnimating={addAnimating}
             addLabel={addBtnLabel}
-            maxQuantityCanGet={comboState.maxQuantityCanGet}
+            maxQuantityCanGet={macroContext?.maxQuantityCanGet || 0}
             isEditing={fromCheckout && editingIndex != null}
           />
         </div>

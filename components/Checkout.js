@@ -259,19 +259,15 @@ export default function CheckoutPage() {
         const takenQty = macroQtyMap[m.macroCode] || 0
         const max = Number(m.maxQuantityCanGet || 0)
 
-        // ❌ RULE UTAMA:
-        // jika sudah ada macro di cart,
-        // maka SEMUA macro isAllowGetAnother=false tidak boleh muncul
+        // macro yang sama SUDAH ADA di cart → JANGAN TAMPILKAN LAGI
+        if (takenQty > 0) {
+          return false
+        }
+
         if (hasAnyMacroInCart && m.isAllowGetAnother === false) {
           return false
         }
 
-        // ❌ macro yang sama & sudah diambil
-        if (takenQty > 0 && m.isAllowGetAnother === false) {
-          return false
-        }
-
-        // ❌ sudah mencapai max qty
         if (max > 0 && takenQty >= max) {
           return false
         }

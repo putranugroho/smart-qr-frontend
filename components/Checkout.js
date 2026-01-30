@@ -216,6 +216,7 @@ export default function CheckoutPage() {
       // ===============================
       // 🔧 FORCE SYNC QTY MACRO
       // ===============================
+      let macroAdjusted = false
       const enforcedCart = syncedCart.map(item => {
         if (!item.isMacro) return item
 
@@ -232,6 +233,7 @@ export default function CheckoutPage() {
         // 🔒 FORCE QTY JIKA MELEBIHI MAX
         if (max > 0 && cloned.qty > max) {
           cloned.qty = max
+          macroAdjusted = true
         }
 
         // 🔄 SYNC KE COMBO
@@ -245,7 +247,10 @@ export default function CheckoutPage() {
         return cloned
       })
 
-      if (JSON.stringify(enforcedCart) !== JSON.stringify(latestCart)) {
+      if (
+        macroAdjusted ||
+        JSON.stringify(enforcedCart) !== JSON.stringify(latestCart)
+      ) {
         setCart(enforcedCart)
         localStorage.setItem("yoshi_cart_v1", JSON.stringify(enforcedCart))
       }
@@ -405,13 +410,19 @@ export default function CheckoutPage() {
       }
 
       if (action === 'plus') {
-        if (
-          item.isMacro &&
-          Number(item.maxQuantityCanGet) > 0 &&
-          takenQty >= Number(item.maxQuantityCanGet)
-        ) {
-          return prev // 🚫 TOTAL macro sudah max
+        if (item.isMacro && loadingMacro) {
+          return prev
         }
+
+        if (item.isMacro) {
+          const max = Number(item.maxQuantityCanGet || 0)
+
+          // 🔒 CEGAH MELEBIHI MAX TERBARU
+          if (max > 0 && currentQty >= max) {
+            return prev
+          }
+        }
+
         newQty = currentQty + 1
       }
 
@@ -787,7 +798,13 @@ export default function CheckoutPage() {
             <div className={styles.qtyRow}>
               <button className={styles.minusBtn} onClick={() => handleQty(cartIndex, 'minus')}>-</button>
               <div className={styles.qtyText}>{it.qty}</div>
-              <button className={styles.plusBtn} onClick={() => handleQty(cartIndex, 'plus')}>+</button>
+              <button
+                className={styles.plusBtn}
+                disabled={it.isMacro && loadingMacro}
+                onClick={() => handleQty(cartIndex, 'plus')}
+              >
+                +
+              </button>
             </div>
           </div>
         </div>

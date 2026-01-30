@@ -220,26 +220,29 @@ export default function CheckoutPage() {
         if (!item.isMacro) return item
 
         const rule = result.data.find(r => r.macroCode === item.macroCode)
-        if (!rule) return item // sudah difilter sebelumnya
+        if (!rule) return item
 
         const max = Number(rule.maxQuantityCanGet || 0)
-        if (max > 0 && item.qty > max) {
-          const newQty = max
+        const cloned = JSON.parse(JSON.stringify(item))
 
-          const cloned = JSON.parse(JSON.stringify(item))
-          cloned.qty = newQty
+        // 🔑 SYNC FLAG MAX TERBARU
+        cloned.maxQuantityCanGet = max
+        cloned.isAllowGetAnother = rule.isAllowGetAnother
 
-          if (Array.isArray(cloned.combos)) {
-            cloned.combos = cloned.combos.map(cb => ({
-              ...cb,
-              qty: newQty
-            }))
-          }
-
-          return cloned
+        // 🔒 FORCE QTY JIKA MELEBIHI MAX
+        if (max > 0 && cloned.qty > max) {
+          cloned.qty = max
         }
 
-        return item
+        // 🔄 SYNC KE COMBO
+        if (Array.isArray(cloned.combos)) {
+          cloned.combos = cloned.combos.map(cb => ({
+            ...cb,
+            qty: cloned.qty
+          }))
+        }
+
+        return cloned
       })
 
       if (JSON.stringify(enforcedCart) !== JSON.stringify(latestCart)) {

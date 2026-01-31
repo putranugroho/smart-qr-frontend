@@ -115,6 +115,7 @@ export default function StickyCartBar({
 
               // 🔒 LOCK
               addLockRef.current = true
+              disabled = true
               setAdding(true)
 
               onAdd()
@@ -125,7 +126,7 @@ export default function StickyCartBar({
               }, 400)
             }}
             aria-label={addLabel}
-            disabled={disabled || !hasItems || addLockRef.current}
+            disabled={disabled || !hasItems || addLockRef.current || adding}
             className={`${styles.addBtn} ${
               hasItems && !disabled ? styles.addBtnActive : styles.addBtnInactive
             } ${addAnimating ? styles.addPulse : ''}`}

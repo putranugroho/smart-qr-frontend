@@ -1,6 +1,5 @@
 // components/StickyCartBar.js
 import Image from 'next/image'
-import { useRef } from 'react'
 import styles from '../styles/StickyCartBar.module.css'
 
 function formatRp(n) {
@@ -106,20 +105,7 @@ export default function StickyCartBar({
         {/* ROW 2 — BUTTON ADD */}
         <div className={styles.rowBottom}>
           <button
-            onClick={() => {
-              if (disabled) return
-              if (addLockRef.current) return
-
-              // 🔒 LOCK
-              addLockRef.current = true
-
-              onAdd()
-
-              // 🔓 UNLOCK (beri waktu state update)
-              setTimeout(() => {
-                addLockRef.current = false
-              }, 400)
-            }}
+            onClick={disabled ? undefined : onAdd}
             aria-label={addLabel}
             disabled={disabled}
             className={`${styles.addBtn} ${

@@ -898,6 +898,58 @@ export default function ComboDetail({ combo: propCombo = null }) {
   }, [selectedProducts, selectedCondiments, qty, comboState])
 
   // =======================
+  // COMPUTE IS READY (Combo Valid)
+  // =======================
+  const isReady = useMemo(() => {
+    if (!comboState) return false
+    if (!Array.isArray(comboState.comboGroups)) return false
+
+    for (const group of comboState.comboGroups) {
+      const gKey = getGroupKey(group)
+
+      // 1️⃣ GROUP WAJIB → HARUS PILIH PRODUCT
+      if (!group.allowSkip) {
+        const prodCode = selectedProducts[gKey]
+        if (!prodCode || String(prodCode) === NO_ADDON_CODE) {
+          return false
+        }
+      }
+
+      const prodCode = selectedProducts[gKey]
+      if (!prodCode || String(prodCode) === NO_ADDON_CODE) continue
+
+      const product = findProductInGroup(group, prodCode)
+      if (!product) return false
+
+      // 🚫 OUT OF STOCK
+      if (product.outOfStock === true) return false
+
+      // 2️⃣ ADDON VALIDATION
+      if (Array.isArray(product.condimentGroups)) {
+        const condState = selectedCondiments[gKey]?.condiments || {}
+
+        for (const cg of product.condimentGroups) {
+          if (cg.allowSkip) continue
+
+          const cgKey = cg.code || cg.name || String(cg.id)
+          const sel = condState[cgKey]
+
+          if (
+            sel === undefined ||
+            sel === null ||
+            sel === NONE_OPTION_ID ||
+            (Array.isArray(sel) && sel.length === 0)
+          ) {
+            return false
+          }
+        }
+      }
+    }
+
+    return true
+  }, [comboState, selectedProducts, selectedCondiments])
+
+  // =======================
   // build combo cart payload (SLOT-BASED)
   // =======================
   function buildComboCartPayload() {
@@ -1645,6 +1697,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
             onAdd={handleAddToCart}
             addAnimating={addAnimating}
             addLabel={addBtnLabel}
+            isReady = {false}
             maxQuantityCanGet={macroContext?.maxQuantityCanGet || 0}
             isEditing={fromCheckout && editingIndex != null}
           />

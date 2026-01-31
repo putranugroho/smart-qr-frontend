@@ -1,5 +1,6 @@
 // components/StickyCartBar.js
 import Image from 'next/image'
+import { useRef } from 'react'
 import styles from '../styles/StickyCartBar.module.css'
 
 function formatRp(n) {
@@ -17,9 +18,12 @@ export default function StickyCartBar({
   addAnimating = false,
   addLabel = 'Tambah Pesanan',
   disabled = false,
+  isReady = false,
   maxQuantityCanGet = 0 // 0 / null = unlimited
 }) {
-  const hasItems = Number(subtotal) > 0
+  const [adding, setAdding] = useState(false)
+  const hasItems = Boolean(isReady)
+  const addLockRef = useRef(false)
 
   // ===============================
   // 🔐 MAX QTY LOGIC (MACRO SAFE)
@@ -105,9 +109,23 @@ export default function StickyCartBar({
         {/* ROW 2 — BUTTON ADD */}
         <div className={styles.rowBottom}>
           <button
-            onClick={disabled ? undefined : onAdd}
+            onClick={() => {
+              if (disabled) return
+              if (addLockRef.current) return
+
+              // 🔒 LOCK
+              addLockRef.current = true
+              setAdding(true)
+
+              onAdd()
+
+              // 🔓 UNLOCK (beri waktu state update)
+              setTimeout(() => {
+                addLockRef.current = false
+              }, 400)
+            }}
             aria-label={addLabel}
-            disabled={disabled}
+            disabled={disabled || !hasItems || addLockRef.current}
             className={`${styles.addBtn} ${
               hasItems && !disabled ? styles.addBtnActive : styles.addBtnInactive
             } ${addAnimating ? styles.addPulse : ''}`}
@@ -129,7 +147,7 @@ export default function StickyCartBar({
                 {formatRp(subtotal)}
               </div>
               <div className={styles.addLabel}>
-                {addLabel}
+                {adding ? 'Memasukan Makanan ke keranjang . . .' : addLabel}
               </div>
             </div>
 

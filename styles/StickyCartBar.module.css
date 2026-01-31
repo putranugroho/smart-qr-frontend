@@ -128,7 +128,7 @@
 }
 
 .addBtnActive {
-  background: #FEF2E2;
+  background: linear-gradient(90deg, #FF8040 0%, #FC661A 100%);
   box-shadow: 0 6px 18px rgba(252,102,26,0.18);
 }
 

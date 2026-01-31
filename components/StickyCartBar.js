@@ -1,6 +1,6 @@
 // components/StickyCartBar.js
 import Image from 'next/image'
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import styles from '../styles/StickyCartBar.module.css'
 
 function formatRp(n) {

@@ -181,6 +181,11 @@
   margin-left: auto; /* push label to far right inside addTextWrap */
 }
 
+.addBtnActive .addPrice,
+.addBtnActive .addLabel {
+  color: #ffffff;
+}
+
 /* small spacer if needed */
 .addSpacer {
   width: 8px;

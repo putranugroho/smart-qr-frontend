@@ -720,6 +720,25 @@ export default function ComboDetail({ combo: propCombo = null }) {
         if (!p?.outOfStock) {
           nextSelected[groupKey] = p.code ?? p.id
           changed = true
+
+          if (Array.isArray(p.condimentGroups)) {
+            setSelectedCondiments(prev => {
+              const next = { ...prev }
+              if (!next[groupKey]) {
+                next[groupKey] = {
+                  productCode: p.code,
+                  condiments: {}
+                }
+              }
+              p.condimentGroups.forEach(cg => {
+                if (cg.allowSkip) {
+                  const cgKey = cg.code || cg.name || String(cg.id)
+                  next[groupKey].condiments[cgKey] = NONE_OPTION_ID
+                }
+              })
+              return next
+            })
+          }
         }
       }
     })
@@ -1697,7 +1716,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
             onAdd={handleAddToCart}
             addAnimating={addAnimating}
             addLabel={addBtnLabel}
-            isReady = {false}
+            isReady = {isReady}
             maxQuantityCanGet={macroContext?.maxQuantityCanGet || 0}
             isEditing={fromCheckout && editingIndex != null}
           />

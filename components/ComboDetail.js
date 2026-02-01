@@ -441,8 +441,13 @@ export default function ComboDetail({ combo: propCombo = null }) {
   }, [propCombo])
 
   useEffect(() => {
-    if (comboFromQuery && !(fromCheckout && editingIndex != null)) setComboState(comboFromQuery)
-  }, [comboFromQuery])
+    if (!comboFromQuery) return
+
+    // ✅ jangan override edit normal (non-macro), tapi IZINKAN untuk macro edit
+    if (fromCheckout && editingIndex != null && !isEditMacro) return
+
+    setComboState(comboFromQuery)
+  }, [comboFromQuery, fromCheckout, editingIndex, isEditMacro])
 
   useEffect(() => {
     if (editIndexQuery != null) setEditingIndex(Number(editIndexQuery))
@@ -535,20 +540,72 @@ export default function ComboDetail({ combo: propCombo = null }) {
           comboCode
         })
 
-        // macro shortcut
+        // ✅ MACRO EDIT: HARUS PAKAI MASTER (dari sessionStorage/query), lalu prefill dari cart
         if (entry.isMacro) {
-          if (!comboState) {
-            setComboState(prev => prev || {
-              code: comboCode || entry.detailCombo?.code || null,
-              name: entry.detailCombo?.name || 'Combo',
-              description: entry.detailCombo?.description || '',
-              imagePath: entry.detailCombo?.image || entry.image || null,
-              comboGroups: prev?.comboGroups || []
-            })
+          const firstComboBlock =
+            Array.isArray(entry.combos) && entry.combos.length > 0 ? entry.combos[0] : null
+
+          const macroCode = entry.macroCode
+          const cc =
+            entry?.detailCombo?.code ||
+            firstComboBlock?.detailCombo?.code ||
+            comboCode ||
+            null
+
+          let master = null
+
+          // 1) paling kuat: master berdasarkan CID (kalau pernah disimpan)
+          try {
+            if (existingClientId) {
+              const raw = sessionStorage.getItem(`macro_cid_${String(existingClientId)}`)
+              if (raw) master = JSON.parse(raw)
+            }
+          } catch (e) {}
+
+          // 2) fallback: master berdasarkan macroCode + comboCode (dari applyMacro)
+          try {
+            if (!master && macroCode && cc) {
+              const raw = sessionStorage.getItem(`macro_master_${macroCode}_${cc}`)
+              if (raw) master = JSON.parse(raw)
+            }
+          } catch (e) {}
+
+          // 3) fallback terakhir: kalau edit macro ternyata tetap melempar query combo
+          if (!master) {
+            try {
+              const qCombo = router.query?.combo
+              if (qCombo) master = JSON.parse(String(qCombo))
+            } catch (e) {}
           }
-          prefilledRef.current = true
-          setLoadingCombo(false)
-          return
+
+          // Kalau master ketemu dan punya groups → pakai master
+          if (master && Array.isArray(master.comboGroups) && master.comboGroups.length > 0) {
+            const mergedMaster = {
+              ...master,
+              isMacro: true,
+              macroCode: entry.macroCode,
+              macroName: entry.macroName,
+              maxQuantityCanGet: entry.maxQuantityCanGet,
+              isAllowGetAnother: entry.isAllowGetAnother
+            }
+
+            setComboState(mergedMaster)
+
+            const queues = buildCartQueues(firstComboBlock?.products || [], mergedMaster.comboGroups || [])
+            const mapped = applyQueuesToComboGroups({ comboGroups: mergedMaster.comboGroups || [], queues })
+
+            setSelectedProducts(mapped.sp)
+            setSelectedCondiments(mapped.sc)
+            setOpenGroups({})
+
+            prefilledRef.current = true
+            fallbackAppliedRef.current = false
+            setLoadingCombo(false)
+            return
+          }
+
+          // Kalau master GAGAL ketemu → fallback minimal dari cart (yang kamu sudah punya)
+          // (biarkan lanjut ke fallback section di bawah)
         }
 
         // 1) sessionStorage master (only if REAL)
@@ -1273,6 +1330,13 @@ export default function ComboDetail({ combo: propCombo = null }) {
       const cid =
         originalClientInstanceId ||
         `cli_${(comboState.code || comboState.id || 'x')}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+      // ✅ SIMPAN MASTER MACRO BY CID UNTUK EDIT (MACRO SAJA)
+      try {
+        if (cartEntry.isMacro && comboState && Array.isArray(comboState.comboGroups)) {
+          sessionStorage.setItem(`macro_cid_${cid}`, JSON.stringify(comboState))
+        }
+      } catch (e) {}
+
       cartEntry.clientInstanceId = cid
       cartEntry.detailCombo.clientInstanceId = cid
       cartEntry.combos = cartEntry.combos.map(c => ({ ...c, clientInstanceId: cid }))

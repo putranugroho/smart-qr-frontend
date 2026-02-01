@@ -308,14 +308,18 @@ export default function CheckoutPage() {
 
     const comboPayload = {
       ...combo,
-
-      // 🔑 CONTEXT MACRO
       isMacro: true,
       macroCode: combo.macroCode,
-      macroName: combo.macroName, // optional kalau mau
+      macroName: combo.macroName,
       maxQuantityCanGet: combo.maxQuantityCanGet,
       isAllowGetAnother: combo.isAllowGetAnother
     };
+
+    // ✅ SIMPAN MASTER MACRO UNTUK EDIT NANTI
+    try {
+      const key = `macro_master_${comboPayload.macroCode}_${comboPayload.code || comboPayload.id}`;
+      sessionStorage.setItem(key, JSON.stringify(comboPayload));
+    } catch (e) {}
 
     const encoded = encodeURIComponent(JSON.stringify(comboPayload));
     router.push(`/combo-detail?combo=${encoded}`);

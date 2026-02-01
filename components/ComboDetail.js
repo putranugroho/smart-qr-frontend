@@ -47,29 +47,57 @@ function resolveOrderType({ isEdit, router, editingIndex }) {
 
 /**
  * ===========================
- * SLOT HELPERS (IMPORTANT)
+ * SLOT HELPERS
  * ===========================
- * - API master data bisa punya 2 comboGroups yang sama (code sama) untuk 2 slot berbeda.
- * - Cart hanya simpan comboGroup base (tanpa idx).
- * - Jadi di UI kita pakai slotKey = `${base}::${idx}`.
+ * API master data bisa punya 2 comboGroups yang sama (code sama) untuk 2 slot berbeda.
+ * UI pakai slotKey = `${base}::${idx}` supaya unik.
+ * Payload ke cart tetap kirim base comboGroup (tanpa ::idx).
  */
 function getBaseGroupKey(g) {
-  return g.code ?? g.name ?? String(g.id)
+  return g?.code ?? g?.name ?? String(g?.id)
 }
 function getGroupKey(g, idx) {
-  const base = getBaseGroupKey(g)
-  return `${base}::${idx}`
+  return `${getBaseGroupKey(g)}::${idx}`
 }
 
 /**
- * Build occurrence queue from cart products:
- * queues[baseComboGroup] = [{code, condimentsMap}, {code, condimentsMap}, ...]
+ * Normalisasi raw comboGroup dari cart supaya match ke master groups.
+ * - Cart kadang simpan code, kadang name, kadang baseKey.
+ * - Kita cari group master yang cocok, lalu return baseKey master tsb.
  */
-function buildCartQueues(firstComboProducts) {
+function normalizeCartGroupBase(raw, masterGroups) {
+  const r = String(raw || '').trim()
+  if (!r) return ''
+
+  const groups = Array.isArray(masterGroups) ? masterGroups : []
+
+  const found = groups.find(g => {
+    const base = String(getBaseGroupKey(g))
+    const code = g?.code != null ? String(g.code) : ''
+    const name = g?.name != null ? String(g.name) : ''
+    return (
+      r === base ||
+      r === code ||
+      r === name ||
+      r.toLowerCase() === base.toLowerCase() ||
+      r.toLowerCase() === code.toLowerCase() ||
+      r.toLowerCase() === name.toLowerCase()
+    )
+  })
+
+  return found ? String(getBaseGroupKey(found)) : r
+}
+
+/**
+ * Build occurrence queue dari cart products:
+ * queues[baseComboGroup] = [{ code, condimentsMap }, { code, condimentsMap }, ...]
+ */
+function buildCartQueues(firstComboProducts, masterGroups) {
   const queues = {}
 
   ;(firstComboProducts || []).forEach(p => {
-    const base = String(p.comboGroup ?? p.comboGroupCode ?? '')
+    const rawBase = p.comboGroup ?? p.comboGroupCode ?? ''
+    const base = normalizeCartGroupBase(rawBase, masterGroups)
     if (!base) return
 
     const condimentsMap = {}
@@ -96,15 +124,17 @@ function buildCartQueues(firstComboProducts) {
 }
 
 /**
- * Apply queues to comboGroups (master data) in order:
+ * Apply queues ke comboGroups master sesuai urutan:
  * slot 0 ambil item pertama queue, slot 1 ambil item kedua, dst.
  */
 function applyQueuesToComboGroups({ comboGroups, queues }) {
   const sp = {}
   const sc = {}
 
-  for (let idx = 0; idx < (comboGroups || []).length; idx++) {
-    const g = comboGroups[idx]
+  const groups = Array.isArray(comboGroups) ? comboGroups : []
+
+  for (let idx = 0; idx < groups.length; idx++) {
+    const g = groups[idx]
     const base = String(getBaseGroupKey(g))
     const slotKey = getGroupKey(g, idx)
 
@@ -114,7 +144,7 @@ function applyQueuesToComboGroups({ comboGroups, queues }) {
     const picked = q.shift()
     if (!picked?.code) continue
 
-    // Validate with master data (OOS check)
+    // validasi ke master data (OOS check)
     const prod = (g.products || []).find(
       x => String(x.code ?? x.id) === String(picked.code)
     )
@@ -138,8 +168,8 @@ function applyQueuesToComboGroups({ comboGroups, queues }) {
 }
 
 /**
- * Merge combo master data fetched with existing (minimal/fallback) to keep selections resolvable.
- * IMPORTANT: use slot identity (code::idx) map
+ * Merge master data fetched with existing minimal/fallback to keep selections resolvable.
+ * Slot identity: `${base}::${idx}`
  */
 function mergeComboStates(prev, fetched) {
   if (!fetched) return prev || null
@@ -160,49 +190,45 @@ function mergeComboStates(prev, fetched) {
 
   const mapPrev = {}
   prevGroups.forEach((g, idx) => {
-    const key = `${getBaseGroupKey(g)}::${idx}`
-    mapPrev[key] = g
+    mapPrev[getGroupKey(g, idx)] = g
   })
 
   const mergedGroups = fetchedGroups.map((fg, idx) => {
-    const key = `${getBaseGroupKey(fg)}::${idx}`
+    const key = getGroupKey(fg, idx)
     const prevG = mapPrev[key]
     const mergedGroup = JSON.parse(JSON.stringify(fg))
 
-    if (prevG && Array.isArray(prevG.products)) {
+    // merge condimentGroups (kalau prev punya yang lebih lengkap untuk product yang sama)
+    if (prevG && Array.isArray(prevG.products) && Array.isArray(mergedGroup.products)) {
+      const fetchedProducts = mergedGroup.products || []
       const prevProducts = prevG.products || []
-      const fetchedProducts = Array.isArray(mergedGroup.products) ? mergedGroup.products : []
 
-      const prodMap = {}
+      const fetchedMap = {}
       fetchedProducts.forEach(p => {
-        const pcode = String(p.code ?? p.id)
-        prodMap[pcode] = p
+        fetchedMap[String(p.code ?? p.id)] = p
       })
 
       prevProducts.forEach(p => {
-        const pcode = String(p.code ?? p.id)
-        if (!prodMap[pcode]) {
-          // keep fetched as source of truth, but allow UI still resolve by not removing anything
-          // (optional) you can append prev product here if needed
-        } else {
-          const fp = prodMap[pcode]
-          if (!Array.isArray(fp.condimentGroups) || fp.condimentGroups.length === 0) {
-            fp.condimentGroups = Array.isArray(p.condimentGroups) ? p.condimentGroups : fp.condimentGroups
-          } else if (Array.isArray(p.condimentGroups) && p.condimentGroups.length) {
-            const cgMap = {}
-            fp.condimentGroups.forEach(cg => {
-              cgMap[cg.code ?? cg.id ?? cg.name] = cg
-            })
-            p.condimentGroups.forEach(cg => {
-              const k = cg.code ?? cg.id ?? cg.name
-              if (!cgMap[k]) cgMap[k] = cg
-            })
-            fp.condimentGroups = Object.keys(cgMap).map(k => cgMap[k])
-          }
+        const k = String(p.code ?? p.id)
+        const fp = fetchedMap[k]
+        if (!fp) return
+
+        if (!Array.isArray(fp.condimentGroups) || fp.condimentGroups.length === 0) {
+          fp.condimentGroups = Array.isArray(p.condimentGroups) ? p.condimentGroups : fp.condimentGroups
+        } else if (Array.isArray(p.condimentGroups) && p.condimentGroups.length) {
+          const cgMap = {}
+          fp.condimentGroups.forEach(cg => {
+            cgMap[cg.code ?? cg.id ?? cg.name] = cg
+          })
+          p.condimentGroups.forEach(cg => {
+            const kk = cg.code ?? cg.id ?? cg.name
+            if (!cgMap[kk]) cgMap[kk] = cg
+          })
+          fp.condimentGroups = Object.keys(cgMap).map(x => cgMap[x])
         }
       })
 
-      mergedGroup.products = Object.keys(prodMap).map(k => prodMap[k])
+      mergedGroup.products = Object.keys(fetchedMap).map(x => fetchedMap[x])
     } else {
       mergedGroup.products = Array.isArray(mergedGroup.products) ? mergedGroup.products : []
     }
@@ -211,11 +237,9 @@ function mergeComboStates(prev, fetched) {
   })
 
   // append prev groups if fetched doesn't have them (rare)
-  const fetchedKeys = new Set(
-    mergedGroups.map((g, idx) => `${getBaseGroupKey(g)}::${idx}`)
-  )
+  const fetchedKeys = new Set(mergedGroups.map((g, idx) => getGroupKey(g, idx)))
   prevGroups.forEach((pg, idx) => {
-    const key = `${getBaseGroupKey(pg)}::${idx}`
+    const key = getGroupKey(pg, idx)
     if (!fetchedKeys.has(key)) mergedGroups.push(pg)
   })
 
@@ -224,6 +248,7 @@ function mergeComboStates(prev, fetched) {
   out.code = out.code || prev.code
   out.name = out.name || prev.name
   out.image = out.image || prev.image
+  out.imagePath = out.imagePath || prev.imagePath
   out.description = out.description || prev.description
 
   return out
@@ -278,10 +303,11 @@ export default function ComboDetail({ combo: propCombo = null }) {
     () => (comboState && Array.isArray(comboState.comboGroups) ? comboState.comboGroups : []),
     [comboState]
   )
+
   const isMacroCombo = Boolean(comboState?.isMacro || comboState?.macroCode)
   const [macroContext, setMacroContext] = useState(null)
 
-  // refs
+  // guards
   const fetchedFullRef = useRef(false)
   const prefilledRef = useRef(false)
 
@@ -315,6 +341,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
     if (editIndexQuery != null) setEditingIndex(Number(editIndexQuery))
   }, [editIndexQuery])
 
+  // prune session storage
   useEffect(() => {
     try {
       const keys = Object.keys(sessionStorage || {}).filter(k => k.startsWith('combo_'))
@@ -326,16 +353,14 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
   /**
    * ===========================
-   * RECOVER / PREFILL (EDIT MODE)
+   * EDIT MODE: ALWAYS ENSURE MASTER DATA
    * ===========================
-   * - source of truth: cart entry by CID
-   * - fetch master data if needed
-   * - apply occurrence mapping -> selectedProducts/selectedCondiments
-   * - set prefilledRef.current = true (so other prefill effect won't override)
+   * Agar UI edit = UI new:
+   * - ambil cart by CID
+   * - fetch master combo (atau session cache yang benar-benar master)
+   * - apply queue mapping untuk auto-select (slot aware)
    */
   useEffect(() => {
-    let sessionDataIncomplete = false
-
     async function recoverComboForEdit() {
       if (!fromCheckout || editingIndex == null) return
       try {
@@ -344,9 +369,11 @@ export default function ComboDetail({ combo: propCombo = null }) {
         const cart = getCart() || []
         const entry = cart.find(it =>
           it?.type === 'combo' &&
-          (it.clientInstanceId === editingCID ||
+          (
+            it.clientInstanceId === editingCID ||
             it.detailCombo?.clientInstanceId === editingCID ||
-            it.combos?.[0]?.clientInstanceId === editingCID)
+            it.combos?.[0]?.clientInstanceId === editingCID
+          )
         )
 
         if (!entry) {
@@ -355,25 +382,32 @@ export default function ComboDetail({ combo: propCombo = null }) {
           return
         }
 
-        const macroContextFromCart = entry.isMacro
-          ? {
-              isMacro: true,
-              macroCode: entry.macroCode,
-              macroName: entry.macroName,
-              maxQuantityCanGet: Number(entry.maxQuantityCanGet || 0),
-              isAllowGetAnother: Boolean(entry.isAllowGetAnother)
-            }
-          : null
-
-        if (macroContextFromCart) setMacroContext(macroContextFromCart)
-
+        // snapshot original
         if (!originalCartEntryRef.current) {
           originalCartEntryRef.current = JSON.parse(JSON.stringify(entry))
         }
 
+        // macro context
+        const macroContextFromCart = entry.isMacro ? {
+          isMacro: true,
+          macroCode: entry.macroCode,
+          macroName: entry.macroName,
+          maxQuantityCanGet: Number(entry.maxQuantityCanGet || 0),
+          isAllowGetAnother: Boolean(entry.isAllowGetAnother)
+        } : null
+        if (macroContextFromCart) setMacroContext(macroContextFromCart)
+
+        // clientInstanceId
         const existingClientId =
           entry.clientInstanceId || entry.detailCombo?.clientInstanceId || null
         if (existingClientId) setOriginalClientInstanceId(String(existingClientId))
+
+        // qty & note
+        const rawQty = Number(entry.qty || 1)
+        const maxQty = Number(entry.maxQuantityCanGet || 0)
+        const finalQty = entry.isMacro && maxQty > 0 ? Math.min(rawQty, maxQty) : rawQty
+        setQty(finalQty)
+        setNote(entry.note || '')
 
         const firstComboBlock =
           Array.isArray(entry.combos) && entry.combos.length > 0 ? entry.combos[0] : null
@@ -383,23 +417,27 @@ export default function ComboDetail({ combo: propCombo = null }) {
           (firstComboBlock && (firstComboBlock.detailCombo?.code || firstComboBlock.detailCombo?.name)) ||
           null
 
-        // Qty & note prefill
-        const rawQty = Number(entry.qty || 1)
-        const maxQty = Number(entry.maxQuantityCanGet || 0)
-        const finalQty =
-          entry.isMacro && maxQty > 0 ? Math.min(rawQty, maxQty) : rawQty
-        setQty(finalQty)
-        setNote(entry.note || '')
-
-        // Build queues from cart (the key fix)
-        const queues = buildCartQueues(firstComboBlock?.products || [])
-
-        // ============================================================
-        // 1) try from sessionStorage (MASTER DATA)
-        // ============================================================
+        // Kalau macro, biasanya tidak perlu fetch master (sesuai logic kamu sebelumnya)
         if (entry.isMacro) {
-          sessionDataIncomplete = true
-        } else if (comboCode) {
+          // Tetap set minimal state agar halaman jalan, tapi jangan rusak UI:
+          // gunakan existing comboState kalau ada; kalau tidak ada, pakai detailCombo.
+          if (!comboState) {
+            setComboState(prev => prev || {
+              code: comboCode || entry.detailCombo?.code || null,
+              name: entry.detailCombo?.name || 'Combo',
+              description: entry.detailCombo?.description || '',
+              imagePath: entry.detailCombo?.image || entry.image || null,
+              comboGroups: (prev?.comboGroups || [])
+            })
+          }
+          prefilledRef.current = true
+          setLoadingCombo(false)
+          return
+        }
+
+        // ========= 1) Try sessionStorage master (only if looks like master) =========
+        let master = null
+        if (comboCode) {
           try {
             const key = `combo_${String(comboCode)}`
             const raw = sessionStorage.getItem(key)
@@ -410,67 +448,34 @@ export default function ComboDetail({ combo: propCombo = null }) {
                 parsed.comboGroups.some(g => Array.isArray(g.products) && g.products.length > 1)
 
               if (looksLikeMasterData) {
-                sessionDataIncomplete = false
-
-                setComboState(parsed)
-
-                // apply occurrence mapping using parsed master data
-                const mapped = applyQueuesToComboGroups({
-                  comboGroups: parsed.comboGroups,
-                  queues
-                })
-                setSelectedProducts(mapped.sp)
-                setSelectedCondiments(mapped.sc)
-
-                prefilledRef.current = true
-                setLoadingCombo(false)
-                return
+                master = parsed
               }
             }
           } catch (e) {}
         }
 
-        // ============================================================
-        // 2) fetch master data from API (if session missing/incomplete)
-        // ============================================================
-        if (comboCode && !entry.isMacro) {
+        // ========= 2) Fetch master jika belum ada =========
+        if (!master && comboCode) {
           try {
-            const url = `/api/proxy/combo-list?orderCategoryCode=${resolvedOrderType}&storeCode=${encodeURIComponent(
-              storeCode
-            )}&pageSize=1000`
+            const url =
+              `/api/proxy/combo-list?orderCategoryCode=${resolvedOrderType}` +
+              `&storeCode=${encodeURIComponent(storeCode)}` +
+              `&pageSize=1000`
+
             const r = await fetch(url)
             if (r.ok) {
               const j = await r.json()
-              const list = Array.isArray(j?.data) ? j.data : Array.isArray(j?.combo) ? j.combo : []
+              const list = Array.isArray(j?.data)
+                ? j.data
+                : (Array.isArray(j?.combo) ? j.combo : [])
 
               if (Array.isArray(list) && list.length) {
                 const needle = String(comboCode)
-                let found =
+                master =
                   list.find(x => String(x.code) === needle) ||
                   list.find(x => String(x.code).toLowerCase() === needle.toLowerCase()) ||
-                  list.find(x => String(x.name || '').toLowerCase() === needle.toLowerCase())
-
-                if (found) {
-                  try {
-                    if (found.code) sessionStorage.setItem(`combo_${String(found.code)}`, JSON.stringify(found))
-                  } catch (e) {}
-
-                  // merge to keep any prev/fallback safe, but master data as base
-                  const merged = mergeComboStates(comboState || {}, found) || found
-                  setComboState(merged)
-
-                  // apply occurrence mapping using merged master data
-                  const mapped = applyQueuesToComboGroups({
-                    comboGroups: merged.comboGroups || found.comboGroups || [],
-                    queues
-                  })
-                  setSelectedProducts(mapped.sp)
-                  setSelectedCondiments(mapped.sc)
-
-                  prefilledRef.current = true
-                  setLoadingCombo(false)
-                  return
-                }
+                  list.find(x => String(x.name || '').toLowerCase() === needle.toLowerCase()) ||
+                  null
               }
             }
           } catch (e) {
@@ -478,10 +483,36 @@ export default function ComboDetail({ combo: propCombo = null }) {
           }
         }
 
-        // ============================================================
-        // 3) fallback minimal from cart (if fetch totally failed)
-        // ============================================================
-        if (firstComboBlock && Array.isArray(firstComboBlock.products) && !entry.isMacro) {
+        // ========= 3) Kalau dapat master: set state + apply slot mapping =========
+        if (master) {
+          try {
+            if (master.code) {
+              sessionStorage.setItem(`combo_${String(master.code)}`, JSON.stringify(master))
+            }
+          } catch (e) {}
+
+          const merged = mergeComboStates(comboState || {}, master) || master
+          setComboState(merged)
+
+          const queues = buildCartQueues(firstComboBlock?.products || [], merged.comboGroups || master.comboGroups || [])
+          const mapped = applyQueuesToComboGroups({
+            comboGroups: merged.comboGroups || master.comboGroups || [],
+            queues
+          })
+
+          setSelectedProducts(mapped.sp)
+          setSelectedCondiments(mapped.sc)
+
+          // biarkan semua group collapsed seperti mode new (tapi status "Dipilih" tampil)
+          setOpenGroups({})
+
+          prefilledRef.current = true
+          setLoadingCombo(false)
+          return
+        }
+
+        // ========= 4) Fallback minimal (kalau fetch total gagal) =========
+        if (firstComboBlock && Array.isArray(firstComboBlock.products)) {
           const groupsMap = {}
           firstComboBlock.products.forEach(p => {
             const base = String(p.comboGroup || p.comboGroupCode || `group_x`)
@@ -514,6 +545,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
             id: comboCode || null,
             code: comboCode || null,
             name: entry.detailCombo?.name || 'Combo',
+            description: entry.detailCombo?.description || '',
             imagePath: entry.detailCombo?.image || entry.image || null,
             comboGroups: groupsArr,
             ...macroContextFromCart
@@ -521,13 +553,14 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
           setComboState(minimal)
 
-          // even for fallback, map occurrences to slots (works because groupsArr order is deterministic)
+          const queues = buildCartQueues(firstComboBlock?.products || [], minimal.comboGroups)
           const mapped = applyQueuesToComboGroups({
             comboGroups: minimal.comboGroups,
             queues
           })
           setSelectedProducts(mapped.sp)
           setSelectedCondiments(mapped.sc)
+          setOpenGroups({})
 
           prefilledRef.current = true
         }
@@ -541,11 +574,10 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
     recoverComboForEdit()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromCheckout, editingIndex])
+  }, [fromCheckout, editingIndex, editingCID, resolvedOrderType, storeCode])
 
   /**
-   * Guarded fetch once per edit if comboState incomplete.
-   * (keep as-is, but do NOT override selected state if already prefilled)
+   * Guarded fetch (safety net) — do not override after prefilled.
    */
   useEffect(() => {
     if (!fromCheckout || editingIndex == null) return
@@ -564,7 +596,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
         comboState.comboGroups.some(g => !Array.isArray(g.products) || g.products.length <= 1)
 
       const needsFetch = noGroups || groupsTruncated
-
       if (!needsFetch) {
         fetchedFullRef.current = true
         return
@@ -577,41 +608,31 @@ export default function ComboDetail({ combo: propCombo = null }) {
             fetchedFullRef.current = true
             return
           }
-          const url = `/api/proxy/combo-list?orderCategoryCode=${resolvedOrderType}&storeCode=${storeCode}`
+          const url = `/api/proxy/combo-list?orderCategoryCode=${resolvedOrderType}&storeCode=${storeCode}&pageSize=1000`
           const r = await fetch(url)
           if (r.ok) {
             const j = await r.json()
             const list = Array.isArray(j?.data) ? j.data : Array.isArray(j?.combo) ? j.combo : []
-            if (Array.isArray(list) && list.length) {
-              const codeToFind = String(q.comboCode || comboState.code || comboState.id || '').trim()
-              let found = null
-              if (codeToFind) {
-                found =
-                  list.find(x => String(x.code) === codeToFind) ||
-                  list.find(x => String(x.code).toLowerCase() === codeToFind.toLowerCase()) ||
-                  list.find(x => String(x.name || '').toLowerCase() === codeToFind.toLowerCase())
-              }
+            const codeToFind = String(q.comboCode || comboState.code || comboState.id || '').trim()
 
-              const finalCombo =
-                found ||
-                ((!comboState || !Array.isArray(comboState.comboGroups) || comboState.comboGroups.length === 0)
-                  ? list[0]
-                  : null)
+            let found =
+              list.find(x => String(x.code) === codeToFind) ||
+              list.find(x => String(x.code).toLowerCase() === codeToFind.toLowerCase()) ||
+              list.find(x => String(x.name || '').toLowerCase() === codeToFind.toLowerCase()) ||
+              null
 
-              if (finalCombo) {
+            if (found) {
+              try {
+                if (found.code) sessionStorage.setItem(`combo_${String(found.code)}`, JSON.stringify(found))
+              } catch (e) {}
+
+              setComboState(prev => {
                 try {
-                  if (finalCombo.code)
-                    sessionStorage.setItem(`combo_${String(finalCombo.code)}`, JSON.stringify(finalCombo))
-                } catch (e) {}
-
-                setComboState(prev => {
-                  try {
-                    return mergeComboStates(prev || comboState || {}, finalCombo) || finalCombo
-                  } catch (err) {
-                    return finalCombo
-                  }
-                })
-              }
+                  return mergeComboStates(prev || comboState || {}, found) || found
+                } catch (err) {
+                  return found
+                }
+              })
             }
           }
         } catch (e) {
@@ -623,6 +644,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
     } catch (e) {}
   }, [comboState, fromCheckout, editingIndex, q.comboCode, resolvedOrderType, storeCode, isEditMacro])
 
+  // keep macroContext updated
   useEffect(() => {
     if (!comboState?.macroCode) return
 
@@ -641,44 +663,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
   }, [comboState?.maxQuantityCanGet])
 
   /**
-   * IMPORTANT:
-   * We keep this second prefill effect for safety, BUT it must NEVER override once prefilled.
-   * So: if (prefilledRef.current) return;
+   * Auto close groups if addon complete
    */
-  useEffect(() => {
-    if (!fromCheckout || editingIndex == null) return
-    if (!comboState?.comboGroups) return
-    if (isEditMacro) {
-      fetchedFullRef.current = true
-      return
-    }
-    if (prefilledRef.current) return // ✅ prevent override
-
-    try {
-      const cart = getCart() || []
-      const item = cart[editingIndex]
-      if (!item) return
-      if (item.type === 'combo' && Array.isArray(item.combos) && item.combos.length > 0) {
-        const firstCombo = item.combos[0]
-
-        // build queues & apply
-        const queues = buildCartQueues(firstCombo.products || [])
-        const mapped = applyQueuesToComboGroups({
-          comboGroups: comboState.comboGroups,
-          queues
-        })
-
-        setSelectedProducts(mapped.sp)
-        setSelectedCondiments(mapped.sc)
-
-        prefilledRef.current = true
-      }
-    } catch (e) {
-      console.warn('prefill combo edit failed', e)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromCheckout, editingIndex, comboState])
-
   useEffect(() => {
     if (!comboState?.comboGroups) return
 
@@ -701,7 +687,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
       }
 
       const selected = selectedCondiments[gKey]?.condiments || {}
-
       const done = cgs.every(cg => {
         const cgKey = cg.code || cg.name || String(cg.id)
         return selected[cgKey] !== undefined
@@ -713,7 +698,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
     })
   }, [selectedProducts, selectedCondiments, comboState])
 
-  // AUTO SELECT SINGLE PRODUCT (NEW COMBO ONLY)
+  // AUTO SELECT SINGLE PRODUCT (NEW ONLY)
   useEffect(() => {
     if (fromCheckout || editingIndex != null) return
     if (!comboState) return
@@ -794,7 +779,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
   }
 
   function handleSelectAddon(groupKey, product, cgKey, optCode) {
-    const cg = (product.condimentGroups || []).find(g => (g.code || g.name || String(g.id)) === cgKey)
+    const cg = (product.condimentGroups || []).find(
+      g => (g.code || g.name || String(g.id)) === cgKey
+    )
     const opt = cg?.products?.find(p => String(p.code ?? p.id) === String(optCode))
 
     if (opt?.isOutOfStock) {
@@ -943,7 +930,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         code: prod.code ?? prod.id,
 
         // IMPORTANT: send base comboGroup (NO ::idx)
-        comboGroup: (grp?.code ?? grp?.name ?? getBaseGroupKey(grp) ?? '').toString(),
+        comboGroup: String(getBaseGroupKey(grp) || ''),
 
         name: prod.name ?? '',
         itemName: prod.itemName ?? '',
@@ -1058,6 +1045,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
       image: comboState.imagePath || comboState.image || null
     }
 
+    // keep cid stable in edit
     try {
       const cid =
         originalClientInstanceId ||
@@ -1072,6 +1060,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
       }))
     } catch (e) {}
 
+    // lock macro data from original cart if needed
     if (isEdit && originalCartEntryRef.current?.isMacro) {
       const orig = originalCartEntryRef.current
       cartEntry.isMacro = true
@@ -1134,7 +1123,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
         Number(comboState?.maxQuantityCanGet) ||
         Number(originalCartEntryRef.current?.maxQuantityCanGet) ||
         0
-
       if (latestMax > 0) finalQty = Math.min(finalQty, latestMax)
     } else if (isMacroCombo && Number(comboState.maxQuantityCanGet) > 0) {
       finalQty = Math.min(finalQty, Number(comboState.maxQuantityCanGet))
@@ -1325,6 +1313,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
         {(comboState.comboGroups || []).map((group, idx) => {
           const groupKey = getGroupKey(group, idx)
+
           const selectedProductCode = selectedProducts[groupKey]
           const selectedProduct =
             selectedProductCode && selectedProductCode !== NO_ADDON_CODE
@@ -1413,7 +1402,12 @@ export default function ComboDetail({ combo: propCombo = null }) {
                         >
                           <div className={styles.cardImage}>
                             {p.imagePath && (
-                              <Image src={p.imagePath} alt={p.name} fill style={{ objectFit: 'contain' }} />
+                              <Image
+                                src={p.imagePath}
+                                alt={p.name}
+                                fill
+                                style={{ objectFit: 'contain' }}
+                              />
                             )}
                           </div>
 
@@ -1428,7 +1422,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
                           </div>
 
                           <div className={styles.cardRight}>
-                            <div className={styles.cardPrice}>{formatRp((p.maskingprice ?? p.price ?? 0) * (p.qty ?? 1))}</div>
+                            <div className={styles.cardPrice}>
+                              {formatRp((p.maskingprice ?? p.price ?? 0) * (p.qty ?? 1))}
+                            </div>
                             <input type="radio" checked={checked} readOnly />
                           </div>
                         </div>
@@ -1445,7 +1441,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
                   {selectedProduct.condimentGroups.map(cg => {
                     const cgKey = cg.code || cg.name || String(cg.id)
-
                     const selectedAddonCodes = Object.values(selectedCondiments[groupKey]?.condiments || {})
 
                     return (
@@ -1492,7 +1487,12 @@ export default function ComboDetail({ combo: propCombo = null }) {
                             >
                               <div className={styles.cardImage}>
                                 {opt.imagePath && (
-                                  <Image src={opt.imagePath} alt={opt.name} fill style={{ objectFit: 'contain' }} />
+                                  <Image
+                                    src={opt.imagePath}
+                                    alt={opt.name}
+                                    fill
+                                    style={{ objectFit: 'contain' }}
+                                  />
                                 )}
                               </div>
 

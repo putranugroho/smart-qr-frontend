@@ -275,7 +275,7 @@ function mergeComboStatesStrict(prev, fetched) {
   if (!prev) return fetched
 
   // kalau fetched bukan real master, jangan sentuh (hindari nyampur)
-  if (!looksLikeUsableMasterCombo(fetched)) return prev
+  if (!looksLikeRealMasterCombo(fetched)) return prev
 
   const out = JSON.parse(JSON.stringify(fetched))
 
@@ -536,7 +536,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
               const candidate = findMasterFromList(fetchedList, comboCode)
               if (looksLikeUsableMasterCombo(candidate)) master = candidate
               console.log('[EDIT] fetched candidate', candidate)
-              console.log('[EDIT] isRealMaster?', looksLikeUsableMasterCombo(candidate))
+              console.log('[EDIT] isUsableMaster?', looksLikeUsableMasterCombo(candidate))
             }
           } catch (e) {}
         }
@@ -633,7 +633,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
       if (!fallbackAppliedRef.current) return
       if (!storeCode || !resolvedOrderType) return
       if (!originalCartEntryRef.current) return
-      if (looksLikeUsableMasterCombo(comboState)) {
+      if (looksLikeRealMasterCombo(comboState)) {
         fallbackAppliedRef.current = false
         prefilledRef.current = true
         return
@@ -725,7 +725,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         Array.isArray(comboState.comboGroups) &&
         comboState.comboGroups.some(g => !Array.isArray(g.products) || g.products.length <= 1)
 
-      const needsFetch = noGroups || groupsTruncated || !looksLikeUsableMasterCombo(comboState)
+      const needsFetch = noGroups || groupsTruncated || !looksLikeRealMasterCombo(comboState)
       if (!needsFetch) {
         fetchedFullRef.current = true
         return

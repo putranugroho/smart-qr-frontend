@@ -128,29 +128,30 @@ function normalizeCondimentGroupKey(raw, masterCondimentGroups) {
 function looksLikeRealMasterCombo(c) {
   if (!c || !Array.isArray(c.comboGroups) || c.comboGroups.length === 0) return false
 
-  const hasComboHeader =
-    Boolean(c?.name) && (Boolean(c?.description) || Boolean(c?.imagePath) || Boolean(c?.image))
+  // ✅ cukup ada nama combo
+  const hasName = Boolean(String(c?.name || c?.title || '').trim())
 
-  // group name yang manusiawi (punya "Pilih ..." dsb)
-  const hasHumanGroupName = c.comboGroups.some(g => {
-    const nm = String(g?.name || '')
-    const cd = String(g?.code || '')
-    return nm && (nm.toLowerCase().includes('pilih') || (nm !== cd && nm.includes(' ')))
-  })
-
-  // ✅ cukup ada product >= 1 yang punya field penting
-  const hasAnyProducts = c.comboGroups.some(g =>
-    Array.isArray(g.products) &&
-    g.products.length >= 1 &&
-    g.products.some(p => p?.name && (p?.price != null || p?.maskingprice != null || p?.imagePath))
+  // ✅ cukup ada group dengan product >= 2 (indikasi kuat master)
+  const hasAnyGroupWithManyProducts = c.comboGroups.some(g =>
+    Array.isArray(g.products) && g.products.length >= 2
   )
 
-  // ✅ atau meskipun product cuma 1, tapi punya condimentGroups (tetap master)
-  const hasCondimentOptions = c.comboGroups.some(g =>
+  // ✅ atau punya condimentGroups (master biasanya punya opsi addon)
+  const hasAnyCondimentStructure = c.comboGroups.some(g =>
     (g.products || []).some(p => Array.isArray(p.condimentGroups) && p.condimentGroups.length > 0)
   )
 
-  return hasComboHeader && hasHumanGroupName && (hasAnyProducts || hasCondimentOptions)
+  // ✅ atau minimal: ada product dengan nama + (price/maskingprice/imagePath)
+  const hasRenderableProduct = c.comboGroups.some(g =>
+    (g.products || []).some(p => {
+      const nm = String(p?.name || p?.itemName || '').trim()
+      const hasPrice = p?.price != null || p?.maskingprice != null
+      const hasImg = Boolean(p?.imagePath || p?.image)
+      return nm && (hasPrice || hasImg)
+    })
+  )
+
+  return hasName && (hasAnyGroupWithManyProducts || hasAnyCondimentStructure || hasRenderableProduct)
 }
 
 function pickComboCodeFromListItem(x) {

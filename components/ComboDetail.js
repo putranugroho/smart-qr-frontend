@@ -106,7 +106,7 @@ function buildCartQueues(firstComboProducts, masterGroups) {
     const condimentsMap = {}
     if (Array.isArray(p.condiments)) {
       p.condiments.forEach(c => {
-        const cgKey =
+        let cgKey =
           c.comboGroupCode ||
           c.group ||
           c.comboGroup ||

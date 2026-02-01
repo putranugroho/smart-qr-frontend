@@ -10,16 +10,49 @@ import { getUser } from '../lib/auth'
 const NONE_OPTION_ID = '__NONE__'
 const NO_ADDON_CODE = '__NO_ADDON__'
 
+/**
+ * ===========================
+ * DEBUG / LOG HELPERS
+ * ===========================
+ */
+const DEBUG_EDIT = true // set false kalau mau matiin log
+function dlog(...args) {
+  if (!DEBUG_EDIT) return
+  // eslint-disable-next-line no-console
+  console.log(...args)
+}
+function dwarn(...args) {
+  if (!DEBUG_EDIT) return
+  // eslint-disable-next-line no-console
+  console.warn(...args)
+}
+function derr(...args) {
+  if (!DEBUG_EDIT) return
+  // eslint-disable-next-line no-console
+  console.error(...args)
+}
+function safeJson(x) {
+  try {
+    return JSON.parse(JSON.stringify(x))
+  } catch {
+    return x
+  }
+}
+
 function formatRp(n) {
   if (n == null) return '-'
   return 'Rp' + new Intl.NumberFormat('id-ID').format(Number(n || 0))
 }
 
-function resolveOrderType({ isEdit, router, editingIndex, entry }) {
+/**
+ * SOURCE OF TRUTH orderType:
+ * - edit mode: dari cart entry (combos[0].orderType / entry.orderType / detailCombo.orderType)
+ * - non-edit: dari user.orderType
+ */
+function resolveOrderType({ isEdit, router, entry }) {
   const user = getUser?.() || null
   if (!isEdit) return user?.orderType || 'DI'
 
-  // ✅ SOURCE OF TRUTH: orderType dari cart entry
   const otFromEntry =
     entry?.combos?.[0]?.orderType ||
     entry?.orderType ||
@@ -38,7 +71,6 @@ function resolveOrderType({ isEdit, router, editingIndex, entry }) {
     }
   } catch (e) {}
 
-  // last fallback
   return user?.orderType || 'DI'
 }
 
@@ -241,10 +273,8 @@ function applyQueuesToComboGroups({ comboGroups, queues }) {
       const masterKeyList = masterCGs.map(getCondimentKey)
 
       Object.entries(picked.condimentsMap || {}).forEach(([rawCgKey, selOpt]) => {
-        // 1) try normal mapping by cgKey
         let ck = normalizeCondimentGroupKey(rawCgKey, masterCGs)
 
-        // kalau ck tidak match ke master keys, coba fallback berdasarkan option code:
         if (!masterKeyList.includes(ck)) {
           const foundCg = masterCGs.find(cg =>
             (cg.products || []).some(p => String(p.code ?? p.id) === String(selOpt))
@@ -255,12 +285,8 @@ function applyQueuesToComboGroups({ comboGroups, queues }) {
         if (ck) canon[ck] = selOpt
       })
 
-      // ❗ PENTING:
-      // JANGAN default NONE kalau hasCond=true (artinya cart memang punya pilihan),
-      // karena bisa menimpa pilihan asli jika mapping key gagal.
       sc[slotKey] = { productCode: picked.code, condiments: canon }
     } else {
-      // cart tidak punya condiments sama sekali → baru aman default NONE untuk allowSkip
       const canon = {}
       const masterCGs = Array.isArray(prod?.condimentGroups) ? prod.condimentGroups : []
       masterCGs.forEach(cg => {
@@ -356,12 +382,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
   const isEdit = fromCheckout && editingIndex != null
   const isEditMacro = isEdit && (Boolean(comboState?.isMacro) || Boolean(originalCartEntryRef.current?.isMacro))
 
-  const resolvedOrderType = useMemo(() => {
-    return resolveOrderType({ isEdit, router, editingIndex })
-  }, [isEdit, router.query, editingIndex])
-  const [editOrderType, setEditOrderType] = useState(null)
-  const effectiveOrderType = isEdit ? (editOrderType || 'DI') : (getUser?.()?.orderType || 'DI')
-
   const user = getUser?.() || {}
   const storeCode = user.storeLocation
 
@@ -389,6 +409,22 @@ export default function ComboDetail({ combo: propCombo = null }) {
       }
     })()
 
+  // keep edit orderType in state (set from cart entry)
+  const [editOrderType, setEditOrderType] = useState(null)
+
+  // NOTE: resolvedOrderType here uses entry ref (kalau ada) sebagai truth.
+  // Kalau belum ada entry ref, akan fallback (router.query/session/user).
+  const resolvedOrderType = useMemo(() => {
+    return resolveOrderType({
+      isEdit,
+      router,
+      entry: originalCartEntryRef.current
+    })
+  }, [isEdit, router.query])
+
+  // effective orderType that will be used for payload/building list
+  const effectiveOrderType = isEdit ? (editOrderType || resolvedOrderType || 'DI') : (getUser?.()?.orderType || 'DI')
+
   // reset guards when editingIndex changes + reset selections biar tidak kebawa
   useEffect(() => {
     fetchedFullRef.current = false
@@ -400,6 +436,11 @@ export default function ComboDetail({ combo: propCombo = null }) {
     setSelectedProducts({})
     setSelectedCondiments({})
     setOpenGroups({})
+
+    // reset orderType state for new edit target
+    setEditOrderType(null)
+
+    dlog('[EDIT][RESET]', { editingIndex })
   }, [editingIndex])
 
   useEffect(() => {
@@ -430,9 +471,14 @@ export default function ComboDetail({ combo: propCombo = null }) {
   useEffect(() => {
     async function recoverComboForEdit() {
       if (!fromCheckout || editingIndex == null) return
-      if (!storeCode || !resolvedOrderType) return
+      if (!storeCode) return
 
-      console.log('[EDIT] start', { fromCheckout, editingIndex, storeCode, resolvedOrderType })
+      dlog('[EDIT] start', {
+        fromCheckout,
+        editingIndex,
+        storeCode,
+        editingCID
+      })
 
       try {
         setLoadingCombo(true)
@@ -453,16 +499,40 @@ export default function ComboDetail({ combo: propCombo = null }) {
         if (!entry) entry = cart[editingIndex]
 
         if (!entry) {
-          console.warn('[ComboDetail][EDIT] entry not found', { editingCID, editingIndex })
+          dwarn('[ComboDetail][EDIT] entry not found', { editingCID, editingIndex })
           setLoadingCombo(false)
           router.replace('/checkout')
           return
         }
 
-        const ot = entry?.combos?.[0]?.orderType || entry?.orderType || entry?.detailCombo?.orderType || null
-        if (ot) setEditOrderType(String(ot))
+        // keep original cart entry ref (source of truth)
+        if (!originalCartEntryRef.current) {
+          originalCartEntryRef.current = safeJson(entry)
+        }
 
-        if (!originalCartEntryRef.current) originalCartEntryRef.current = JSON.parse(JSON.stringify(entry))
+        // SOURCE OF TRUTH: orderType from entry
+        const orderTypeFromEntry =
+          entry?.combos?.[0]?.orderType ||
+          entry?.orderType ||
+          entry?.detailCombo?.orderType ||
+          null
+
+        if (orderTypeFromEntry) {
+          setEditOrderType(String(orderTypeFromEntry))
+        }
+
+        dlog('[EDIT] entry found', {
+          byCid: Boolean(editingCID),
+          editingCID,
+          editingIndex,
+          orderTypeFromEntry,
+          entrySummary: {
+            clientInstanceId: entry?.clientInstanceId,
+            qty: entry?.qty,
+            isMacro: entry?.isMacro,
+            detailCombo: entry?.detailCombo?.code || entry?.detailCombo?.id || entry?.detailCombo?.name
+          }
+        })
 
         // macro context
         const macroContextFromCart = entry.isMacro
@@ -499,9 +569,21 @@ export default function ComboDetail({ combo: propCombo = null }) {
           firstComboBlock?.detailCombo?.name ||
           null
 
-        const orderCategoryCode = effectiveOrderType
-          ? String(effectiveOrderType)
-          : deriveOrderCategoryCode({ resolvedOrderType, comboCode })
+        // IMPORTANT:
+        // Untuk fetch list, gunakan orderType dari entry (truth) dulu,
+        // kalau kosong baru fallback resolvedOrderType.
+        const resolvedForFetch = String(orderTypeFromEntry || resolvedOrderType || 'DI')
+
+        const orderCategoryCode = deriveOrderCategoryCode({
+          resolvedOrderType: resolvedForFetch,
+          comboCode
+        })
+
+        dlog('[EDIT] comboCode/orderType resolved', {
+          comboCode,
+          resolvedForFetch,
+          orderCategoryCode
+        })
 
         // macro shortcut
         if (entry.isMacro) {
@@ -519,7 +601,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
           return
         }
 
-        // 1) sessionStorage master (only if REAL)
+        // 1) sessionStorage master (only if usable)
         let master = null
 
         if (comboCode) {
@@ -533,14 +615,19 @@ export default function ComboDetail({ combo: propCombo = null }) {
           } catch (e) {}
         }
 
-        console.log('[EDIT] using session master?', Boolean(master), { comboCode })
+        dlog('[EDIT] session master?', {
+          hasMaster: Boolean(master),
+          comboCode
+        })
 
-        // 2) fetch list then pick master (only accept if REAL)
+        // 2) fetch list then pick master (only accept if usable)
         if (!master && comboCode) {
           const url =
             `/api/proxy/combo-list?orderCategoryCode=${encodeURIComponent(orderCategoryCode)}` +
             `&storeCode=${encodeURIComponent(storeCode)}` +
             `&pageSize=1000`
+
+          dlog('[EDIT] fetch combo-list', { url })
 
           try {
             const r = await fetch(url)
@@ -548,19 +635,24 @@ export default function ComboDetail({ combo: propCombo = null }) {
               const j = await r.json()
               const fetchedList = Array.isArray(j?.data) ? j.data : Array.isArray(j?.combo) ? j.combo : []
               const candidate = findMasterFromList(fetchedList, comboCode)
+
+              dlog('[EDIT] fetched candidate summary', {
+                found: Boolean(candidate),
+                candidateCode: pickComboCodeFromListItem(candidate),
+                isUsable: looksLikeUsableMasterCombo(candidate),
+                isReal: looksLikeRealMasterCombo(candidate)
+              })
+
               if (looksLikeUsableMasterCombo(candidate)) master = candidate
-              console.log('[EDIT] fetched candidate', candidate)
-              console.log('[EDIT] isUsableMaster?', looksLikeUsableMasterCombo(candidate))
+            } else {
+              dwarn('[EDIT] fetch combo-list not ok', { status: r.status })
             }
-          } catch (e) {}
+          } catch (e) {
+            dwarn('[EDIT] fetch combo-list error', e)
+          }
         }
 
-        console.log('[EDIT] comboCode picked =', comboCode, {
-          detailCombo: entry?.detailCombo,
-          firstDetailCombo: firstComboBlock?.detailCombo
-        })
-
-        // 3) if got REAL master -> strict merge (NO group append) + slot mapping
+        // 3) if got master -> strict usage + slot mapping
         if (master && looksLikeUsableMasterCombo(master)) {
           try {
             if (master.code) sessionStorage.setItem(`combo_${String(master.code)}`, JSON.stringify(master))
@@ -568,12 +660,25 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
           const merged = looksLikeRealMasterCombo(master)
             ? (mergeComboStatesStrict(comboState || {}, master) || master)
-            : master // <-- kalau cuma usable, langsung pakai master apa adanya
+            : master
+
+          dlog('[EDIT] apply master', {
+            masterCode: master?.code,
+            mergedIsReal: looksLikeRealMasterCombo(merged),
+            groupCount: merged?.comboGroups?.length || 0
+          })
 
           setComboState(merged)
 
           const queues = buildCartQueues(firstComboBlock?.products || [], merged.comboGroups || [])
           const mapped = applyQueuesToComboGroups({ comboGroups: merged.comboGroups || [], queues })
+
+          dlog('[EDIT] mapped selections', {
+            selectedProductsKeys: Object.keys(mapped.sp || {}).length,
+            selectedCondimentsKeys: Object.keys(mapped.sc || {}).length,
+            sampleSP: Object.entries(mapped.sp || {}).slice(0, 3),
+            sampleSC: Object.entries(mapped.sc || {}).slice(0, 1)
+          })
 
           setSelectedProducts(mapped.sp)
           setSelectedCondiments(mapped.sc)
@@ -585,8 +690,13 @@ export default function ComboDetail({ combo: propCombo = null }) {
           return
         }
 
-        // 4) fallback minimal (only if total failure to get REAL master)
+        // 4) fallback minimal (only if total failure to get master)
         if (firstComboBlock && Array.isArray(firstComboBlock.products)) {
+          dwarn('[EDIT] master not found -> fallback minimal applied', {
+            comboCode,
+            orderCategoryCode
+          })
+
           const groupsMap = {}
           firstComboBlock.products.forEach(p => {
             const base = String(p.comboGroup || p.comboGroupCode || `group_x`)
@@ -631,24 +741,24 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
         setLoadingCombo(false)
       } catch (e) {
-        console.warn('[ComboDetail][EDIT] recover failed', e)
+        dwarn('[ComboDetail][EDIT] recover failed', e)
         setLoadingCombo(false)
       }
     }
 
     recoverComboForEdit()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromCheckout, editingIndex, editingCID, resolvedOrderType, storeCode])
+  }, [fromCheckout, editingIndex, editingCID, storeCode])
 
   /**
    * Upgrade fallback -> master
-   * (tetap strict: master harus REAL; jika real -> replace comboGroups (NO append))
+   * (strict)
    */
   useEffect(() => {
     async function upgradeFallbackToMaster() {
       if (!fromCheckout || editingIndex == null) return
       if (!fallbackAppliedRef.current) return
-      if (!storeCode || !resolvedOrderType) return
+      if (!storeCode) return
       if (!originalCartEntryRef.current) return
       if (looksLikeRealMasterCombo(comboState)) {
         fallbackAppliedRef.current = false
@@ -677,14 +787,25 @@ export default function ComboDetail({ combo: propCombo = null }) {
           return
         }
 
-        const orderCategoryCode = effectiveOrderType
-          ? String(effectiveOrderType)
-          : deriveOrderCategoryCode({ resolvedOrderType, comboCode })
+        const orderTypeFromEntry =
+          entry?.combos?.[0]?.orderType ||
+          entry?.orderType ||
+          entry?.detailCombo?.orderType ||
+          null
+
+        const resolvedForFetch = String(orderTypeFromEntry || resolvedOrderType || 'DI')
+
+        const orderCategoryCode = deriveOrderCategoryCode({
+          resolvedOrderType: resolvedForFetch,
+          comboCode
+        })
 
         const url =
           `/api/proxy/combo-list?orderCategoryCode=${encodeURIComponent(orderCategoryCode)}` +
           `&storeCode=${encodeURIComponent(storeCode)}` +
           `&pageSize=1000`
+
+        dlog('[EDIT][upgrade] fetch combo-list', { url })
 
         const r = await fetch(url)
         if (!r.ok) {
@@ -711,22 +832,28 @@ export default function ComboDetail({ combo: propCombo = null }) {
         setSelectedCondiments(mapped.sc)
         setOpenGroups({})
 
+        dlog('[EDIT][upgrade] upgraded to master', {
+          comboCode,
+          orderCategoryCode,
+          mergedIsReal: looksLikeRealMasterCombo(merged)
+        })
+
         fallbackAppliedRef.current = false
         prefilledRef.current = true
         setLoadingCombo(false)
       } catch (e) {
-        console.warn('[ComboDetail][upgrade] failed', e)
+        dwarn('[ComboDetail][upgrade] failed', e)
         setLoadingCombo(false)
       }
     }
 
     upgradeFallbackToMaster()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromCheckout, editingIndex, storeCode, resolvedOrderType, comboState])
 
   /**
    * Safety net fetch in edit:
-   * Only if not yet prefilled with REAL master.
-   * STRICT: kalau found real master -> replace groups strictly.
+   * Only if not yet prefilled.
    */
   useEffect(() => {
     if (!fromCheckout || editingIndex == null) return
@@ -753,7 +880,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
       ;(async () => {
         try {
           const entry = originalCartEntryRef.current
-          const firstComboBlock = Array.isArray(entry?.combos) && entry.combos.length > 0 ? entry.combos[0] : null
+          const firstComboBlock = Array.isArray(entry?.combos) && entry?.combos?.length > 0 ? entry.combos[0] : null
+
           const comboCode =
             entry?.detailCombo?.code ||
             firstComboBlock?.detailCombo?.code ||
@@ -768,14 +896,25 @@ export default function ComboDetail({ combo: propCombo = null }) {
             return
           }
 
-          const orderCategoryCode = effectiveOrderType
-            ? String(effectiveOrderType)
-            : deriveOrderCategoryCode({ resolvedOrderType, comboCode })
+          const orderTypeFromEntry =
+            entry?.combos?.[0]?.orderType ||
+            entry?.orderType ||
+            entry?.detailCombo?.orderType ||
+            null
+
+          const resolvedForFetch = String(orderTypeFromEntry || resolvedOrderType || 'DI')
+
+          const orderCategoryCode = deriveOrderCategoryCode({
+            resolvedOrderType: resolvedForFetch,
+            comboCode
+          })
 
           const url =
             `/api/proxy/combo-list?orderCategoryCode=${encodeURIComponent(orderCategoryCode)}` +
             `&storeCode=${encodeURIComponent(storeCode)}` +
             `&pageSize=1000`
+
+          dlog('[EDIT][safety] fetch combo-list', { url })
 
           const r = await fetch(url)
           if (!r.ok) return
@@ -790,12 +929,12 @@ export default function ComboDetail({ combo: propCombo = null }) {
             if (found.code) sessionStorage.setItem(`combo_${String(found.code)}`, JSON.stringify(found))
           } catch (e) {}
 
-          setComboState(prev => mergeComboStatesStrict(prev || comboState || {}, found) || found)
-
-          // IMPORTANT: selections harus di-map ulang ke master yang baru
-          const entry2 = originalCartEntryRef.current
-          const first2 = Array.isArray(entry2?.combos) && entry2.combos.length > 0 ? entry2.combos[0] : null
           const masterNow = mergeComboStatesStrict(comboState || {}, found) || found
+          setComboState(masterNow)
+
+          // IMPORTANT: selections harus di-map ulang
+          const entry2 = originalCartEntryRef.current
+          const first2 = Array.isArray(entry2?.combos) && entry2?.combos?.length > 0 ? entry2.combos[0] : null
 
           const queues = buildCartQueues(first2?.products || [], masterNow.comboGroups || [])
           const mapped = applyQueuesToComboGroups({ comboGroups: masterNow.comboGroups || [], queues })
@@ -804,14 +943,21 @@ export default function ComboDetail({ combo: propCombo = null }) {
           setSelectedCondiments(mapped.sc)
           setOpenGroups({})
 
+          dlog('[EDIT][safety] applied master from safety fetch', {
+            comboCode,
+            orderCategoryCode,
+            isReal: looksLikeRealMasterCombo(masterNow)
+          })
+
           prefilledRef.current = true
         } catch (e) {
-          console.warn('[ComboDetail][safety] fetch error', e)
+          dwarn('[ComboDetail][safety] fetch error', e)
         } finally {
           fetchedFullRef.current = true
         }
       })()
     } catch (e) {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comboState, fromCheckout, editingIndex, q.comboCode, resolvedOrderType, storeCode, isEditMacro])
 
   // keep macroContext updated
@@ -948,6 +1094,27 @@ export default function ComboDetail({ combo: propCombo = null }) {
   }
 
   function handleSelectAddon(groupKey, product, cgKey, optCode) {
+    // NONE selection: langsung set, skip stock check
+    if (String(optCode) === String(NONE_OPTION_ID)) {
+      setSelectedCondiments(prev => {
+        const next = {
+          ...prev,
+          [groupKey]: {
+            productCode: product.code,
+            condiments: { ...prev[groupKey]?.condiments, [cgKey]: NONE_OPTION_ID }
+          }
+        }
+
+        const allSelected = (product.condimentGroups || []).every(cg => {
+          const key = cg.code || cg.name || String(cg.id)
+          return next[groupKey].condiments[key] !== undefined
+        })
+        if (allSelected) setTimeout(() => focusNextUnselectedGroup(groupKey), 0)
+        return next
+      })
+      return
+    }
+
     const cg = (product.condimentGroups || []).find(g => (g.code || g.name || String(g.id)) === cgKey)
     const opt = cg?.products?.find(p => String(p.code ?? p.id) === String(optCode))
 
@@ -1155,6 +1322,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
     if (productsPayload.length === 0) return null
 
+    const orderTypeForPayload = String(effectiveOrderType || resolvedOrderType || 'DI')
+
     const combosForCart = [
       {
         detailCombo: {
@@ -1167,7 +1336,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         macroCode: comboState.macroCode || null,
         maxQuantityCanGet: Number(comboState?.maxQuantityCanGet) || Number(macroContext?.maxQuantityCanGet) || 0,
         isAllowGetAnother: Boolean(comboState.isAllowGetAnother),
-        orderType: resolvedOrderType,
+        orderType: orderTypeForPayload, // ✅ FIX: payload pakai effective orderType
         products: productsPayload,
         qty: Number(qty || 1),
         voucherCode: null
@@ -1205,6 +1374,15 @@ export default function ComboDetail({ combo: propCombo = null }) {
       cartEntry.maxQuantityCanGet = orig.maxQuantityCanGet
       cartEntry.isAllowGetAnother = orig.isAllowGetAnother
     }
+
+    dlog('[CART][buildPayload]', {
+      isEdit,
+      editingIndex,
+      orderTypeForPayload,
+      cid: cartEntry.clientInstanceId,
+      comboCode: cartEntry?.detailCombo?.code,
+      productsCount: productsPayload.length
+    })
 
     return cartEntry
   }
@@ -1279,12 +1457,12 @@ export default function ComboDetail({ combo: propCombo = null }) {
       if (!v.ok) {
         setMissingAddons(v.msg)
         setShowPopup(true)
-        return false // <— penting
+        return false
       }
 
       const payload = buildComboCartPayload()
       if (!payload) {
-        console.warn('Payload combo tidak valid.')
+        dwarn('[CART] Payload combo tidak valid.')
         return false
       }
 
@@ -1293,12 +1471,23 @@ export default function ComboDetail({ combo: propCombo = null }) {
         setTimeout(() => setAddAnimating(false), 500)
 
         if (fromCheckout && editingIndex != null) {
+          dlog('[CART][EDIT] replace cart index', {
+            editingIndex,
+            cid: payload.clientInstanceId,
+            orderType: payload?.combos?.[0]?.orderType,
+            comboCode: payload?.detailCombo?.code
+          })
           try {
             replaceCartAtIndex(Number(editingIndex), payload)
           } catch (e) {
             updateCart(Number(editingIndex), payload)
           }
         } else {
+          dlog('[CART][ADD] addToCart', {
+            cid: payload.clientInstanceId,
+            orderType: payload?.combos?.[0]?.orderType,
+            comboCode: payload?.detailCombo?.code
+          })
           addToCart(payload)
         }
 
@@ -1312,7 +1501,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
         return true
       } catch (e) {
-        console.error('addToCart combo failed', e)
+        derr('addToCart combo failed', e)
         alert('Gagal menambahkan ke keranjang')
         return false
       }
@@ -1546,7 +1735,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
                   {selectedProduct.condimentGroups.map(cg => {
                     const cgKey = cg.code || cg.name || String(cg.id)
 
-                    // ✅ selection khusus untuk cg ini saja
                     const selForThisCg = selectedCondiments[groupKey]?.condiments?.[cgKey]
                     const isNoneSelected =
                       Array.isArray(selForThisCg)

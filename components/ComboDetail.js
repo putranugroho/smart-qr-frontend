@@ -87,8 +87,12 @@ function mergeComboStates(prev, fetched) {
     const mergedGroup = JSON.parse(JSON.stringify(fg))
 
     // 🔑 UI SLOT KEY (FE ONLY)
+    mergedGroup.slotIndex =
+      prevG?.slotIndex ?? idx
+
     mergedGroup.uiGroupKey =
-      prevG?.uiGroupKey ?? `${fg.code ?? fg.name ?? 'group'}::${idx}`
+      prevG?.uiGroupKey ??
+      `${fetched.code || fetched.id || 'combo'}::${fg.code ?? fg.name ?? 'group'}::${mergedGroup.slotIndex}`
 
     // if prev group existed, merge product lists so selected product (prev) remains visible
     if (prevG && Array.isArray(prevG.products)) {
@@ -782,7 +786,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
   }
 
   function getGroupKey(g, idx) {
-    return g.uiGroupKey ?? `${g.code ?? g.name ?? 'group'}::${idx}`
+    return g.uiGroupKey
   }
 
   function findComboGroupByKey(key) {

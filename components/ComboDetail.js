@@ -39,10 +39,6 @@ function resolveOrderType({ isEdit, router, editingIndex }) {
   return user?.orderType || 'DI'
 }
 
-/**
- * Derive orderCategoryCode from comboCode.
- * Example: "KIOSK-DI-L-PB BEEF" => "KIOSK-DI"
- */
 function deriveOrderCategoryCode({ resolvedOrderType, comboCode }) {
   const cc = String(comboCode || '').trim()
   if (!cc) return resolvedOrderType || 'DI'
@@ -57,14 +53,6 @@ function deriveOrderCategoryCode({ resolvedOrderType, comboCode }) {
   return resolvedOrderType || 'DI'
 }
 
-/**
- * ===========================
- * SLOT HELPERS
- * ===========================
- * API master data bisa punya 2 comboGroups yang sama (code sama) untuk 2 slot berbeda.
- * UI pakai slotKey = `${base}::${idx}` supaya unik.
- * Payload ke cart tetap kirim base comboGroup (tanpa ::idx).
- */
 function getBaseGroupKey(g) {
   return g?.code ?? g?.name ?? String(g?.id)
 }
@@ -72,11 +60,6 @@ function getGroupKey(g, idx) {
   return `${getBaseGroupKey(g)}::${idx}`
 }
 
-/**
- * Normalisasi raw comboGroup dari cart supaya match ke master groups.
- * - Cart kadang simpan code, kadang name, kadang baseKey.
- * - handle legacy slot format: "BASE::0"
- */
 function normalizeCartGroupBase(raw, masterGroups) {
   const r0 = String(raw || '').trim()
   if (!r0) return ''
@@ -101,12 +84,35 @@ function normalizeCartGroupBase(raw, masterGroups) {
   return found ? String(getBaseGroupKey(found)) : r
 }
 
-/**
- * Strict check: is this combo object a REAL master?
- * - Must have human-readable group names
- * - Must have rich products (name + price/image)
- * - Must have combo header info (name + desc/image)
- */
+function getCondimentKey(cg) {
+  return String(cg?.code || cg?.name || cg?.id || '')
+}
+
+function normalizeCondimentGroupKey(raw, masterCondimentGroups) {
+  const r0 = String(raw || '').trim()
+  if (!r0) return ''
+  const r = r0.includes('::') ? r0.split('::')[0] : r0
+
+  const cgs = Array.isArray(masterCondimentGroups) ? masterCondimentGroups : []
+
+  const found = cgs.find(cg => {
+    const base = getCondimentKey(cg)
+    const code = cg?.code != null ? String(cg.code) : ''
+    const name = cg?.name != null ? String(cg.name) : ''
+
+    return (
+      r === base ||
+      r === code ||
+      r === name ||
+      r.toLowerCase() === base.toLowerCase() ||
+      r.toLowerCase() === code.toLowerCase() ||
+      r.toLowerCase() === name.toLowerCase()
+    )
+  })
+
+  return found ? getCondimentKey(found) : r
+}
+
 function looksLikeRealMasterCombo(c) {
   if (!c || !Array.isArray(c.comboGroups) || c.comboGroups.length === 0) return false
 
@@ -163,10 +169,6 @@ function findMasterFromList(list, comboCode) {
   return found
 }
 
-/**
- * Build occurrence queue dari cart products:
- * queues[baseComboGroup] = [{ code, condimentsMap }, ...]
- */
 function buildCartQueues(firstComboProducts, masterGroups) {
   const queues = {}
 
@@ -191,10 +193,6 @@ function buildCartQueues(firstComboProducts, masterGroups) {
   return queues
 }
 
-/**
- * Apply queues ke comboGroups master sesuai urutan:
- * slot 0 ambil item pertama queue, slot 1 ambil item kedua, dst.
- */
 function applyQueuesToComboGroups({ comboGroups, queues }) {
   const sp = {}
   const sc = {}
@@ -218,20 +216,30 @@ function applyQueuesToComboGroups({ comboGroups, queues }) {
 
     const hasCond = picked.condimentsMap && Object.keys(picked.condimentsMap).length > 0
     if (hasCond) {
-      sc[slotKey] = { productCode: picked.code, condiments: { ...picked.condimentsMap } }
+      const canon = {}
+      const masterCGs = Array.isArray(prod?.condimentGroups) ? prod.condimentGroups : []
+
+      // normalize keys from cart → keys used by UI (master cgKey)
+      Object.entries(picked.condimentsMap || {}).forEach(([rawCgKey, selOpt]) => {
+        const ck = normalizeCondimentGroupKey(rawCgKey, masterCGs)
+        if (ck) canon[ck] = selOpt
+      })
+
+      // optional: kalau allowSkip dan cart tidak kirim apa-apa, defaultkan ke NONE supaya keliatan auto-selected
+      masterCGs.forEach(cg => {
+        if (cg?.allowSkip) {
+          const ck = getCondimentKey(cg)
+          if (canon[ck] === undefined) canon[ck] = NONE_OPTION_ID
+        }
+      })
+
+      sc[slotKey] = { productCode: picked.code, condiments: canon }
     }
   }
 
   return { sp, sc }
 }
 
-/**
- * ===========================
- * STRICT MERGE (NO GROUP APPEND)
- * ===========================
- * Tujuan: MASTER comboGroups harus 100% dari fetched master.
- * Yang boleh diwariskan dari prev/fallback: condimentGroups per product jika fetched kurang.
- */
 function mergeComboStatesStrict(prev, fetched) {
   if (!fetched) return prev || null
   if (!prev) return fetched
@@ -863,10 +871,20 @@ export default function ComboDetail({ combo: propCombo = null }) {
     if (!prod || prod.outOfStock) return
 
     setSelectedProducts(prev => ({ ...prev, [groupKey]: productCode }))
-    setSelectedCondiments(prev => ({
-      ...prev,
-      [groupKey]: prev[groupKey] ?? { productCode, condiments: {} }
-    }))
+
+    setSelectedCondiments(prev => {
+      const next = { ...prev }
+      const fresh = { productCode: prod.code, condiments: {} }
+
+      // default NONE untuk allowSkip
+      ;(prod.condimentGroups || []).forEach(cg => {
+        const ck = cg.code || cg.name || String(cg.id)
+        if (cg.allowSkip) fresh.condiments[ck] = NONE_OPTION_ID
+      })
+
+      next[groupKey] = fresh
+      return next
+    })
 
     const noAddonNeeded = grp?.activeCondiment === false || !hasValidAddon(prod)
     if (noAddonNeeded) setTimeout(() => focusNextUnselectedGroup(groupKey), 0)

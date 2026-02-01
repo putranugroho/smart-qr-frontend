@@ -1122,43 +1122,25 @@ export default function ComboDetail({ combo: propCombo = null }) {
       const group = comboState.comboGroups[idx]
       const gKey = getGroupKey(group, idx)
 
-      const prodCode = selectedProducts[gKey]
-
-      // ✅ OVERRIDE khusus macro dari API:
-      // - kalau group punya >1 produk, wajib pilih 1 (walaupun allowSkip=true dari API)
-      // - ini mencegah button langsung ready ketika belum pilih apa-apa
-      if (isMacroFromQuery) {
-        const productCount = Array.isArray(group.products) ? group.products.length : 0
-        if (productCount > 1) {
-          if (!prodCode || String(prodCode) === NO_ADDON_CODE) return false
-        }
-      } else {
-        // behavior lama (non-macro / edit)
-        if (!group.allowSkip) {
-          if (!prodCode || String(prodCode) === NO_ADDON_CODE) return false
-        }
+      if (!group.allowSkip) {
+        const prodCode = selectedProducts[gKey]
+        if (!prodCode || String(prodCode) === NO_ADDON_CODE) return false
       }
 
-      // kalau belum ada produk dipilih, dan ini group boleh kosong, lanjut
+      const prodCode = selectedProducts[gKey]
       if (!prodCode || String(prodCode) === NO_ADDON_CODE) continue
 
       const product = findProductInGroup(group, prodCode)
       if (!product) return false
       if (product.outOfStock === true) return false
 
-      // addon validation tetap sama
       if (Array.isArray(product.condimentGroups)) {
         const condState = selectedCondiments[gKey]?.condiments || {}
         for (const cg of product.condimentGroups) {
           if (cg.allowSkip) continue
           const cgKey = cg.code || cg.name || String(cg.id)
           const sel = condState[cgKey]
-          if (
-            sel === undefined ||
-            sel === null ||
-            sel === NONE_OPTION_ID ||
-            (Array.isArray(sel) && sel.length === 0)
-          ) {
+          if (sel === undefined || sel === null || sel === NONE_OPTION_ID || (Array.isArray(sel) && sel.length === 0)) {
             return false
           }
         }
@@ -1166,7 +1148,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
     }
 
     return true
-  }, [comboState, selectedProducts, selectedCondiments, isMacroFromQuery])
+  }, [comboState, selectedProducts, selectedCondiments])
 
   // build payload
   function buildComboCartPayload() {
@@ -1313,32 +1295,13 @@ export default function ComboDetail({ combo: propCombo = null }) {
     for (let i = 0; i < comboGroups.length; i++) {
       const g = comboGroups[i]
       const key = getGroupKey(g, i)
-      const selProd = selectedProducts[key]
-
-      // ✅ OVERRIDE khusus macro dari API:
-      // group dengan >1 produk harus dipilih (walau allowSkip=true)
-      if (isMacroFromQuery) {
-        const productCount = Array.isArray(g.products) ? g.products.length : 0
-        if (productCount > 1) {
-          if (!selProd || String(selProd) === NO_ADDON_CODE) {
-            missingGroups.push(g.name || key)
-          }
-        }
-      } else {
-        // behavior lama
-        if (!g.allowSkip) {
-          if (!selProd || String(selProd) === NO_ADDON_CODE) {
-            missingGroups.push(g.name || key)
-          }
-        }
+      if (!g.allowSkip) {
+        const selProd = selectedProducts[key]
+        if (!selProd || String(selProd) === NO_ADDON_CODE) missingGroups.push(g.name || key)
       }
     }
+    if (missingGroups.length > 0) return { ok: false, msg: `Pilih produk untuk: ${missingGroups.join(', ')}` }
 
-    if (missingGroups.length > 0) {
-      return { ok: false, msg: `Pilih produk untuk: ${missingGroups.join(', ')}` }
-    }
-
-    // bagian missingCond tetap sama (punya kamu sudah benar)
     const missingCond = []
     Object.keys(selectedProducts).forEach(groupKey => {
       const prodCode = selectedProducts[groupKey]

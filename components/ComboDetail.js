@@ -129,7 +129,6 @@ function looksLikeRealMasterCombo(c) {
 }
 
 function pickComboCodeFromListItem(x) {
-  // coba semua kemungkinan lokasi code
   return (
     x?.code ||
     x?.comboCode ||
@@ -145,7 +144,6 @@ function normalizeComboCode(s) {
   return String(s || '')
     .trim()
     .toLowerCase()
-    // buang spasi, underscore, dash, dan karakter non-alnum
     .replace(/[\s_-]+/g, '')
     .replace(/[^a-z0-9]/g, '')
 }
@@ -153,25 +151,17 @@ function normalizeComboCode(s) {
 function findMasterFromList(list, comboCode) {
   const needle = String(comboCode || '').trim()
   const nNeedle = normalizeComboCode(needle)
-
   if (!Array.isArray(list) || !needle) return null
 
-  // 1) strict match dulu
   let found =
     list.find(x => String(pickComboCodeFromListItem(x) || '') === needle) ||
     list.find(x => String(pickComboCodeFromListItem(x) || '').toLowerCase() === needle.toLowerCase()) ||
     null
-
   if (found) return found
 
-  // 2) normalized match (anti beda spasi/underscore)
-  found =
-    list.find(x => normalizeComboCode(pickComboCodeFromListItem(x)) === nNeedle) ||
-    null
-
+  found = list.find(x => normalizeComboCode(pickComboCodeFromListItem(x)) === nNeedle) || null
   return found
 }
-
 
 /**
  * Build occurrence queue dari cart products:
@@ -236,77 +226,49 @@ function applyQueuesToComboGroups({ comboGroups, queues }) {
 }
 
 /**
- * Merge master data fetched with existing minimal/fallback to keep selections resolvable.
- * Slot identity: `${base}::${idx}`
+ * ===========================
+ * STRICT MERGE (NO GROUP APPEND)
+ * ===========================
+ * Tujuan: MASTER comboGroups harus 100% dari fetched master.
+ * Yang boleh diwariskan dari prev/fallback: condimentGroups per product jika fetched kurang.
  */
-function mergeComboStates(prev, fetched) {
+function mergeComboStatesStrict(prev, fetched) {
   if (!fetched) return prev || null
   if (!prev) return fetched
 
-  if (prev?.orderType && fetched?.orderType && String(prev.orderType) !== String(fetched.orderType)) {
-    return fetched
-  }
+  // kalau fetched bukan real master, jangan sentuh (hindari nyampur)
+  if (!looksLikeRealMasterCombo(fetched)) return prev
 
   const out = JSON.parse(JSON.stringify(fetched))
 
   const prevGroups = Array.isArray(prev.comboGroups) ? prev.comboGroups : []
-  const fetchedGroups = Array.isArray(fetched.comboGroups) ? fetched.comboGroups : []
+  const outGroups = Array.isArray(out.comboGroups) ? out.comboGroups : []
 
-  const mapPrev = {}
-  prevGroups.forEach((g, idx) => {
-    mapPrev[getGroupKey(g, idx)] = g
+  // map prev products by code/id
+  const prevProductMap = {}
+  prevGroups.forEach(g => {
+    ;(g.products || []).forEach(p => {
+      const k = String(p.code ?? p.id)
+      if (!k) return
+      prevProductMap[k] = p
+    })
   })
 
-  const mergedGroups = fetchedGroups.map((fg, idx) => {
-    const key = getGroupKey(fg, idx)
-    const prevG = mapPrev[key]
-    const mergedGroup = JSON.parse(JSON.stringify(fg))
+  // only merge condimentGroups if fetched missing
+  outGroups.forEach(g => {
+    ;(g.products || []).forEach(p => {
+      const k = String(p.code ?? p.id)
+      const pp = prevProductMap[k]
+      if (!pp) return
 
-    if (prevG && Array.isArray(prevG.products) && Array.isArray(mergedGroup.products)) {
-      const fetchedProducts = mergedGroup.products || []
-      const prevProducts = prevG.products || []
-
-      const fetchedMap = {}
-      fetchedProducts.forEach(p => {
-        fetchedMap[String(p.code ?? p.id)] = p
-      })
-
-      prevProducts.forEach(p => {
-        const k = String(p.code ?? p.id)
-        const fp = fetchedMap[k]
-        if (!fp) return
-
-        // merge condimentGroups from prev if fetched missing
-        if (!Array.isArray(fp.condimentGroups) || fp.condimentGroups.length === 0) {
-          fp.condimentGroups = Array.isArray(p.condimentGroups) ? p.condimentGroups : fp.condimentGroups
-        } else if (Array.isArray(p.condimentGroups) && p.condimentGroups.length) {
-          const cgMap = {}
-          fp.condimentGroups.forEach(cg => {
-            cgMap[cg.code ?? cg.id ?? cg.name] = cg
-          })
-          p.condimentGroups.forEach(cg => {
-            const kk = cg.code ?? cg.id ?? cg.name
-            if (!cgMap[kk]) cgMap[kk] = cg
-          })
-          fp.condimentGroups = Object.keys(cgMap).map(x => cgMap[x])
+      if (!Array.isArray(p.condimentGroups) || p.condimentGroups.length === 0) {
+        if (Array.isArray(pp.condimentGroups) && pp.condimentGroups.length) {
+          p.condimentGroups = pp.condimentGroups
         }
-      })
-
-      mergedGroup.products = Object.keys(fetchedMap).map(x => fetchedMap[x])
-    } else {
-      mergedGroup.products = Array.isArray(mergedGroup.products) ? mergedGroup.products : []
-    }
-
-    return mergedGroup
+      }
+    })
   })
 
-  const fetchedKeys = new Set(mergedGroups.map((g, idx) => getGroupKey(g, idx)))
-  prevGroups.forEach((pg, idx) => {
-    const key = getGroupKey(pg, idx)
-    if (!fetchedKeys.has(key)) mergedGroups.push(pg)
-  })
-
-  out.comboGroups = mergedGroups
   out.id = out.id || prev.id
   out.code = out.code || prev.code
   out.name = out.name || prev.name
@@ -384,13 +346,17 @@ export default function ComboDetail({ combo: propCombo = null }) {
       }
     })()
 
-  // reset guards when editingIndex changes
+  // reset guards when editingIndex changes + reset selections biar tidak kebawa
   useEffect(() => {
     fetchedFullRef.current = false
     prefilledRef.current = false
     fallbackAppliedRef.current = false
     setOriginalClientInstanceId(null)
     originalCartEntryRef.current = null
+
+    setSelectedProducts({})
+    setSelectedCondiments({})
+    setOpenGroups({})
   }, [editingIndex])
 
   useEffect(() => {
@@ -487,9 +453,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
         const orderCategoryCode = deriveOrderCategoryCode({ resolvedOrderType, comboCode })
 
-        console.log('[EDIT] prereq', { storeCode, resolvedOrderType, orderCategoryCode, editingCID, editingIndex })
-        console.log('[EDIT] comboCode', comboCode)
-
         // macro shortcut
         if (entry.isMacro) {
           if (!comboState) {
@@ -508,7 +471,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
         // 1) sessionStorage master (only if REAL)
         let master = null
-        let fetchedList = []
 
         if (comboCode) {
           try {
@@ -516,105 +478,53 @@ export default function ComboDetail({ combo: propCombo = null }) {
             const raw = sessionStorage.getItem(key)
             if (raw) {
               const parsed = JSON.parse(raw)
-              const ok = looksLikeRealMasterCombo(parsed)
-              console.log('[EDIT] session cache exists', { key, looksLikeRealMaster: ok })
-              if (ok) master = parsed
-            } else {
-              console.log('[EDIT] session cache missing', { key })
+              if (looksLikeRealMasterCombo(parsed)) master = parsed
             }
-          } catch (e) {
-            console.warn('[EDIT] session parse error', e)
-          }
+          } catch (e) {}
         }
 
-        // 2) fetch master if missing
+        // 2) fetch list then pick master (only accept if REAL)
         if (!master && comboCode) {
           const url =
             `/api/proxy/combo-list?orderCategoryCode=${encodeURIComponent(orderCategoryCode)}` +
             `&storeCode=${encodeURIComponent(storeCode)}` +
             `&pageSize=1000`
 
-          console.log('[EDIT] fetch url', url)
-
           try {
             const r = await fetch(url)
-            console.log('[EDIT] fetch status', r.status)
-
             if (r.ok) {
               const j = await r.json()
-              fetchedList = Array.isArray(j?.data) ? j.data : Array.isArray(j?.combo) ? j.combo : []
-
-              console.log('[EDIT] list size', fetchedList?.length || 0)
-
-              if (fetchedList.length) {
-                const needle = String(comboCode)
-                master = findMasterFromList(fetchedList, comboCode)
-
-                console.log('[EDIT] master found?', master?.code, master?.name, master?.comboGroups?.length)
-                console.log('[EDIT] master looksLikeReal?', looksLikeRealMasterCombo(master))
-                console.log('[EDIT] master found rawCode?', pickComboCodeFromListItem(master), master?.name)
-
-              }
-            } else {
-              console.warn('[EDIT] fetch failed', r.status)
+              const fetchedList = Array.isArray(j?.data) ? j.data : Array.isArray(j?.combo) ? j.combo : []
+              const candidate = findMasterFromList(fetchedList, comboCode)
+              if (looksLikeRealMasterCombo(candidate)) master = candidate
             }
-          } catch (e) {
-            console.warn('[EDIT] fetch error', e)
-          }
-        } else {
-          console.log('[EDIT] list size', fetchedList?.length || 0)
-          console.log('[EDIT] master found?', master?.code, master?.name, master?.comboGroups?.length)
-          console.log('[EDIT] master looksLikeReal?', looksLikeRealMasterCombo(master))
+          } catch (e) {}
         }
 
-        // 3) if got master -> merge + slot mapping
-        if (master) {
+        // 3) if got REAL master -> strict merge (NO group append) + slot mapping
+        if (master && looksLikeRealMasterCombo(master)) {
           try {
             if (master.code) sessionStorage.setItem(`combo_${String(master.code)}`, JSON.stringify(master))
           } catch (e) {}
 
-          const merged = mergeComboStates(comboState || {}, master) || master
-
-          console.log('[EDIT] merged looksLikeReal?', looksLikeRealMasterCombo(merged))
-          console.log('[EDIT] merged header', {
-            name: merged?.name,
-            hasDesc: Boolean(merged?.description),
-            hasImg: Boolean(merged?.imagePath || merged?.image)
-          })
-
-          console.log(
-            '[EDIT] cart group sample:',
-            (firstComboBlock?.products || []).slice(0, 10).map(p => ({ code: p.code, comboGroup: p.comboGroup }))
-          )
-
-          console.log(
-            '[EDIT] master group sample:',
-            (merged.comboGroups || []).slice(0, 10).map(g => ({ code: g.code, name: g.name }))
-          )
-
+          const merged = mergeComboStatesStrict(comboState || {}, master) || master
           setComboState(merged)
 
           const queues = buildCartQueues(firstComboBlock?.products || [], merged.comboGroups || [])
           const mapped = applyQueuesToComboGroups({ comboGroups: merged.comboGroups || [], queues })
 
-          console.log('[EDIT] mapped.sp', mapped.sp)
-          console.log('[EDIT] mapped.sc keys', Object.keys(mapped.sc || {}))
-
           setSelectedProducts(mapped.sp)
           setSelectedCondiments(mapped.sc)
           setOpenGroups({})
 
-          // lock only if truly master
-          prefilledRef.current = looksLikeRealMasterCombo(merged)
+          prefilledRef.current = true
           fallbackAppliedRef.current = false
           setLoadingCombo(false)
           return
         }
 
-        // 4) fallback minimal (only if total failure)
+        // 4) fallback minimal (only if total failure to get REAL master)
         if (firstComboBlock && Array.isArray(firstComboBlock.products)) {
-          console.warn('[EDIT] master not found -> using fallback minimal')
-
           const groupsMap = {}
           firstComboBlock.products.forEach(p => {
             const base = String(p.comboGroup || p.comboGroupCode || `group_x`)
@@ -646,8 +556,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
             ...macroContextFromCart
           }
 
-          console.log('[EDIT] fallback group sample:', minimal.comboGroups.slice(0, 10).map(g => ({ code: g.code, name: g.name })))
-
           setComboState(minimal)
 
           const queues = buildCartQueues(firstComboBlock?.products || [], minimal.comboGroups)
@@ -662,7 +570,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
         setLoadingCombo(false)
       } catch (e) {
-        console.warn('[EDIT] recoverComboForEdit failed', e)
+        console.warn('[ComboDetail][EDIT] recover failed', e)
         setLoadingCombo(false)
       }
     }
@@ -672,7 +580,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
   }, [fromCheckout, editingIndex, editingCID, resolvedOrderType, storeCode])
 
   /**
-   * Upgrade fallback -> master (retry with derived orderCategoryCode)
+   * Upgrade fallback -> master
+   * (tetap strict: master harus REAL; jika real -> replace comboGroups (NO append))
    */
   useEffect(() => {
     async function upgradeFallbackToMaster() {
@@ -680,10 +589,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
       if (!fallbackAppliedRef.current) return
       if (!storeCode || !resolvedOrderType) return
       if (!originalCartEntryRef.current) return
-
-      const alreadyLooksMaster = looksLikeRealMasterCombo(comboState)
-      console.log('[EDIT][upgrade] fallbackApplied', { alreadyLooksMaster })
-      if (alreadyLooksMaster) {
+      if (looksLikeRealMasterCombo(comboState)) {
         fallbackAppliedRef.current = false
         prefilledRef.current = true
         return
@@ -705,23 +611,19 @@ export default function ComboDetail({ combo: propCombo = null }) {
           firstComboBlock?.detailCombo?.name ||
           null
 
-        const orderCategoryCode = deriveOrderCategoryCode({ resolvedOrderType, comboCode })
-        console.log('[EDIT][upgrade] comboCode/orderCategoryCode', { comboCode, orderCategoryCode })
-
         if (!comboCode) {
           setLoadingCombo(false)
           return
         }
+
+        const orderCategoryCode = deriveOrderCategoryCode({ resolvedOrderType, comboCode })
 
         const url =
           `/api/proxy/combo-list?orderCategoryCode=${encodeURIComponent(orderCategoryCode)}` +
           `&storeCode=${encodeURIComponent(storeCode)}` +
           `&pageSize=1000`
 
-        console.log('[EDIT][upgrade] fetch url', url)
-
         const r = await fetch(url)
-        console.log('[EDIT][upgrade] status', r.status)
         if (!r.ok) {
           setLoadingCombo(false)
           return
@@ -729,36 +631,28 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
         const j = await r.json()
         const list = Array.isArray(j?.data) ? j.data : Array.isArray(j?.combo) ? j.combo : []
-        console.log('[EDIT][upgrade] list size', list?.length || 0)
 
-        const needle = String(comboCode)
-        const master = findMasterFromList(list, comboCode)
-
-        console.log('[EDIT][upgrade] master found?', master?.code, master?.name, master?.comboGroups?.length)
-        console.log('[EDIT][upgrade] master looksLikeReal?', looksLikeRealMasterCombo(master))
-
-        if (!master) {
+        const candidate = findMasterFromList(list, comboCode)
+        if (!looksLikeRealMasterCombo(candidate)) {
           setLoadingCombo(false)
           return
         }
 
-        const merged = mergeComboStates(comboState || {}, master) || master
-        console.log('[EDIT][upgrade] merged looksLikeReal?', looksLikeRealMasterCombo(merged))
+        const merged = mergeComboStatesStrict(comboState || {}, candidate) || candidate
         setComboState(merged)
 
         const queues = buildCartQueues(firstComboBlock?.products || [], merged.comboGroups || [])
         const mapped = applyQueuesToComboGroups({ comboGroups: merged.comboGroups || [], queues })
-        console.log('[EDIT][upgrade] mapped.sp', mapped.sp)
 
         setSelectedProducts(mapped.sp)
         setSelectedCondiments(mapped.sc)
         setOpenGroups({})
 
         fallbackAppliedRef.current = false
-        prefilledRef.current = looksLikeRealMasterCombo(merged)
+        prefilledRef.current = true
         setLoadingCombo(false)
       } catch (e) {
-        console.warn('[EDIT][upgrade] failed', e)
+        console.warn('[ComboDetail][upgrade] failed', e)
         setLoadingCombo(false)
       }
     }
@@ -769,6 +663,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
   /**
    * Safety net fetch in edit:
    * Only if not yet prefilled with REAL master.
+   * STRICT: kalau found real master -> replace groups strictly.
    */
   useEffect(() => {
     if (!fromCheckout || editingIndex == null) return
@@ -787,8 +682,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
         comboState.comboGroups.some(g => !Array.isArray(g.products) || g.products.length <= 1)
 
       const needsFetch = noGroups || groupsTruncated || !looksLikeRealMasterCombo(comboState)
-      console.log('[EDIT][safety] needsFetch?', { noGroups, groupsTruncated, looksLikeReal: looksLikeRealMasterCombo(comboState), needsFetch })
-
       if (!needsFetch) {
         fetchedFullRef.current = true
         return
@@ -807,55 +700,48 @@ export default function ComboDetail({ combo: propCombo = null }) {
             q.comboCode ||
             null
 
-          const orderCategoryCode = deriveOrderCategoryCode({ resolvedOrderType, comboCode })
-          console.log('[EDIT][safety] comboCode/orderCategoryCode', { comboCode, orderCategoryCode })
-
           if (!comboCode) {
             fetchedFullRef.current = true
             return
           }
+
+          const orderCategoryCode = deriveOrderCategoryCode({ resolvedOrderType, comboCode })
 
           const url =
             `/api/proxy/combo-list?orderCategoryCode=${encodeURIComponent(orderCategoryCode)}` +
             `&storeCode=${encodeURIComponent(storeCode)}` +
             `&pageSize=1000`
 
-          console.log('[EDIT][safety] fetch url', url)
-
           const r = await fetch(url)
-          console.log('[EDIT][safety] status', r.status)
-          if (r.ok) {
-            const j = await r.json()
-            const list = Array.isArray(j?.data) ? j.data : Array.isArray(j?.combo) ? j.combo : []
-            console.log('[EDIT][safety] list size', list?.length || 0)
+          if (!r.ok) return
 
-            const needle = String(comboCode).trim()
-            const found = findMasterFromList(list, comboCode)
+          const j = await r.json()
+          const list = Array.isArray(j?.data) ? j.data : Array.isArray(j?.combo) ? j.combo : []
 
-            console.log('[EDIT][safety] master found?', found?.code, found?.name, found?.comboGroups?.length)
-            console.log('[EDIT][safety] master looksLikeReal?', looksLikeRealMasterCombo(found))
+          const found = findMasterFromList(list, comboCode)
+          if (!looksLikeRealMasterCombo(found)) return
 
-            if (found) {
-              try {
-                if (found.code) sessionStorage.setItem(`combo_${String(found.code)}`, JSON.stringify(found))
-              } catch (e) {}
+          try {
+            if (found.code) sessionStorage.setItem(`combo_${String(found.code)}`, JSON.stringify(found))
+          } catch (e) {}
 
-              setComboState(prev => {
-                try {
-                  const merged = mergeComboStates(prev || comboState || {}, found) || found
-                  const ok = looksLikeRealMasterCombo(merged)
-                  console.log('[EDIT][safety] merged looksLikeReal?', ok)
-                  prefilledRef.current = ok
-                  return merged
-                } catch (err) {
-                  prefilledRef.current = looksLikeRealMasterCombo(found)
-                  return found
-                }
-              })
-            }
-          }
+          setComboState(prev => mergeComboStatesStrict(prev || comboState || {}, found) || found)
+
+          // IMPORTANT: selections harus di-map ulang ke master yang baru
+          const entry2 = originalCartEntryRef.current
+          const first2 = Array.isArray(entry2?.combos) && entry2.combos.length > 0 ? entry2.combos[0] : null
+          const masterNow = mergeComboStatesStrict(comboState || {}, found) || found
+
+          const queues = buildCartQueues(first2?.products || [], masterNow.comboGroups || [])
+          const mapped = applyQueuesToComboGroups({ comboGroups: masterNow.comboGroups || [], queues })
+
+          setSelectedProducts(mapped.sp)
+          setSelectedCondiments(mapped.sc)
+          setOpenGroups({})
+
+          prefilledRef.current = true
         } catch (e) {
-          console.warn('[EDIT][safety] fetch error', e)
+          console.warn('[ComboDetail][safety] fetch error', e)
         } finally {
           fetchedFullRef.current = true
         }

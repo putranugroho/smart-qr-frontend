@@ -1077,7 +1077,10 @@ export default function ComboDetail({ combo: propCombo = null }) {
       const prod = findProductInGroup(grp, productCode)
       if (!prod) return
 
-      let line = Number(prod.price || 0) * Number(prod.qty || 1)
+      const prodQty = Number(prod.qty || 1)
+
+      // base product * qty
+      let line = Number(prod.price || 0) * prodQty
 
       const slotCond = selectedCondiments[groupKey]?.condiments || {}
       const condGroups = Array.isArray(prod.condimentGroups) ? prod.condimentGroups : []
@@ -1087,20 +1090,23 @@ export default function ComboDetail({ combo: propCombo = null }) {
         const sel = slotCond[cgKey]
         if (!sel || sel === NONE_OPTION_ID) return
 
-        if (Array.isArray(sel)) {
-          sel.forEach(selId => {
-            const opt = (cg.products || []).find(p => String(p.code ?? p.id) === String(selId))
-            if (opt) line += Number(opt.price || 0) * Number(opt.qty || 1)
-          })
-        } else {
-          const opt = (cg.products || []).find(p => String(p.code ?? p.id) === String(sel))
-          if (opt) line += Number(opt.price || 0) * Number(opt.qty || 1)
+        const addOpt = (selId) => {
+          const opt = (cg.products || []).find(p => String(p.code ?? p.id) === String(selId))
+          if (!opt) return
+          const optQty = Number(opt.qty || 1)
+
+          // ✅ condiment ikut qty product parent
+          line += Number(opt.price || 0) * optQty * prodQty
         }
+
+        if (Array.isArray(sel)) sel.forEach(addOpt)
+        else addOpt(sel)
       })
 
       total += line
     })
 
+    // qty paket (sticky)
     return Math.round(total * Number(qty || 1))
   }, [selectedProducts, selectedCondiments, qty, comboState])
 
@@ -1625,6 +1631,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                         ? selForThisCg.includes(NONE_OPTION_ID)
                         : String(selForThisCg || '') === String(NONE_OPTION_ID)
 
+                    const prodQty = Number(selectedProduct.qty || 1)
                     return (
                       <div key={cgKey} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
                         {cg.allowSkip && (
@@ -1679,7 +1686,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
                               </div>
 
                               <div className={styles.cardRight}>
-                                <div className={styles.cardPrice}>{formatRp(opt.price)}</div>
+                                <div className={styles.cardPrice}>
+                                  {formatRp(Number(opt.price || 0) * prodQty)}
+                                </div>
                                 <input type="radio" checked={checked} readOnly disabled={isOOS} />
                               </div>
                             </div>

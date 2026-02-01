@@ -721,11 +721,16 @@ export default function CheckoutPage() {
 
       it.combos?.forEach(cb => {
         cb.products?.forEach(p => {
-          const base = Number(p.price * p.qty)
-          let condTotal = 0
+          const pQty = Number(p.qty || 1)
 
-          p.condiments?.forEach(c => {
-            condTotal += Number(c.price || 0) * (Number(c.qty || 1))
+          // base product sudah benar
+          const base = Number(p.price || 0) * pQty
+
+          // ✅ condiment ikut qty product parent
+          let condTotal = 0
+          ;(p.condiments || []).forEach(c => {
+            const cQty = Number(c.qty || 1)
+            condTotal += Number(c.price || 0) * cQty * pQty
           })
 
           linePrice += (base + condTotal) * itemQty

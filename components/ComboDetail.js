@@ -157,6 +157,14 @@ function normalizeComboCode(s) {
     .replace(/[^a-z0-9]/g, '')
 }
 
+function dbg(...args) {
+  if (typeof window === 'undefined') return
+  // toggle: set window.__DBG_COMBO__ = true di console
+  if (!window.__DBG_COMBO__) return
+  console.log('[ComboDetail][DBG]', ...args)
+}
+
+
 function findMasterFromList(list, comboCode) {
   const needle = String(comboCode || '').trim()
   const nNeedle = normalizeComboCode(needle)
@@ -536,6 +544,18 @@ export default function ComboDetail({ combo: propCombo = null }) {
           } catch (e) {}
         }
 
+        // setelah comboCode & orderCategoryCode dihitung
+        dbg('EDIT ctx', {
+          editingIndex,
+          editingCID,
+          resolvedOrderType,
+          storeCode,
+          comboCode,
+          orderCategoryCode,
+          fromCheckout
+        })
+
+
         // 2) fetch list then pick master (only accept if REAL)
         if (!master && comboCode) {
           const url =
@@ -543,15 +563,42 @@ export default function ComboDetail({ combo: propCombo = null }) {
             `&storeCode=${encodeURIComponent(storeCode)}` +
             `&pageSize=1000`
 
+          dbg('STEP2 fetch url', url)
+
           try {
             const r = await fetch(url)
-            if (r.ok) {
-              const j = await r.json()
-              const fetchedList = Array.isArray(j?.data) ? j.data : Array.isArray(j?.combo) ? j.combo : []
-              const candidate = findMasterFromList(fetchedList, comboCode)
-              if (looksLikeRealMasterCombo(candidate)) master = candidate
+            dbg('STEP2 fetch status', { ok: r.ok, status: r.status })
+
+            const rawText = await r.text()
+            dbg('STEP2 rawText head', rawText.slice(0, 300))
+
+            let j = null
+            try {
+              j = JSON.parse(rawText)
+            } catch (e) {
+              dbg('STEP2 JSON parse failed', e)
+              throw e
             }
-          } catch (e) {}
+
+            const fetchedList = Array.isArray(j?.data) ? j.data : Array.isArray(j?.combo) ? j.combo : []
+            dbg('STEP2 list size', fetchedList.length)
+
+            // quick sample untuk lihat struktur item list
+            dbg('STEP2 sample item keys', fetchedList?.[0] ? Object.keys(fetchedList[0]) : null)
+
+            const candidate = findMasterFromList(fetchedList, comboCode)
+            dbg('STEP2 candidate', {
+              found: Boolean(candidate),
+              candidateCode: candidate?.code || candidate?.id,
+              candidateName: candidate?.name,
+              groupsLen: candidate?.comboGroups?.length,
+              looksReal: looksLikeRealMasterCombo(candidate)
+            })
+
+            if (looksLikeRealMasterCombo(candidate)) master = candidate
+          } catch (e) {
+            dbg('STEP2 fetch error', e)
+          }
         }
 
         // 3) if got REAL master -> strict merge (NO group append) + slot mapping

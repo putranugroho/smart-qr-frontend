@@ -128,6 +128,51 @@ function looksLikeRealMasterCombo(c) {
   return hasHumanGroupName && hasRichProducts && hasComboHeader
 }
 
+function pickComboCodeFromListItem(x) {
+  // coba semua kemungkinan lokasi code
+  return (
+    x?.code ||
+    x?.comboCode ||
+    x?.detailComboCode ||
+    x?.detailCombo?.code ||
+    x?.detail?.code ||
+    x?.id ||
+    null
+  )
+}
+
+function normalizeComboCode(s) {
+  return String(s || '')
+    .trim()
+    .toLowerCase()
+    // buang spasi, underscore, dash, dan karakter non-alnum
+    .replace(/[\s_-]+/g, '')
+    .replace(/[^a-z0-9]/g, '')
+}
+
+function findMasterFromList(list, comboCode) {
+  const needle = String(comboCode || '').trim()
+  const nNeedle = normalizeComboCode(needle)
+
+  if (!Array.isArray(list) || !needle) return null
+
+  // 1) strict match dulu
+  let found =
+    list.find(x => String(pickComboCodeFromListItem(x) || '') === needle) ||
+    list.find(x => String(pickComboCodeFromListItem(x) || '').toLowerCase() === needle.toLowerCase()) ||
+    null
+
+  if (found) return found
+
+  // 2) normalized match (anti beda spasi/underscore)
+  found =
+    list.find(x => normalizeComboCode(pickComboCodeFromListItem(x)) === nNeedle) ||
+    null
+
+  return found
+}
+
+
 /**
  * Build occurrence queue dari cart products:
  * queues[baseComboGroup] = [{ code, condimentsMap }, ...]
@@ -503,14 +548,12 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
               if (fetchedList.length) {
                 const needle = String(comboCode)
-                master =
-                  fetchedList.find(x => String(x.code) === needle) ||
-                  fetchedList.find(x => String(x.code).toLowerCase() === needle.toLowerCase()) ||
-                  fetchedList.find(x => String(x.name || '').toLowerCase() === needle.toLowerCase()) ||
-                  null
+                master = findMasterFromList(fetchedList, comboCode)
 
                 console.log('[EDIT] master found?', master?.code, master?.name, master?.comboGroups?.length)
                 console.log('[EDIT] master looksLikeReal?', looksLikeRealMasterCombo(master))
+                console.log('[EDIT] master found rawCode?', pickComboCodeFromListItem(master), master?.name)
+
               }
             } else {
               console.warn('[EDIT] fetch failed', r.status)
@@ -689,11 +732,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         console.log('[EDIT][upgrade] list size', list?.length || 0)
 
         const needle = String(comboCode)
-        const master =
-          list.find(x => String(x.code) === needle) ||
-          list.find(x => String(x.code).toLowerCase() === needle.toLowerCase()) ||
-          list.find(x => String(x.name || '').toLowerCase() === needle.toLowerCase()) ||
-          null
+        const master = findMasterFromList(list, comboCode)
 
         console.log('[EDIT][upgrade] master found?', master?.code, master?.name, master?.comboGroups?.length)
         console.log('[EDIT][upgrade] master looksLikeReal?', looksLikeRealMasterCombo(master))
@@ -791,11 +830,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
             console.log('[EDIT][safety] list size', list?.length || 0)
 
             const needle = String(comboCode).trim()
-            const found =
-              list.find(x => String(x.code) === needle) ||
-              list.find(x => String(x.code).toLowerCase() === needle.toLowerCase()) ||
-              list.find(x => String(x.name || '').toLowerCase() === needle.toLowerCase()) ||
-              null
+            const found = findMasterFromList(list, comboCode)
 
             console.log('[EDIT][safety] master found?', found?.code, found?.name, found?.comboGroups?.length)
             console.log('[EDIT][safety] master looksLikeReal?', looksLikeRealMasterCombo(found))

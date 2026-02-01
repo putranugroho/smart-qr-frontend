@@ -530,6 +530,13 @@ export default function ComboDetail({ combo: propCombo = null }) {
           } catch (e) {}
         }
 
+        console.log('[EDIT] comboCode picked =', comboCode, {
+          detailCombo: entry?.detailCombo,
+          firstDetailCombo: firstComboBlock?.detailCombo
+        })
+        console.log('[EDIT] fetched candidate', candidate)
+        console.log('[EDIT] isRealMaster?', looksLikeRealMasterCombo(candidate))
+
         // 3) if got REAL master -> strict merge (NO group append) + slot mapping
         if (master && looksLikeRealMasterCombo(master)) {
           try {

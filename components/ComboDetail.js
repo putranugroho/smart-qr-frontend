@@ -56,9 +56,6 @@ function mergeComboStates(prev, fetched) {
   if (!prev) {
     return fetched;
   }
-  if (prev?.__fromEdit === true) {
-    return fetched
-  }
   // 🚫 JANGAN merge jika orderType beda
   if (
     prev?.orderType &&
@@ -273,7 +270,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
   // Recover / prefill for edit
   useEffect(() => {
-    let sessionDataIncomplete = false
+-   let sessionDataIncomplete = false
++   let sessionDataIncomplete = true; // Asumsi incomplete dulu, biar fetch kalau perlu full data
     async function recoverComboForEdit() {
       if (!fromCheckout || editingIndex == null) return
       try {
@@ -322,36 +320,34 @@ export default function ComboDetail({ combo: propCombo = null }) {
         const sp = {}
         const sc = {}
         if (firstComboBlock && Array.isArray(firstComboBlock.products)) {
-          // ===============================
-          // STEP 2 FIX — SLOT-BASED PREFILL
-          // ===============================
-          const cartGrouped = {}
+          firstComboBlock.products.forEach((p, index) => { // Pakai index dari cart products urutan
+            const rawGroupMarker = p.comboGroup ?? p.comboGroupCode ?? null
+            let matchedKey = null
+            if (rawGroupMarker && comboState && Array.isArray(comboState.comboGroups)) {
+              // Cari match dengan urutan index prioritas
+              const found = comboState.comboGroups.find((g, gIdx) => {
+                const k = getGroupKey(g, gIdx)
+                return String(k) === String(rawGroupMarker) || (gIdx === index && String(g.code) === String(rawGroupMarker))
+              })
+              if (found) {
+                const foundIdx = comboState.comboGroups.indexOf(found)
+                matchedKey = getGroupKey(found, foundIdx)
+              }
+            }
+            const finalKey = matchedKey || `${rawGroupMarker || 'group_x'}::${index}` // Force unik dengan index cart
+            if (finalKey && p.code) {
+              const grp = comboState?.comboGroups?.find((g, gIdx) => getGroupKey(g, gIdx) === finalKey)
+              const prod = grp?.products?.find(x => String(x.code) === String(p.code))
 
-          // 1️⃣ kelompokkan cart product by comboGroup
-          firstComboBlock.products.forEach(p => {
-            const cg = p.comboGroup
-            if (!cg) return
-            if (!cartGrouped[cg]) cartGrouped[cg] = []
-            cartGrouped[cg].push(p)
-          })
-
-          // 2️⃣ assign ke comboGroups BERDASARKAN SLOT API
-          comboState.comboGroups.forEach((group, idx) => {
-            const list = cartGrouped[group.code]
-            if (!list || list.length === 0) return
-
-            // ambil 1 product untuk slot ini
-            const p = list.shift()
-            const groupKey = getGroupKey(group, idx)
-
-            const prod = group.products?.find(x => String(x.code) === String(p.code))
-            if (!prod || prod.outOfStock) return
-
-            sp[groupKey] = prod.code
+              // 🚫 JANGAN preselect jika sekarang OOS
+              if (!prod?.outOfStock) {
+                sp[finalKey] = p.code
+              }
+            }
 
             if (Array.isArray(p.condiments) && p.condiments.length > 0) {
-              sc[groupKey] = {
-                productCode: prod.code,
+              sc[finalKey] = {
+                productCode: p.code,
                 condiments: {}
               }
 
@@ -362,41 +358,20 @@ export default function ComboDetail({ combo: propCombo = null }) {
                   c.comboGroup ||
                   String(c.id)
 
-                sc[groupKey].condiments[cgKey] =
+                sc[finalKey].condiments[cgKey] =
                   c.code ?? c.id ?? c.name
               })
             }
           })
-
         }
-
-        // ===============================
-        // STEP 3A — FORCE SELECT NON-SKIP GROUP
-        // ===============================
-        comboState.comboGroups.forEach((group, idx) => {
-          const groupKey = getGroupKey(group, idx)
-
-          // kalau sudah ada pilihan (dari cart), skip
-          if (sp[groupKey]) return
-
-          // hanya berlaku untuk allowSkip === false
-          if (group.allowSkip !== false) return
-
-          // cari product pertama yang valid
-          const firstAvailable = group.products?.find(p => !p.outOfStock)
-          if (!firstAvailable) return
-
-          // force select
-          sp[groupKey] = firstAvailable.code
-        })
-
         
         // ============================================================
         // 1) try from sessionStorage (DENGAN VALIDASI KELENGKAPAN DATA)
         // ============================================================
-          if (entry.isMacro) {
-            sessionDataIncomplete = true
-          } else if (comboCode) {
+-         if (entry.isMacro) {
+-           sessionDataIncomplete = true
+-         } else if (comboCode) {
++         if (comboCode && !entry.isMacro) { // Skip session kalau macro, force fetch full
           
           try {
             const key = `combo_${String(comboCode)}`
@@ -421,6 +396,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                 return; // STOP HERE only if data is complete
               } else {
                  // JANGAN RETURN, LANJUT KE STEP 2
++                console.warn('[SESSION INCOMPLETE]', 'Falling back to fetch for full data');
               }
             }
           } catch (e) {}
@@ -429,7 +405,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
         // ============================================================
         // 2) try fetch API (JIKA session gagal atau data tidak lengkap)
         // ============================================================
-        if (comboCode && !entry.isMacro) {
+-       if (comboCode && !entry.isMacro) {
++       if (comboCode && (sessionDataIncomplete || !entry.isMacro)) { // Force kalau incomplete
           
           try {
             const url = `/api/proxy/combo-list?orderCategoryCode=${resolvedOrderType}&storeCode=${encodeURIComponent(storeCode)}&pageSize=1000`
@@ -452,18 +429,18 @@ export default function ComboDetail({ combo: propCombo = null }) {
                   
                   // PENTING: Gunakan mergeComboStates di sini
                   setComboState(prev => {
+                    // prev mungkin null atau object minimal. 
+                    // Kita gabungkan agar produk yang dipilih (sp) tetap aman
+                    // Tapi base datanya adalah 'found' (yang lengkap)
                     try {
                       if (prev?.isMacro) {
                         return prev
                       }
-                      // 🔥 tandai edit mode
-                      const safePrev = {
-                        ...(prev || {}),
-                        __fromEdit: true
-                      }
-                      return mergeComboStates(safePrev, found)
+                      const merged = mergeComboStates(prev || {}, found);
+                      // Pastikan selection diterapkan ulang jika perlu
+                      return merged;
                     } catch (err) {
-                      return found
+                        return found
                     }
                   })
 
@@ -484,21 +461,28 @@ export default function ComboDetail({ combo: propCombo = null }) {
         // ============================================================
         // 3) fallback (Hanya jika Fetch gagal total)
         // ============================================================
-        if (firstComboBlock && Array.isArray(firstComboBlock.products) && !entry.isMacro && !(fromCheckout && editingIndex != null)) {
+        if (firstComboBlock && Array.isArray(firstComboBlock.products) && !entry.isMacro) {
           // ... (Kode fallback lama Anda tetap disini) ...
           // Kode fallback Anda sudah benar untuk menampilkan apa adanya
           // ...
-          const groupsMap = {}
+-         const groupsMap = {}
++         const groupsArr = []; // Ganti ke array untuk preserve urutan cart products
           firstComboBlock.products.forEach(p => {
              // ... logika build fallback groups ...
              const gKey = p.comboGroup || p.comboGroupCode || `group_${p.comboGroup || p.comboGroupCode || 'x'}`
-             if (!groupsMap[gKey]) {
-                groupsMap[gKey] = {
+-            if (!groupsMap[gKey]) {
+-               groupsMap[gKey] = {
++            let existingGroup = groupsArr.find(g => g.code === gKey);
++            if (!existingGroup) {
++               existingGroup = {
                   id: gKey, code: gKey, name: gKey, allowSkip: true, products: []
                 }
-             }
+-            }
++               groupsArr.push(existingGroup); // Push baru untuk urutan
++            }
              // ... push products ...
-             groupsMap[gKey].products.push({
+-            groupsMap[gKey].products.push({
++            existingGroup.products.push({
                  id: p.code ?? p.id,
                  code: p.code ?? p.id,
                  name: p.name || p.itemName || '',
@@ -510,7 +494,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
              console.warn('[FALLBACK PRODUCT]', p)
           })
           
-          const groupsArr = Object.keys(groupsMap).map(k => groupsMap[k])
+-         const groupsArr = Object.keys(groupsMap).map(k => groupsMap[k])
           // ... setComboState fallback ...
            const minimal = {
             id: comboCode || null,
@@ -592,9 +576,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
               if (finalCombo) {
                 try { if (finalCombo.code) sessionStorage.setItem(`combo_${String(finalCombo.code)}`, JSON.stringify(finalCombo)) } catch (e) {}
                 setComboState(prev => {
-                  if (fromCheckout && editingIndex != null) {
-                    return finalCombo
-                  }
                   try {
                     return mergeComboStates(prev || comboState || {}, finalCombo) || finalCombo
                   } catch (err) {
@@ -608,7 +589,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
           console.warn('[ComboDetail] fetch error', e)
         } finally {
           fetchedFullRef.current = true;
-          prefilledRef.current = true
         }
       })();
     } catch (e) {}
@@ -639,7 +619,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
   useEffect(() => {
     if (!fromCheckout || editingIndex == null) return
     if (!comboState) return
-    if (prefilledRef.current) return
     if (isEditMacro) {
       fetchedFullRef.current = true
       return
@@ -670,18 +649,26 @@ export default function ComboDetail({ combo: propCombo = null }) {
         const sp = {}
         const sc = {}
         if (Array.isArray(firstCombo.products)) {
-          firstCombo.products.forEach((p, slotIndex) => {
-            const group = comboState.comboGroups?.[slotIndex]
-            if (!group) return
+          firstCombo.products.forEach((p,index) => {
+            // raw group marker from cart entry
+            const rawGroupMarker = p.comboGroup ?? p.comboGroupCode ?? null
 
-            const groupKey = getGroupKey(group, slotIndex)
-
-            if (p.code) {
-              sp[groupKey] = p.code
+            // find a matching group key from comboState (try to match by code/name/id)
+            let matchedKey = null
+            if (rawGroupMarker && comboState && Array.isArray(comboState.comboGroups)) {
+              const found = comboState.comboGroups.find((g, gIdx) => {
+                const k = getGroupKey(g,gIdx)
+                return String(k) === String(rawGroupMarker) || String(g.code) === String(rawGroupMarker) || String(g.name) === String(rawGroupMarker)
+              })
+              if (found) matchedKey = getGroupKey(found,comboState.comboGroups.indexOf(found))
             }
+            // fallback: if no match, use rawGroupMarker or a synthetic group key
+            const finalKey = matchedKey || rawGroupMarker || (`group_${p.comboGroup || p.comboGroupCode || 'x'}`)
+
+            if (finalKey && p.code) sp[finalKey] = p.code
 
             if (Array.isArray(p.condiments) && p.condiments.length > 0) {
-              sc[groupKey] = {
+              sc[finalKey] = {
                 productCode: p.code,
                 condiments: {}
               }
@@ -693,13 +680,13 @@ export default function ComboDetail({ combo: propCombo = null }) {
                   c.comboGroup ||
                   String(c.id)
 
-                sc[groupKey].condiments[cgKey] =
+                sc[finalKey].condiments[cgKey] =
                   c.code ?? c.id ?? c.name
               })
             }
           })
         }
-        prefilledRef.current = true
+
         setSelectedProducts(sp)
         setSelectedCondiments(sc)
       }
@@ -1026,9 +1013,16 @@ export default function ComboDetail({ combo: propCombo = null }) {
   function buildComboCartPayload() {
     if (!comboState) return null
 
-    const productsPayload = []
+-   const productsPayload = []
++   const productsPayload = []; // Preserve urutan dengan sort keys by idx
++   const sortedKeys = Object.keys(selectedProducts).sort((a, b) => {
++     const idxA = parseInt(a.split('::')[1] || 0, 10);
++     const idxB = parseInt(b.split('::')[1] || 0, 10);
++     return idxA - idxB;
++   });
 
-    Object.keys(selectedProducts).forEach(groupKey => {
+-   Object.keys(selectedProducts).forEach(groupKey => {
++   sortedKeys.forEach(groupKey => { // Pakai sorted untuk mirror urutan slot
       const productCode = selectedProducts[groupKey]
       if (!productCode) return
       if (String(productCode) === NO_ADDON_CODE) return
@@ -1611,6 +1605,155 @@ export default function ComboDetail({ combo: propCombo = null }) {
                   </div>
                 </div>
               )}
+
+              {/* ================= ADD ON ================= */}
+              {isCondimentActive && isOpen && selectedProduct && hasValidAddon(selectedProduct) && (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 8 }}>
+                    Pilih Add On
+                  </div>
+
+                  {selectedProduct.condimentGroups.map(cg => {
+                    const cgKey = cg.code || cg.name || String(cg.id)
+
+                    // 🔑 AMBIL SEMUA addon code yang tersimpan (TANPA peduli cgKey)
+                    const selectedAddonCodes = Object.values(
+                      selectedCondiments[groupKey]?.condiments || {}
+                    )
+
+                    return (
+                      <div
+                        key={cgKey}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 8,
+                          marginBottom: 12
+                        }}
+                      >
+                        {/* TANPA ADDON */}
+                        {cg.allowSkip && (
+                          <div
+                            className={`${styles.card} ${
+                              selectedAddonCodes.includes(NONE_OPTION_ID)
+                                ? styles.cardSelected
+                                : ''
+                            }`}
+                            onClick={() =>
+                              handleSelectAddon(
+                                groupKey,
+                                selectedProduct,
+                                cgKey,
+                                NONE_OPTION_ID
+                              )
+                            }
+                          >
+                            <div
+                              style={{
+                                width: 64,
+                                height: 64,
+                                borderRadius: 8,
+                                background: '#f3f4f6'
+                              }}
+                            />
+                            <div className={styles.cardText}>
+                              <div className={styles.cardTitle}>
+                                Tanpa Add On
+                              </div>
+                            </div>
+                            <div className={styles.cardRight}>
+                              <div className={styles.cardPrice}>Rp 0</div>
+                              <input
+                                type="radio"
+                                checked={selectedAddonCodes.includes(NONE_OPTION_ID)}
+                                readOnly
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ADDON OPTIONS */}
+                        {cg.products.map(opt => {
+                          const optCode = opt.code ?? String(opt.id)
+                          const checked = selectedAddonCodes.includes(optCode)
+                          const isOOS = opt.isOutOfStock === true
+
+                          return (
+                            <div
+                              key={optCode}
+                              className={`${styles.card} ${
+                                checked ? styles.cardSelected : ''
+                              }`}
+                              style={{
+                                opacity: isOOS ? 0.4 : 1,
+                                pointerEvents: isOOS ? 'none' : 'auto',
+                                backgroundColor: isOOS ? '#f3f4f6' : undefined
+                              }}
+                              onClick={() => {
+                                if (isOOS) return
+                                handleSelectAddon(
+                                  groupKey,
+                                  selectedProduct,
+                                  cgKey,
+                                  optCode
+                                )
+                              }}
+                            >
+                              <div className={styles.cardImage}>
+                                {opt.imagePath && (
+                                  <Image
+                                    src={opt.imagePath}
+                                    alt={opt.name}
+                                    fill
+                                    style={{ objectFit: 'contain' }}
+                                  />
+                                )}
+                              </div>
+
+                              <div className={styles.cardText}>
+                                <div className={styles.cardTitle}>
+                                  {opt.name}
+                                </div>
+
+                                {opt.description && (
+                                  <div className={styles.cardDesc}>
+                                    {opt.description}
+                                  </div>
+                                )}
+
+                                {isOOS && (
+                                  <div
+                                    style={{
+                                      marginTop: 4,
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      color: '#dc2626'
+                                    }}
+                                  >
+                                    Out of Stock
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className={styles.cardRight}>
+                                <div className={styles.cardPrice}>
+                                  {formatRp(opt.price)}
+                                </div>
+                                <input
+                                  type="radio"
+                                  checked={checked}
+                                  readOnly
+                                  disabled={isOOS}
+                                />
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )
         })}
@@ -1634,6 +1777,60 @@ export default function ComboDetail({ combo: propCombo = null }) {
           />
         </div>
       </div>
+      )}
+
+      {/* Popup modal */}
+      {showPopup && (
+        <>
+          <div className={styles.addModalOverlay} onClick={() => {
+            setShowPopup(false)
+            setMissingAddons(null)
+          }} />
+
+          <div className={styles.addModal} role="dialog" aria-modal="true">
+            <div className={styles.addModalContent}>
+              {missingAddons ? (
+                <>
+                  <div className={styles.addModalIcon}>
+                    <Image src="/images/warning.png" alt='Warning' width={80} height={80} />
+                  </div>
+                  <div className={styles.addModalTitle}>
+                    Pilih Add Ons Terlebih Dahulu
+                  </div>
+                  <div className={styles.addModalSubtitle}>
+                    Anda belum memilih: <b>{missingAddons}</b>
+                  </div>
+
+                  <div className={styles.addModalActions}>
+                    <button
+                      className={styles.addModalCloseBtn}
+                      onClick={() => {
+                        setShowPopup(false)
+                        setMissingAddons(null)
+                      }}
+                    >
+                      Mengerti
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className={styles.addModalIcon}>
+                    <Image src={"/images/order-success.png"} alt="success" width={96} height={96} />
+                  </div>
+
+                  <div className={styles.addModalTitle}>
+                    {fromCheckout && editingIndex != null ? 'Pesanan Berhasil Diubah!' : 'Pesanan Berhasil Ditambahkan!'}
+                  </div>
+
+                  <div className={styles.addModalSubtitle} style={{ fontWeight: 600, fontSize: 16 }}>
+                    Harga : {formatRp(subtotalForDisplay)}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </>
       )}
     </div>
   )

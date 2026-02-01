@@ -270,8 +270,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
   // Recover / prefill for edit
   useEffect(() => {
--   let sessionDataIncomplete = false
-+   let sessionDataIncomplete = true; // Asumsi incomplete dulu, biar fetch kalau perlu full data
+    let sessionDataIncomplete = true; // Asumsi incomplete dulu, biar fetch kalau perlu full data
     async function recoverComboForEdit() {
       if (!fromCheckout || editingIndex == null) return
       try {
@@ -368,10 +367,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         // ============================================================
         // 1) try from sessionStorage (DENGAN VALIDASI KELENGKAPAN DATA)
         // ============================================================
--         if (entry.isMacro) {
--           sessionDataIncomplete = true
--         } else if (comboCode) {
-+         if (comboCode && !entry.isMacro) { // Skip session kalau macro, force fetch full
+          if (comboCode && !entry.isMacro) { // Skip session kalau macro, force fetch full
           
           try {
             const key = `combo_${String(comboCode)}`
@@ -396,7 +392,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                 return; // STOP HERE only if data is complete
               } else {
                  // JANGAN RETURN, LANJUT KE STEP 2
-+                console.warn('[SESSION INCOMPLETE]', 'Falling back to fetch for full data');
+                 console.warn('[SESSION INCOMPLETE]', 'Falling back to fetch for full data');
               }
             }
           } catch (e) {}
@@ -405,8 +401,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         // ============================================================
         // 2) try fetch API (JIKA session gagal atau data tidak lengkap)
         // ============================================================
--       if (comboCode && !entry.isMacro) {
-+       if (comboCode && (sessionDataIncomplete || !entry.isMacro)) { // Force kalau incomplete
+        if (comboCode && (sessionDataIncomplete || !entry.isMacro)) { // Force kalau incomplete
           
           try {
             const url = `/api/proxy/combo-list?orderCategoryCode=${resolvedOrderType}&storeCode=${encodeURIComponent(storeCode)}&pageSize=1000`
@@ -465,24 +460,19 @@ export default function ComboDetail({ combo: propCombo = null }) {
           // ... (Kode fallback lama Anda tetap disini) ...
           // Kode fallback Anda sudah benar untuk menampilkan apa adanya
           // ...
--         const groupsMap = {}
-+         const groupsArr = []; // Ganti ke array untuk preserve urutan cart products
+          const groupsArr = []; // Ganti ke array untuk preserve urutan cart products
           firstComboBlock.products.forEach(p => {
              // ... logika build fallback groups ...
              const gKey = p.comboGroup || p.comboGroupCode || `group_${p.comboGroup || p.comboGroupCode || 'x'}`
--            if (!groupsMap[gKey]) {
--               groupsMap[gKey] = {
-+            let existingGroup = groupsArr.find(g => g.code === gKey);
-+            if (!existingGroup) {
-+               existingGroup = {
+             let existingGroup = groupsArr.find(g => g.code === gKey);
+             if (!existingGroup) {
+                existingGroup = {
                   id: gKey, code: gKey, name: gKey, allowSkip: true, products: []
                 }
--            }
-+               groupsArr.push(existingGroup); // Push baru untuk urutan
-+            }
+                groupsArr.push(existingGroup); // Push baru untuk urutan
+             }
              // ... push products ...
--            groupsMap[gKey].products.push({
-+            existingGroup.products.push({
+             existingGroup.products.push({
                  id: p.code ?? p.id,
                  code: p.code ?? p.id,
                  name: p.name || p.itemName || '',
@@ -494,7 +484,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
              console.warn('[FALLBACK PRODUCT]', p)
           })
           
--         const groupsArr = Object.keys(groupsMap).map(k => groupsMap[k])
           // ... setComboState fallback ...
            const minimal = {
             id: comboCode || null,
@@ -1013,16 +1002,14 @@ export default function ComboDetail({ combo: propCombo = null }) {
   function buildComboCartPayload() {
     if (!comboState) return null
 
--   const productsPayload = []
-+   const productsPayload = []; // Preserve urutan dengan sort keys by idx
-+   const sortedKeys = Object.keys(selectedProducts).sort((a, b) => {
-+     const idxA = parseInt(a.split('::')[1] || 0, 10);
-+     const idxB = parseInt(b.split('::')[1] || 0, 10);
-+     return idxA - idxB;
-+   });
+    const productsPayload = []; // Preserve urutan dengan sort keys by idx
+    const sortedKeys = Object.keys(selectedProducts).sort((a, b) => {
+      const idxA = parseInt(a.split('::')[1] || 0, 10);
+      const idxB = parseInt(b.split('::')[1] || 0, 10);
+      return idxA - idxB;
+    });
 
--   Object.keys(selectedProducts).forEach(groupKey => {
-+   sortedKeys.forEach(groupKey => { // Pakai sorted untuk mirror urutan slot
+    sortedKeys.forEach(groupKey => { // Pakai sorted untuk mirror urutan slot
       const productCode = selectedProducts[groupKey]
       if (!productCode) return
       if (String(productCode) === NO_ADDON_CODE) return

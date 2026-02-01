@@ -66,8 +66,11 @@ function getGroupKey(g, idx) {
  * - Kita cari group master yang cocok, lalu return baseKey master tsb.
  */
 function normalizeCartGroupBase(raw, masterGroups) {
-  const r = String(raw || '').trim()
-  if (!r) return ''
+   const r0 = String(raw || '').trim()
+   if (!r0) return ''
+ 
+   // ✅ handle legacy slot format: "BASE::0"
+   const r = r0.includes('::') ? r0.split('::')[0] : r0
 
   const groups = Array.isArray(masterGroups) ? masterGroups : []
 
@@ -108,6 +111,8 @@ function buildCartQueues(firstComboProducts, masterGroups) {
           c.group ||
           c.comboGroup ||
           String(c.id)
+
+        if (typeof cgKey === 'string' && cgKey.includes('::')) cgKey = cgKey.split('::')[0]
 
         condimentsMap[cgKey] = c.code ?? c.id ?? c.name
       })

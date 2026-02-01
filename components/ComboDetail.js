@@ -113,6 +113,15 @@ function normalizeCondimentGroupKey(raw, masterCondimentGroups) {
   return found ? getCondimentKey(found) : r
 }
 
+function looksLikeUsableMasterCombo(c) {
+  if (!c || !Array.isArray(c.comboGroups) || c.comboGroups.length === 0) return false
+
+  const hasAnyProducts = c.comboGroups.some(g => Array.isArray(g.products) && g.products.length > 0)
+  const hasHeader = Boolean(c?.name) && (Boolean(c?.description) || Boolean(c?.imagePath) || Boolean(c?.image))
+
+  return hasAnyProducts && hasHeader
+}
+
 function looksLikeRealMasterCombo(c) {
   if (!c || !Array.isArray(c.comboGroups) || c.comboGroups.length === 0) return false
 
@@ -266,7 +275,7 @@ function mergeComboStatesStrict(prev, fetched) {
   if (!prev) return fetched
 
   // kalau fetched bukan real master, jangan sentuh (hindari nyampur)
-  if (!looksLikeRealMasterCombo(fetched)) return prev
+  if (!looksLikeUsableMasterCombo(fetched)) return prev
 
   const out = JSON.parse(JSON.stringify(fetched))
 
@@ -507,7 +516,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
             const raw = sessionStorage.getItem(key)
             if (raw) {
               const parsed = JSON.parse(raw)
-              if (looksLikeRealMasterCombo(parsed)) master = parsed
+              if (looksLikeUsableMasterCombo(parsed)) master = parsed
             }
           } catch (e) {}
         }
@@ -525,9 +534,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
               const j = await r.json()
               const fetchedList = Array.isArray(j?.data) ? j.data : Array.isArray(j?.combo) ? j.combo : []
               const candidate = findMasterFromList(fetchedList, comboCode)
-              if (looksLikeRealMasterCombo(candidate)) master = candidate
+              if (looksLikeUsableMasterCombo(candidate)) master = candidate
               console.log('[EDIT] fetched candidate', candidate)
-              console.log('[EDIT] isRealMaster?', looksLikeRealMasterCombo(candidate))
+              console.log('[EDIT] isRealMaster?', looksLikeUsableMasterCombo(candidate))
             }
           } catch (e) {}
         }
@@ -538,7 +547,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         })
 
         // 3) if got REAL master -> strict merge (NO group append) + slot mapping
-        if (master && looksLikeRealMasterCombo(master)) {
+        if (master && looksLikeUsableMasterCombo(master)) {
           try {
             if (master.code) sessionStorage.setItem(`combo_${String(master.code)}`, JSON.stringify(master))
           } catch (e) {}
@@ -624,7 +633,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
       if (!fallbackAppliedRef.current) return
       if (!storeCode || !resolvedOrderType) return
       if (!originalCartEntryRef.current) return
-      if (looksLikeRealMasterCombo(comboState)) {
+      if (looksLikeUsableMasterCombo(comboState)) {
         fallbackAppliedRef.current = false
         prefilledRef.current = true
         return
@@ -668,7 +677,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         const list = Array.isArray(j?.data) ? j.data : Array.isArray(j?.combo) ? j.combo : []
 
         const candidate = findMasterFromList(list, comboCode)
-        if (!looksLikeRealMasterCombo(candidate)) {
+        if (!looksLikeUsableMasterCombo(candidate)) {
           setLoadingCombo(false)
           return
         }
@@ -716,7 +725,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         Array.isArray(comboState.comboGroups) &&
         comboState.comboGroups.some(g => !Array.isArray(g.products) || g.products.length <= 1)
 
-      const needsFetch = noGroups || groupsTruncated || !looksLikeRealMasterCombo(comboState)
+      const needsFetch = noGroups || groupsTruncated || !looksLikeUsableMasterCombo(comboState)
       if (!needsFetch) {
         fetchedFullRef.current = true
         return
@@ -754,7 +763,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
           const list = Array.isArray(j?.data) ? j.data : Array.isArray(j?.combo) ? j.combo : []
 
           const found = findMasterFromList(list, comboCode)
-          if (!looksLikeRealMasterCombo(found)) return
+          if (!looksLikeUsableMasterCombo(found)) return
 
           try {
             if (found.code) sessionStorage.setItem(`combo_${String(found.code)}`, JSON.stringify(found))

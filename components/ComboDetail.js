@@ -497,6 +497,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
             const r = await fetch(url)
             if (r.ok) {
               const j = await r.json()
+              console.log('[ComboDetail] fetched combo list:', j);
+              
               fetchedList = Array.isArray(j?.data) ? j.data : (Array.isArray(j?.combo) ? j.combo : [])
 
               if (fetchedList.length) {

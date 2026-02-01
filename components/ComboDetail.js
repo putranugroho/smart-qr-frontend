@@ -398,6 +398,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
   const user = getUser?.() || {}
   const storeCode = user.storeLocation
+  const [macroContext, setMacroContext] = useState(null)
 
   const comboGroups = useMemo(
     () => (comboState && Array.isArray(comboState.comboGroups) ? comboState.comboGroups : []),
@@ -405,7 +406,14 @@ export default function ComboDetail({ combo: propCombo = null }) {
   )
 
   const isMacroCombo = Boolean(comboState?.isMacro || comboState?.macroCode)
-  const [macroContext, setMacroContext] = useState(null)
+
+  // ✅ NEW: untuk macro yang cuma 1 group, tetap WAJIB pilih product walau allowSkip=true
+  const forceRequireSingleGroup = isMacroCombo && comboGroups.length === 1
+
+  function isGroupRequired(group) {
+    if (!group) return false
+    return !group.allowSkip || forceRequireSingleGroup
+  }
 
   // guards
   const fetchedFullRef = useRef(false)
@@ -1179,7 +1187,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
       const group = comboState.comboGroups[idx]
       const gKey = getGroupKey(group, idx)
 
-      if (!group.allowSkip) {
+      if (isGroupRequired(group)) {
         const prodCode = selectedProducts[gKey]
         if (!prodCode || String(prodCode) === NO_ADDON_CODE) return false
       }
@@ -1359,7 +1367,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
     for (let i = 0; i < comboGroups.length; i++) {
       const g = comboGroups[i]
       const key = getGroupKey(g, i)
-      if (!g.allowSkip) {
+        if (isGroupRequired(g)) {
         const selProd = selectedProducts[key]
         if (!selProd || String(selProd) === NO_ADDON_CODE) missingGroups.push(g.name || key)
       }

@@ -337,11 +337,15 @@ export default function ComboDetail({ combo: propCombo = null }) {
   }, [editingIndex])
 
   useEffect(() => {
-    if (propCombo) setComboState(propCombo)
+    if (propCombo && !(fromCheckout && editingIndex != null)) {
+      setComboState(propCombo)
+    }
   }, [propCombo])
 
   useEffect(() => {
-    if (comboFromQuery) setComboState(comboFromQuery)
+    if (comboFromQuery && !(fromCheckout && editingIndex != null)) {
+      setComboState(comboFromQuery)
+    }
   }, [comboFromQuery])
 
   useEffect(() => {
@@ -503,6 +507,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
                   fetchedList.find(x => String(x.name || '').toLowerCase() === needle.toLowerCase()) ||
                   null
               }
+            } else {
+              console.warn('[ComboDetail] recover fetch failed', r.status)
             }
           } catch (e) {
             console.warn('[ComboDetail] recover fetch error', e)

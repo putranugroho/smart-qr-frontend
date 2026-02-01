@@ -180,7 +180,13 @@ function buildCartQueues(firstComboProducts, masterGroups) {
     const condimentsMap = {}
     if (Array.isArray(p.condiments)) {
       p.condiments.forEach(c => {
-        let cgKey = c.comboGroupCode || c.group || c.comboGroup || String(c.id)
+        let cgKey =
+          c.condimentGroupCode ||
+          c.condimentGroup ||
+          c.comboGroupCode ||
+          c.group ||
+          c.comboGroup ||
+          String(c.id)
         if (typeof cgKey === 'string' && cgKey.includes('::')) cgKey = cgKey.split('::')[0]
         condimentsMap[cgKey] = c.code ?? c.id ?? c.name
       })
@@ -215,24 +221,39 @@ function applyQueuesToComboGroups({ comboGroups, queues }) {
     sp[slotKey] = picked.code
 
     const hasCond = picked.condimentsMap && Object.keys(picked.condimentsMap).length > 0
+
     if (hasCond) {
       const canon = {}
       const masterCGs = Array.isArray(prod?.condimentGroups) ? prod.condimentGroups : []
 
-      // normalize keys from cart → keys used by UI (master cgKey)
+      const masterKeyList = masterCGs.map(getCondimentKey)
+
       Object.entries(picked.condimentsMap || {}).forEach(([rawCgKey, selOpt]) => {
-        const ck = normalizeCondimentGroupKey(rawCgKey, masterCGs)
+        // 1) try normal mapping by cgKey
+        let ck = normalizeCondimentGroupKey(rawCgKey, masterCGs)
+
+        // kalau ck tidak match ke master keys, coba fallback berdasarkan option code:
+        if (!masterKeyList.includes(ck)) {
+          const foundCg = masterCGs.find(cg =>
+            (cg.products || []).some(p => String(p.code ?? p.id) === String(selOpt))
+          )
+          if (foundCg) ck = getCondimentKey(foundCg)
+        }
+
         if (ck) canon[ck] = selOpt
       })
 
-      // optional: kalau allowSkip dan cart tidak kirim apa-apa, defaultkan ke NONE supaya keliatan auto-selected
+      // ❗ PENTING:
+      // JANGAN default NONE kalau hasCond=true (artinya cart memang punya pilihan),
+      // karena bisa menimpa pilihan asli jika mapping key gagal.
+      sc[slotKey] = { productCode: picked.code, condiments: canon }
+    } else {
+      // cart tidak punya condiments sama sekali → baru aman default NONE untuk allowSkip
+      const canon = {}
+      const masterCGs = Array.isArray(prod?.condimentGroups) ? prod.condimentGroups : []
       masterCGs.forEach(cg => {
-        if (cg?.allowSkip) {
-          const ck = getCondimentKey(cg)
-          if (canon[ck] === undefined) canon[ck] = NONE_OPTION_ID
-        }
+        if (cg?.allowSkip) canon[getCondimentKey(cg)] = NONE_OPTION_ID
       })
-
       sc[slotKey] = { productCode: picked.code, condiments: canon }
     }
   }

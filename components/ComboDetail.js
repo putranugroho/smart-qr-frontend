@@ -586,7 +586,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
           }
 
           setComboState(minimal)
-
+          console.log("[EDIT] cari condiment: ",firstComboBlock?.products?.[0])
           const queues = buildCartQueues(firstComboBlock?.products || [], minimal.comboGroups)
           const mapped = applyQueuesToComboGroups({ comboGroups: minimal.comboGroups, queues })
           setSelectedProducts(mapped.sp)

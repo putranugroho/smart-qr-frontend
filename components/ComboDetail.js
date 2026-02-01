@@ -526,6 +526,24 @@ export default function ComboDetail({ combo: propCombo = null }) {
           const merged = mergeComboStates(comboState || {}, master) || master
           setComboState(merged)
 
+          console.log(
+            '[EDIT] cart group sample:',
+            (firstComboBlock?.products || []).slice(0, 6).map(p => ({
+              code: p.code,
+              comboGroup: p.comboGroup,
+              comboGroupCode: p.comboGroupCode
+            }))
+          )
+
+          console.log(
+            '[EDIT] master group keys:',
+            (merged.comboGroups || master.comboGroups || []).slice(0, 6).map(g => ({
+              base: getBaseGroupKey(g),
+              name: g.name,
+              code: g.code
+            }))
+          )
+
           const queues = buildCartQueues(firstComboBlock?.products || [], merged.comboGroups || master.comboGroups || [])
           const mapped = applyQueuesToComboGroups({
             comboGroups: merged.comboGroups || master.comboGroups || [],
@@ -534,6 +552,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
           setSelectedProducts(mapped.sp)
           setSelectedCondiments(mapped.sc)
+
+          console.log('[EDIT] mapped.sp', mapped.sp)
+          console.log('[EDIT] mapped.sp keys', Object.keys(mapped.sp))
 
           // biarkan semua group collapsed seperti mode new (tapi status "Dipilih" tampil)
           setOpenGroups({})

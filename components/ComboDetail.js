@@ -526,6 +526,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
               const fetchedList = Array.isArray(j?.data) ? j.data : Array.isArray(j?.combo) ? j.combo : []
               const candidate = findMasterFromList(fetchedList, comboCode)
               if (looksLikeRealMasterCombo(candidate)) master = candidate
+              console.log('[EDIT] fetched candidate', candidate)
+              console.log('[EDIT] isRealMaster?', looksLikeRealMasterCombo(candidate))
             }
           } catch (e) {}
         }
@@ -534,8 +536,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
           detailCombo: entry?.detailCombo,
           firstDetailCombo: firstComboBlock?.detailCombo
         })
-        console.log('[EDIT] fetched candidate', candidate)
-        console.log('[EDIT] isRealMaster?', looksLikeRealMasterCombo(candidate))
 
         // 3) if got REAL master -> strict merge (NO group append) + slot mapping
         if (master && looksLikeRealMasterCombo(master)) {

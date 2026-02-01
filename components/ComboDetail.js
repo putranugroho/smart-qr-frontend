@@ -42,18 +42,27 @@ function resolveOrderType({ isEdit, router, editingIndex }) {
   return user?.orderType || 'DI'
 }
 
-function deriveOrderCategoryCode({ resolvedOrderType, comboCode }) {
-  const cc = String(comboCode || '').trim()
-  if (!cc) return resolvedOrderType || 'DI'
+function deriveOrderCategoryCode({ resolvedOrderType, entryOrderType, comboCode }) {
+  // ✅ 1) paling benar: orderType dari cart (entry.combos[0].orderType)
+  const ot = String(entryOrderType || '').trim()
+  if (ot) return ot
 
-  const head = cc.split(' ')[0] // "KIOSK-DI-L-PB"
+  // ✅ 2) fallback: resolvedOrderType (hasil resolveOrderType yg juga baca combos[0].orderType)
+  const rot = String(resolvedOrderType || '').trim()
+  if (rot) return rot
+
+  // ✅ 3) (optional) LAST resort legacy parsing dari comboCode (biar special lama tetap jalan)
+  const cc = String(comboCode || '').trim()
+  if (!cc) return 'DI'
+
+  const head = cc.split(' ')[0]
   const parts = head.split('-')
 
   if (parts.length >= 2 && String(parts[0] || '').toUpperCase() === 'KIOSK') {
-    return `${parts[1]}` // "DI"
+    return `${parts[1]}`
   }
 
-  return resolvedOrderType || 'DI'
+  return 'DI'
 }
 
 function getBaseGroupKey(g) {
@@ -501,6 +510,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         setNote(entry.note || '')
 
         const firstComboBlock = Array.isArray(entry.combos) && entry.combos.length > 0 ? entry.combos[0] : null
+        const entryOrderType = firstComboBlock?.orderType || entry?.orderType || null
 
         const comboCode =
           entry?.detailCombo?.code ||
@@ -512,7 +522,11 @@ export default function ComboDetail({ combo: propCombo = null }) {
           firstComboBlock?.detailCombo?.name ||
           null
 
-        const orderCategoryCode = deriveOrderCategoryCode({ resolvedOrderType, comboCode })
+        const orderCategoryCode = deriveOrderCategoryCode({
+          resolvedOrderType,
+          entryOrderType,
+          comboCode
+        })
 
         // macro shortcut
         if (entry.isMacro) {
@@ -715,7 +729,13 @@ export default function ComboDetail({ combo: propCombo = null }) {
           return
         }
 
-        const orderCategoryCode = deriveOrderCategoryCode({ resolvedOrderType, comboCode })
+        const entryOrderType = firstComboBlock?.orderType || entry?.orderType || null
+
+        const orderCategoryCode = deriveOrderCategoryCode({
+          resolvedOrderType,
+          entryOrderType,
+          comboCode
+        })
 
         const url =
           `/api/proxy/combo-list?orderCategoryCode=${encodeURIComponent(orderCategoryCode)}` +
@@ -804,7 +824,13 @@ export default function ComboDetail({ combo: propCombo = null }) {
             return
           }
 
-          const orderCategoryCode = deriveOrderCategoryCode({ resolvedOrderType, comboCode })
+          const entryOrderType = firstComboBlock?.orderType || entry?.orderType || null
+
+          const orderCategoryCode = deriveOrderCategoryCode({
+            resolvedOrderType,
+            entryOrderType,
+            comboCode
+          })
 
           const url =
             `/api/proxy/combo-list?orderCategoryCode=${encodeURIComponent(orderCategoryCode)}` +

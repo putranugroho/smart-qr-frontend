@@ -74,13 +74,13 @@ function mergeComboStates(prev, fetched) {
 
   const mapPrev = {}
   prevGroups.forEach((g, idx) => {
-    const key = `${g.code ?? g.name ?? 'GROUP'}__SLOT__${idx}`
+    const key = `${g.code ?? g.name ?? String(g.id)}::${idx}`
     mapPrev[key] = g
   })
 
   // for each fetched group, merge products with prev group's products (if any)
   const mergedGroups = fetchedGroups.map((fg, idx) => {
-    const key = `${fg.code ?? fg.name ?? 'GROUP'}__SLOT__${idx}`
+    const key = `${fg.code ?? fg.name ?? String(fg.id)}::${idx}`
     const prevG = mapPrev[key]
 
     // start with fetched group's copy
@@ -136,24 +136,26 @@ function mergeComboStates(prev, fetched) {
   })
 
   // If prev had groups that fetched doesn't (unlikely), append them so UI retains selections
-  const fetchedKeys = new Set(mergedGroups.map(g => g.code ?? g.name ?? String(g.id)))
-  prevGroups.forEach(pg => {
-    const key = pg.code ?? pg.name ?? String(pg.id)
+    const fetchedKeys = new Set(
+      mergedGroups.map((g, idx) => `${g.code ?? g.name ?? String(g.id)}::${idx}`)
+    )
+    prevGroups.forEach((pg, idx) => {
+    const key = `${pg.code ?? pg.name ?? String(pg.id)}::${idx}`
     if (!fetchedKeys.has(key)) {
       mergedGroups.push(pg)
     }
   })
 
   console.warn(
-  '[MERGE RESULT]',
-  mergedGroups.flatMap(g =>
-    (g.products || []).map(p => ({
-      code: p.code,
-      name: p.name,
-      price: p.price
-    }))
+    '[MERGE RESULT]',
+    mergedGroups.flatMap(g =>
+      (g.products || []).map(p => ({
+        group: g.code,
+        code: p.code,
+        name: p.name
+      }))
+    )
   )
-)
 
   out.comboGroups = mergedGroups
   // preserve some helpful fields from prev (if fetched missing them)
@@ -325,7 +327,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                 const k = getGroupKey(g, gIdx)
                 return String(k) === String(rawGroupMarker)
               })
-              if (found) matchedKey = (found.code ?? found.name ?? String(found.id))
+              if (found) matchedKey = getGroupKey(found, comboState.comboGroups.indexOf(found))
             }
             const finalKey = matchedKey || rawGroupMarker || (`group_${p.comboGroup || p.comboGroupCode || 'x'}`)
             if (finalKey && p.code) {
@@ -639,7 +641,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
             // find a matching group key from comboState (try to match by code/name/id)
             let matchedKey = null
             if (rawGroupMarker && comboState && Array.isArray(comboState.comboGroups)) {
-              const found = comboState.comboGroups.find(g => {
+              const found = comboState.comboGroups.find((g, index) => {
                 const k = getGroupKey(g,index)
                 return String(k) === String(rawGroupMarker) || String(g.code) === String(rawGroupMarker) || String(g.name) === String(rawGroupMarker)
               })
@@ -775,8 +777,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
     )
   }
 
-  function getGroupKey(g, index) {
-    return `${g.code ?? g.name ?? 'GROUP'}__SLOT__${index}`
+  function getGroupKey(g, idx) {
+    const base = g.code ?? g.name ?? String(g.id)
+    return `${base}::${idx}`
   }
 
   function findComboGroupByKey(key) {
@@ -859,7 +862,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
   function focusNextUnselectedGroup(currentGroupKey) {
     if (!comboState?.comboGroups) return
-//help
+
     const groups = comboState.comboGroups
     const currentIdx = groups.findIndex(
       (g, idx) => getGroupKey(g, idx) === currentGroupKey
@@ -1008,7 +1011,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
       const productPayload = {
         code: prod.code ?? prod.id,
-        comboGroup: groupKey,
+        comboGroup: grp.code ?? grp.name,
         name: prod.name ?? '',
         itemName: prod.itemName ?? '',
         price: Number(prod.price || 0),
@@ -1169,7 +1172,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
     return cartEntry
   }
-//help
+
   function validateSelectionBeforeAdd() {
     const missingGroups = []
     for (let i = 0; i < comboGroups.length; i++) {

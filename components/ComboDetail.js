@@ -71,25 +71,28 @@ function mergeComboStates(prev, fetched) {
   // build map for prev groups by key to preserve their products/condiments
   const prevGroups = Array.isArray(prev.comboGroups) ? prev.comboGroups : [];
   const fetchedGroups = Array.isArray(fetched.comboGroups) ? fetched.comboGroups : [];
-  const buildStableGroupKey = (combo, group, slotIndex) =>
-  `${combo.code || combo.id || 'combo'}::${group.code || group.id || group.name}::slot_${slotIndex}`
 
   const mapPrev = {}
-  prevGroups.forEach((g) => {
-    if (!g.uiGroupKey) return
-    mapPrev[g.uiGroupKey] = g
+  prevGroups.forEach((g, idx) => {
+    const key = `${g.code ?? g.name ?? String(g.id)}::${idx}`
+    mapPrev[key] = g
   })
 
   // for each fetched group, merge products with prev group's products (if any)
   const mergedGroups = fetchedGroups.map((fg, idx) => {
-    const slotIndex = idx
-    const uiKey = buildStableGroupKey(fetched, fg, slotIndex)
-    const prevG = mapPrev[uiKey]
+    const key = `${fg.code ?? fg.name ?? String(fg.id)}::${idx}`
+    const prevG = mapPrev[key]
 
+    // start with fetched group's copy
     const mergedGroup = JSON.parse(JSON.stringify(fg))
 
-    mergedGroup.slotIndex = prevG?.slotIndex ?? slotIndex
-    mergedGroup.uiGroupKey = prevG?.uiGroupKey ?? uiKey
+    // 🔑 UI SLOT KEY (FE ONLY)
+    mergedGroup.slotIndex =
+      prevG?.slotIndex ?? idx
+
+    mergedGroup.uiGroupKey =
+      prevG?.uiGroupKey ??
+      `${fetched.code || fetched.id || 'combo'}::${fg.code ?? fg.name ?? 'group'}::${mergedGroup.slotIndex}`
 
     // if prev group existed, merge product lists so selected product (prev) remains visible
     if (prevG && Array.isArray(prevG.products)) {
@@ -141,10 +144,10 @@ function mergeComboStates(prev, fetched) {
   })
 
   // If prev had groups that fetched doesn't (unlikely), append them so UI retains selections
-  const fetchedKeys = new Set(
-    mergedGroups.map((g, idx) => `${g.code ?? g.name ?? String(g.id)}::${idx}`)
-  )
-  prevGroups.forEach((pg, idx) => {
+    const fetchedKeys = new Set(
+      mergedGroups.map((g, idx) => `${g.code ?? g.name ?? String(g.id)}::${idx}`)
+    )
+    prevGroups.forEach((pg, idx) => {
     const key = `${pg.code ?? pg.name ?? String(pg.id)}::${idx}`
     if (!fetchedKeys.has(key)) {
       mergedGroups.push(pg)
@@ -161,13 +164,7 @@ function mergeComboStates(prev, fetched) {
       }))
     )
   )
-  console.table(
-    mergedGroups.map(g => ({
-      name: g.name,
-      slotIndex: g.slotIndex,
-      uiGroupKey: g.uiGroupKey
-    }))
-  )
+
   out.comboGroups = mergedGroups
   // preserve some helpful fields from prev (if fetched missing them)
   out.id = out.id || prev.id
@@ -334,15 +331,15 @@ export default function ComboDetail({ combo: propCombo = null }) {
             const rawGroupMarker = p.comboGroup ?? p.comboGroupCode ?? null
             let matchedKey = null
             if (rawGroupMarker && comboState && Array.isArray(comboState.comboGroups)) {
-              const found = comboState.comboGroups.find(g => {
-                const k = getGroupKey(g)
+              const found = comboState.comboGroups.find((g, gIdx) => {
+                const k = getGroupKey(g, gIdx)
                 return String(k) === String(rawGroupMarker)
               })
-              if (found) matchedKey = getGroupKey(found)
+              if (found) matchedKey = getGroupKey(found, comboState.comboGroups.indexOf(found))
             }
             const finalKey = matchedKey || rawGroupMarker || (`group_${p.comboGroup || p.comboGroupCode || 'x'}`)
             if (finalKey && p.code) {
-              const grp = comboState?.comboGroups?.find(g => getGroupKey(g) === finalKey)
+              const grp = comboState?.comboGroups?.find((g,index) => getGroupKey(g,index) === finalKey)
               const prod = grp?.products?.find(x => String(x.code) === String(p.code))
 
               // 🚫 JANGAN preselect jika sekarang OOS
@@ -652,18 +649,11 @@ export default function ComboDetail({ combo: propCombo = null }) {
             // find a matching group key from comboState (try to match by code/name/id)
             let matchedKey = null
             if (rawGroupMarker && comboState && Array.isArray(comboState.comboGroups)) {
-              const found = comboState.comboGroups.find(g => {
-                const k = getGroupKey(g)
-                console.log('[AUTO SELECT CHECK]', {
-                  group: g.name,
-                  groupKey,
-                  products: g.products?.length,
-                  alreadySelected: Boolean(nextSelected[groupKey])
-                })
-
+              const found = comboState.comboGroups.find((g, index) => {
+                const k = getGroupKey(g,index)
                 return String(k) === String(rawGroupMarker) || String(g.code) === String(rawGroupMarker) || String(g.name) === String(rawGroupMarker)
               })
-              if (found) matchedKey = getGroupKey(found)
+              if (found) matchedKey = getGroupKey(found,index)
             }
             // fallback: if no match, use rawGroupMarker or a synthetic group key
             const finalKey = matchedKey || rawGroupMarker || (`group_${p.comboGroup || p.comboGroupCode || 'x'}`)
@@ -701,12 +691,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
   useEffect(() => {
     if (!comboState?.comboGroups) return
-    console.log(
-      '[COMBO GROUP KEYS]',
-      comboState.comboGroups.map(g => g.uiGroupKey)
-    )
-    comboState.comboGroups.forEach(group => {
-      const gKey = getGroupKey(group)
+
+    comboState.comboGroups.forEach((group, idx) => {
+      const gKey = getGroupKey(group, idx)
       const prodCode = selectedProducts[gKey]
       if (!prodCode) return
 
@@ -747,8 +734,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
     let changed = false
     const nextSelected = { ...selectedProducts }
 
-    comboState.comboGroups.forEach(g => {
-      const groupKey = getGroupKey(g)
+    comboState.comboGroups.forEach((g,index) => {
+      const groupKey = getGroupKey(g,index)
 
       // skip kalau sudah ada pilihan
       if (nextSelected[groupKey]) return
@@ -798,14 +785,16 @@ export default function ComboDetail({ combo: propCombo = null }) {
     )
   }
 
-  function getGroupKey(g) {
+  function getGroupKey(g, idx) {
     return g.uiGroupKey
   }
 
   function findComboGroupByKey(key) {
     if (!comboState?.comboGroups) return null
 
-    return comboState.comboGroups.find(g => getGroupKey(g) === key)
+    return comboState.comboGroups.find((g, idx) =>
+      getGroupKey(g, idx) === key
+    )
   }
 
   function findProductInGroup(group, productCode) {
@@ -883,11 +872,12 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
     const groups = comboState.comboGroups
     const currentIdx = groups.findIndex(
-      (g) => getGroupKey(g) === currentGroupKey
+      (g, idx) => getGroupKey(g, idx) === currentGroupKey
     )
 
     for (let i = currentIdx + 1; i < groups.length; i++) {
-      const nextKey = getGroupKey(groups[i])
+      const nextKey = getGroupKey(groups[i], i)
+
       if (!selectedProducts[nextKey]) {
         setOpenGroups(prev => ({
           ...prev,
@@ -965,7 +955,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
     for (let idx = 0; idx < comboState.comboGroups.length; idx++) {
       const group = comboState.comboGroups[idx]
-      const gKey = getGroupKey(group)
+      const gKey = getGroupKey(group, idx)
 
       // 1️⃣ GROUP WAJIB → HARUS PILIH PRODUCT
       if (!group.allowSkip) {
@@ -1194,7 +1184,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
     const missingGroups = []
     for (let i = 0; i < comboGroups.length; i++) {
       const g = comboGroups[i]
-      const key = getGroupKey(g)
+      const key = getGroupKey(g, i)
       if (!g.allowSkip) {
         const selProd = selectedProducts[key]
         if (!selProd || String(selProd) === NO_ADDON_CODE) {
@@ -1434,7 +1424,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         <div style={{ fontWeight: 700, marginBottom: 12 }}>Pilih Paket</div>
 
         {(comboState.comboGroups || []).map((group, idx) => {
-          const groupKey = getGroupKey(group)
+          const groupKey = getGroupKey(group, idx)
           const selectedProductCode = selectedProducts[groupKey]
           const selectedProduct =
             selectedProductCode && selectedProductCode !== NO_ADDON_CODE

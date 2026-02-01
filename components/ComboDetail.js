@@ -310,6 +310,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
   // guards
   const fetchedFullRef = useRef(false)
   const prefilledRef = useRef(false)
+  const fallbackAppliedRef = useRef(false)
 
   const editingCID =
     router.query?.cid ||
@@ -326,6 +327,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
   useEffect(() => {
     fetchedFullRef.current = false
     prefilledRef.current = false
+    fallbackAppliedRef.current = false
     setOriginalClientInstanceId(null)
   }, [editingIndex])
 
@@ -363,21 +365,35 @@ export default function ComboDetail({ combo: propCombo = null }) {
   useEffect(() => {
     async function recoverComboForEdit() {
       if (!fromCheckout || editingIndex == null) return
+
+      // ✅ IMPORTANT: wait until prerequisites ready
+      if (!storeCode || !resolvedOrderType) {
+        // do not fallback, just wait next render when storeCode is ready
+        return
+      }
+
       try {
         setLoadingCombo(true)
 
         const cart = getCart() || []
-        const entry = cart.find(it =>
-          it?.type === 'combo' &&
-          (
-            it.clientInstanceId === editingCID ||
-            it.detailCombo?.clientInstanceId === editingCID ||
-            it.combos?.[0]?.clientInstanceId === editingCID
+
+        // ✅ cari by CID dulu, kalau gagal fallback ke index
+        let entry = null
+        if (editingCID) {
+          entry = cart.find(it =>
+            it?.type === 'combo' &&
+            (
+              it.clientInstanceId === editingCID ||
+              it.detailCombo?.clientInstanceId === editingCID ||
+              it.combos?.[0]?.clientInstanceId === editingCID
+            )
           )
-        )
+        }
+        if (!entry) entry = cart[editingIndex]
 
         if (!entry) {
-          console.warn('[ComboDetail] Combo edit not found by CID:', editingCID)
+          console.warn('[ComboDetail] Combo edit not found:', { editingCID, editingIndex })
+          setLoadingCombo(false)
           router.replace('/checkout')
           return
         }
@@ -413,8 +429,13 @@ export default function ComboDetail({ combo: propCombo = null }) {
           Array.isArray(entry.combos) && entry.combos.length > 0 ? entry.combos[0] : null
 
         const comboCode =
-          (entry.detailCombo && (entry.detailCombo.code || entry.detailCombo.name)) ||
-          (firstComboBlock && (firstComboBlock.detailCombo?.code || firstComboBlock.detailCombo?.name)) ||
+          entry?.detailCombo?.code ||
+          firstComboBlock?.detailCombo?.code ||
+          entry?.detailCombo?.id ||
+          comboState?.code ||
+          comboState?.id ||
+          entry?.detailCombo?.name ||               // terakhir banget
+          firstComboBlock?.detailCombo?.name ||     // terakhir banget
           null
 
         // Kalau macro, biasanya tidak perlu fetch master (sesuai logic kamu sebelumnya)
@@ -437,6 +458,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
         // ========= 1) Try sessionStorage master (only if looks like master) =========
         let master = null
+        let fetchedList = []
+
         if (comboCode) {
           try {
             const key = `combo_${String(comboCode)}`
@@ -465,16 +488,14 @@ export default function ComboDetail({ combo: propCombo = null }) {
             const r = await fetch(url)
             if (r.ok) {
               const j = await r.json()
-              const list = Array.isArray(j?.data)
-                ? j.data
-                : (Array.isArray(j?.combo) ? j.combo : [])
+              fetchedList = Array.isArray(j?.data) ? j.data : (Array.isArray(j?.combo) ? j.combo : [])
 
-              if (Array.isArray(list) && list.length) {
+              if (fetchedList.length) {
                 const needle = String(comboCode)
                 master =
-                  list.find(x => String(x.code) === needle) ||
-                  list.find(x => String(x.code).toLowerCase() === needle.toLowerCase()) ||
-                  list.find(x => String(x.name || '').toLowerCase() === needle.toLowerCase()) ||
+                  fetchedList.find(x => String(x.code) === needle) ||
+                  fetchedList.find(x => String(x.code).toLowerCase() === needle.toLowerCase()) ||
+                  fetchedList.find(x => String(x.name || '').toLowerCase() === needle.toLowerCase()) ||
                   null
               }
             }
@@ -482,6 +503,12 @@ export default function ComboDetail({ combo: propCombo = null }) {
             console.warn('[ComboDetail] recover fetch error', e)
           }
         }
+
+        // ✅ log aman (tidak ReferenceError)
+        console.log('[EDIT] prereq', { storeCode, resolvedOrderType, editingCID, editingIndex })
+        console.log('[EDIT] comboCode', comboCode)
+        console.log('[EDIT] list size', fetchedList?.length || 0)
+        console.log('[EDIT] master found?', master?.code, master?.name, master?.comboGroups?.length)
 
         // ========= 3) Kalau dapat master: set state + apply slot mapping =========
         if (master) {
@@ -562,8 +589,13 @@ export default function ComboDetail({ combo: propCombo = null }) {
           setSelectedCondiments(mapped.sc)
           setOpenGroups({})
 
-          prefilledRef.current = true
+          fallbackAppliedRef.current = true   // ✅ mark fallback used
+          prefilledRef.current = false 
         }
+
+        console.log('[EDIT] prereq', { storeCode, resolvedOrderType, editingCID, editingIndex })
+        console.log('[EDIT] found entry?', entry)
+        console.log('[EDIT] comboCode', comboCode)
 
         setLoadingCombo(false)
       } catch (e) {
@@ -575,6 +607,99 @@ export default function ComboDetail({ combo: propCombo = null }) {
     recoverComboForEdit()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromCheckout, editingIndex, editingCID, resolvedOrderType, storeCode])
+
+  useEffect(() => {
+    async function upgradeFallbackToMaster() {
+      if (!fromCheckout || editingIndex == null) return
+      if (!fallbackAppliedRef.current) return // only if we used fallback
+      if (!storeCode || !resolvedOrderType) return
+      if (!originalCartEntryRef.current) return
+
+      // if already upgraded (master groups look complete), stop
+      const looksLikeMaster =
+        Array.isArray(comboState?.comboGroups) &&
+        comboState.comboGroups.some(g => Array.isArray(g.products) && g.products.length > 1)
+
+      if (looksLikeMaster) {
+        fallbackAppliedRef.current = false
+        return
+      }
+
+      try {
+        setLoadingCombo(true)
+
+        const entry = originalCartEntryRef.current
+        const firstComboBlock =
+          Array.isArray(entry.combos) && entry.combos.length > 0 ? entry.combos[0] : null
+
+        const comboCode =
+          entry?.detailCombo?.code ||
+          firstComboBlock?.detailCombo?.code ||
+          entry?.detailCombo?.id ||
+          comboState?.code ||
+          comboState?.id ||
+          entry?.detailCombo?.name ||
+          firstComboBlock?.detailCombo?.name ||
+          null
+
+        if (!comboCode) {
+          setLoadingCombo(false)
+          return
+        }
+
+        const url =
+          `/api/proxy/combo-list?orderCategoryCode=${resolvedOrderType}` +
+          `&storeCode=${encodeURIComponent(storeCode)}` +
+          `&pageSize=1000`
+
+        const r = await fetch(url)
+        if (!r.ok) {
+          setLoadingCombo(false)
+          return
+        }
+
+        const j = await r.json()
+        const list = Array.isArray(j?.data) ? j.data : (Array.isArray(j?.combo) ? j.combo : [])
+
+        const needle = String(comboCode)
+        const master =
+          list.find(x => String(x.code) === needle) ||
+          list.find(x => String(x.code).toLowerCase() === needle.toLowerCase()) ||
+          list.find(x => String(x.name || '').toLowerCase() === needle.toLowerCase()) ||
+          null
+
+        if (!master) {
+          setLoadingCombo(false)
+          return
+        }
+
+        console.log('[EDIT] list size', list?.length)
+        console.log('[EDIT] master found?', master?.code, master?.name, master?.comboGroups?.length)
+
+        const merged = mergeComboStates(comboState || {}, master) || master
+        setComboState(merged)
+
+        const queues = buildCartQueues(firstComboBlock?.products || [], merged.comboGroups || [])
+        const mapped = applyQueuesToComboGroups({
+          comboGroups: merged.comboGroups || [],
+          queues
+        })
+
+        setSelectedProducts(mapped.sp)
+        setSelectedCondiments(mapped.sc)
+        setOpenGroups({})
+
+        fallbackAppliedRef.current = false
+        prefilledRef.current = true // ✅ now safe to lock
+        setLoadingCombo(false)
+      } catch (e) {
+        console.warn('[ComboDetail] upgrade fallback failed', e)
+        setLoadingCombo(false)
+      }
+    }
+
+    upgradeFallbackToMaster()
+  }, [fromCheckout, editingIndex, storeCode, resolvedOrderType, comboState])
 
   /**
    * Guarded fetch (safety net) — do not override after prefilled.

@@ -330,53 +330,35 @@ export default function ComboDetail({ combo: propCombo = null }) {
         const sp = {}
         const sc = {}
         if (firstComboBlock && Array.isArray(firstComboBlock.products)) {
-          firstComboBlock.products.forEach(p => {
-            const rawGroupMarker = p.comboGroup ?? p.comboGroupCode ?? null
-            let matchedKey = null
-            if (rawGroupMarker && comboState && Array.isArray(comboState.comboGroups)) {
-              // const found = comboState.comboGroups.find(g => {
-              //   const k = getGroupKey(g)
-              //   return String(k) === String(rawGroupMarker)
-              // })
-              // if (found) matchedKey = getGroupKey(found)
-              comboState.comboGroups.forEach((group, idx) => {
-                const gKey = getGroupKey(group)
+          comboState.comboGroups.forEach(group => {
+            const gKey = getGroupKey(group)
 
-                const match = firstComboBlock.products.find(p =>
-                  String(p.comboGroup) === String(group.code) &&
-                  group.products.some(x => String(x.code) === String(p.code))
-                )
+            const match = firstComboBlock.products.find(p =>
+              String(p.comboGroup) === String(group.code) &&
+              group.products.some(x => String(x.code) === String(p.code))
+            )
 
-                if (match) {
-                  sp[gKey] = match.code
-                }
-              })
-            }
-            const finalKey = matchedKey || rawGroupMarker || (`group_${p.comboGroup || p.comboGroupCode || 'x'}`)
-            if (finalKey && p.code) {
-              const grp = comboState?.comboGroups?.find(g => getGroupKey(g) === finalKey)
-              const prod = grp?.products?.find(x => String(x.code) === String(p.code))
+            if (!match) return
 
-              // 🚫 JANGAN preselect jika sekarang OOS
-              if (!prod?.outOfStock) {
-                sp[finalKey] = p.code
-              }
-            }
+            const prod = group.products.find(x => String(x.code) === String(match.code))
+            if (prod?.outOfStock) return
 
-            if (Array.isArray(p.condiments) && p.condiments.length > 0) {
-              sc[finalKey] = {
-                productCode: p.code,
+            sp[gKey] = match.code
+
+            if (Array.isArray(match.condiments)) {
+              sc[gKey] = {
+                productCode: match.code,
                 condiments: {}
               }
 
-              p.condiments.forEach(c => {
+              match.condiments.forEach(c => {
                 const cgKey =
                   c.comboGroupCode ||
                   c.group ||
                   c.comboGroup ||
                   String(c.id)
 
-                sc[finalKey].condiments[cgKey] =
+                sc[gKey].condiments[cgKey] =
                   c.code ?? c.id ?? c.name
               })
             }
@@ -627,6 +609,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
   useEffect(() => {
     if (!fromCheckout || editingIndex == null) return
     if (!comboState) return
+    if (prefilledRef.current) return
     if (isEditMacro) {
       fetchedFullRef.current = true
       return
@@ -1607,155 +1590,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
                   </div>
                 </div>
               )}
-
-              {/* ================= ADD ON ================= */}
-              {isCondimentActive && isOpen && selectedProduct && hasValidAddon(selectedProduct) && (
-                <div style={{ marginTop: 16 }}>
-                  <div style={{ fontWeight: 600, marginBottom: 8 }}>
-                    Pilih Add On
-                  </div>
-
-                  {selectedProduct.condimentGroups.map(cg => {
-                    const cgKey = cg.code || cg.name || String(cg.id)
-
-                    // 🔑 AMBIL SEMUA addon code yang tersimpan (TANPA peduli cgKey)
-                    const selectedAddonCodes = Object.values(
-                      selectedCondiments[groupKey]?.condiments || {}
-                    )
-
-                    return (
-                      <div
-                        key={cgKey}
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 8,
-                          marginBottom: 12
-                        }}
-                      >
-                        {/* TANPA ADDON */}
-                        {cg.allowSkip && (
-                          <div
-                            className={`${styles.card} ${
-                              selectedAddonCodes.includes(NONE_OPTION_ID)
-                                ? styles.cardSelected
-                                : ''
-                            }`}
-                            onClick={() =>
-                              handleSelectAddon(
-                                groupKey,
-                                selectedProduct,
-                                cgKey,
-                                NONE_OPTION_ID
-                              )
-                            }
-                          >
-                            <div
-                              style={{
-                                width: 64,
-                                height: 64,
-                                borderRadius: 8,
-                                background: '#f3f4f6'
-                              }}
-                            />
-                            <div className={styles.cardText}>
-                              <div className={styles.cardTitle}>
-                                Tanpa Add On
-                              </div>
-                            </div>
-                            <div className={styles.cardRight}>
-                              <div className={styles.cardPrice}>Rp 0</div>
-                              <input
-                                type="radio"
-                                checked={selectedAddonCodes.includes(NONE_OPTION_ID)}
-                                readOnly
-                              />
-                            </div>
-                          </div>
-                        )}
-
-                        {/* ADDON OPTIONS */}
-                        {cg.products.map(opt => {
-                          const optCode = opt.code ?? String(opt.id)
-                          const checked = selectedAddonCodes.includes(optCode)
-                          const isOOS = opt.isOutOfStock === true
-
-                          return (
-                            <div
-                              key={optCode}
-                              className={`${styles.card} ${
-                                checked ? styles.cardSelected : ''
-                              }`}
-                              style={{
-                                opacity: isOOS ? 0.4 : 1,
-                                pointerEvents: isOOS ? 'none' : 'auto',
-                                backgroundColor: isOOS ? '#f3f4f6' : undefined
-                              }}
-                              onClick={() => {
-                                if (isOOS) return
-                                handleSelectAddon(
-                                  groupKey,
-                                  selectedProduct,
-                                  cgKey,
-                                  optCode
-                                )
-                              }}
-                            >
-                              <div className={styles.cardImage}>
-                                {opt.imagePath && (
-                                  <Image
-                                    src={opt.imagePath}
-                                    alt={opt.name}
-                                    fill
-                                    style={{ objectFit: 'contain' }}
-                                  />
-                                )}
-                              </div>
-
-                              <div className={styles.cardText}>
-                                <div className={styles.cardTitle}>
-                                  {opt.name}
-                                </div>
-
-                                {opt.description && (
-                                  <div className={styles.cardDesc}>
-                                    {opt.description}
-                                  </div>
-                                )}
-
-                                {isOOS && (
-                                  <div
-                                    style={{
-                                      marginTop: 4,
-                                      fontSize: 12,
-                                      fontWeight: 600,
-                                      color: '#dc2626'
-                                    }}
-                                  >
-                                    Out of Stock
-                                  </div>
-                                )}
-                              </div>
-
-                              <div className={styles.cardRight}>
-                                <div className={styles.cardPrice}>
-                                  {formatRp(opt.price)}
-                                </div>
-                                <input
-                                  type="radio"
-                                  checked={checked}
-                                  readOnly
-                                  disabled={isOOS}
-                                />
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
             </div>
           )
         })}
@@ -1779,60 +1613,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
           />
         </div>
       </div>
-      )}
-
-      {/* Popup modal */}
-      {showPopup && (
-        <>
-          <div className={styles.addModalOverlay} onClick={() => {
-            setShowPopup(false)
-            setMissingAddons(null)
-          }} />
-
-          <div className={styles.addModal} role="dialog" aria-modal="true">
-            <div className={styles.addModalContent}>
-              {missingAddons ? (
-                <>
-                  <div className={styles.addModalIcon}>
-                    <Image src="/images/warning.png" alt='Warning' width={80} height={80} />
-                  </div>
-                  <div className={styles.addModalTitle}>
-                    Pilih Add Ons Terlebih Dahulu
-                  </div>
-                  <div className={styles.addModalSubtitle}>
-                    Anda belum memilih: <b>{missingAddons}</b>
-                  </div>
-
-                  <div className={styles.addModalActions}>
-                    <button
-                      className={styles.addModalCloseBtn}
-                      onClick={() => {
-                        setShowPopup(false)
-                        setMissingAddons(null)
-                      }}
-                    >
-                      Mengerti
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className={styles.addModalIcon}>
-                    <Image src={"/images/order-success.png"} alt="success" width={96} height={96} />
-                  </div>
-
-                  <div className={styles.addModalTitle}>
-                    {fromCheckout && editingIndex != null ? 'Pesanan Berhasil Diubah!' : 'Pesanan Berhasil Ditambahkan!'}
-                  </div>
-
-                  <div className={styles.addModalSubtitle} style={{ fontWeight: 600, fontSize: 16 }}>
-                    Harga : {formatRp(subtotalForDisplay)}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </>
       )}
     </div>
   )

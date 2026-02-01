@@ -141,10 +141,10 @@ function mergeComboStates(prev, fetched) {
   })
 
   // If prev had groups that fetched doesn't (unlikely), append them so UI retains selections
-    const fetchedKeys = new Set(
-      mergedGroups.map((g, idx) => `${g.code ?? g.name ?? String(g.id)}::${idx}`)
-    )
-    prevGroups.forEach((pg, idx) => {
+  const fetchedKeys = new Set(
+    mergedGroups.map((g, idx) => `${g.code ?? g.name ?? String(g.id)}::${idx}`)
+  )
+  prevGroups.forEach((pg, idx) => {
     const key = `${pg.code ?? pg.name ?? String(pg.id)}::${idx}`
     if (!fetchedKeys.has(key)) {
       mergedGroups.push(pg)
@@ -1433,7 +1433,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
       <div style={{ padding: 12 }}>
         <div style={{ fontWeight: 700, marginBottom: 12 }}>Pilih Paket</div>
 
-        {(comboState.comboGroups || []).map((group) => {
+        {(comboState.comboGroups || []).map((group, idx) => {
           const groupKey = getGroupKey(group)
           const selectedProductCode = selectedProducts[groupKey]
           const selectedProduct =

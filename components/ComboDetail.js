@@ -1498,7 +1498,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
                         {(cg.products || []).map(opt => {
                           const optCode = opt.code ?? String(opt.id)
-                          const checked = selectedAddonCodes.includes(optCode)
+                          const checked = Array.isArray(selForThisCg)
+                            ? selForThisCg.includes(optCode)
+                            : String(selForThisCg || '') === String(optCode)
                           const isOOS = opt.isOutOfStock === true
 
                           return (

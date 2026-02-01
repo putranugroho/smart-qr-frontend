@@ -13,43 +13,68 @@ export default function StickyCartBar({
   qty = 1,
   setQty = () => {},
   subtotal = 0,
-  onAdd = () => {},
+  onAdd = async () => false,
   style = {},
   addAnimating = false,
   addLabel = 'Tambah Pesanan',
   disabled = false,
   isReady = false,
-  maxQuantityCanGet = 0 // 0 / null = unlimited
+  maxQuantityCanGet = 0
 }) {
   const [adding, setAdding] = useState(false)
-  const hasItems = Boolean(isReady)
   const addLockRef = useRef(false)
 
-  // ===============================
-  // 🔐 MAX QTY LOGIC (MACRO SAFE)
-  // ===============================
-  const isLimited =
-    Number(maxQuantityCanGet) > 0
-
-  const maxQty = isLimited
-    ? Number(maxQuantityCanGet)
-    : Infinity
-
+  const isLimited = Number(maxQuantityCanGet) > 0
+  const maxQty = isLimited ? Number(maxQuantityCanGet) : Infinity
   const reachedMax = isLimited && qty >= maxQty
 
   function handleMinus() {
+    if (adding) return
     setQty(Math.max(1, qty - 1))
   }
 
   function handlePlus() {
+    if (adding) return
     if (isLimited && qty >= maxQty) return
     setQty(qty + 1)
+  }
+
+  // ✅ tombol aktif hanya kalau ready + tidak disabled + tidak adding
+  const canPress = isReady && !disabled && !adding && !addLockRef.current
+  const btnDisabled = disabled || adding || addLockRef.current
+
+  async function handleAddClick() {
+    if (btnDisabled) return
+    if (addLockRef.current) return
+
+    addLockRef.current = true
+    setAdding(true)
+
+    try {
+      // IMPORTANT: onAdd() dari ComboDetail return boolean
+      const ok = await onAdd()
+
+      // kondisi 1 (belum lengkap): onAdd() return false → reset tombol
+      if (!ok) {
+        setAdding(false)
+      } else {
+        // kondisi 2 (sukses): biarkan adding sampai redirect
+        // (redirect udah dilakukan di ComboDetail)
+      }
+    } catch (e) {
+      // kalau ada error unexpected, tetap balikin tombol
+      setAdding(false)
+    } finally {
+      // unlock cepat supaya user bisa klik lagi saat gagal
+      setTimeout(() => {
+        addLockRef.current = false
+      }, 150)
+    }
   }
 
   return (
     <div className={styles.container}>
       <div className={styles.bar} style={style}>
-
         {/* ROW 1 — TOTAL + QTY */}
         <div className={styles.rowTop}>
           <div className={styles.leftTop}>
@@ -61,6 +86,11 @@ export default function StickyCartBar({
               aria-label="Kurangi jumlah"
               onClick={handleMinus}
               className={styles.qtyBtnMinus}
+              disabled={adding}
+              style={{
+                opacity: adding ? 0.4 : 1,
+                cursor: adding ? 'not-allowed' : 'pointer'
+              }}
             >
               <svg width="10" height="2" viewBox="0 0 10 2" fill="none">
                 <rect width="10" height="2" rx="1" fill="#111827" />
@@ -72,11 +102,11 @@ export default function StickyCartBar({
             <button
               aria-label="Tambah jumlah"
               onClick={handlePlus}
-              disabled={reachedMax}
+              disabled={adding || reachedMax}
               className={styles.qtyBtnPlus}
               style={{
-                opacity: reachedMax ? 0.4 : 1,
-                cursor: reachedMax ? 'not-allowed' : 'pointer'
+                opacity: adding || reachedMax ? 0.4 : 1,
+                cursor: adding || reachedMax ? 'not-allowed' : 'pointer'
               }}
             >
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
@@ -92,16 +122,8 @@ export default function StickyCartBar({
           </div>
         </div>
 
-        {/* INFO MAX QTY */}
         {reachedMax && (
-          <div
-            style={{
-              marginTop: 4,
-              fontSize: 11,
-              color: '#dc2626',
-              textAlign: 'right'
-            }}
-          >
+          <div style={{ marginTop: 4, fontSize: 11, color: '#dc2626', textAlign: 'right' }}>
             Maksimal {maxQty} item promo
           </div>
         )}
@@ -109,53 +131,28 @@ export default function StickyCartBar({
         {/* ROW 2 — BUTTON ADD */}
         <div className={styles.rowBottom}>
           <button
-            onClick={() => {
-              if (disabled) return
-              if (addLockRef.current) return
-
-              // 🔒 LOCK
-              addLockRef.current = true
-              disabled = true
-              setAdding(true)
-
-              onAdd()
-
-              // 🔓 UNLOCK (beri waktu state update)
-              setTimeout(() => {
-                addLockRef.current = false
-              }, 400)
-            }}
+            onClick={handleAddClick}
             aria-label={addLabel}
-            disabled={disabled || addLockRef.current || adding}
+            disabled={btnDisabled}
             className={`${styles.addBtn} ${
-              hasItems && !disabled ? styles.addBtnActive : styles.addBtnInactive
+              canPress ? styles.addBtnActive : styles.addBtnInactive
             } ${addAnimating ? styles.addPulse : ''}`}
             type="button"
           >
-            {/* Icon */}
             <div className={styles.cartIcon}>
-              <Image
-                src="/images/cart-icon.png"
-                alt="cart"
-                width={20}
-                height={20}
-              />
+              <Image src="/images/cart-icon.png" alt="cart" width={20} height={20} />
             </div>
 
-            {/* Price + Label */}
             <div className={styles.addTextWrap}>
-              <div className={styles.addPrice}>
-                {formatRp(subtotal)}
-              </div>
+              <div className={styles.addPrice}>{formatRp(subtotal)}</div>
               <div className={styles.addLabel}>
-                {adding ? 'Memasukan ke keranjang . . .' : addLabel}
+                {adding ? 'Menambahkan ke keranjang...' : addLabel}
               </div>
             </div>
 
             <div style={{ width: 8 }} />
           </button>
         </div>
-
       </div>
     </div>
   )

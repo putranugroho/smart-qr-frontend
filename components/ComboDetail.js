@@ -128,30 +128,29 @@ function normalizeCondimentGroupKey(raw, masterCondimentGroups) {
 function looksLikeRealMasterCombo(c) {
   if (!c || !Array.isArray(c.comboGroups) || c.comboGroups.length === 0) return false
 
-  // ✅ cukup ada nama combo
-  const hasName = Boolean(String(c?.name || c?.title || '').trim())
+  const hasComboHeader =
+    Boolean(c?.name) && (Boolean(c?.description) || Boolean(c?.imagePath) || Boolean(c?.image))
 
-  // ✅ cukup ada group dengan product >= 2 (indikasi kuat master)
-  const hasAnyGroupWithManyProducts = c.comboGroups.some(g =>
-    Array.isArray(g.products) && g.products.length >= 2
+  // group name yang manusiawi (punya "Pilih ..." dsb)
+  const hasHumanGroupName = c.comboGroups.some(g => {
+    const nm = String(g?.name || '')
+    const cd = String(g?.code || '')
+    return nm && (nm.toLowerCase().includes('pilih') || (nm !== cd && nm.includes(' ')))
+  })
+
+  // ✅ cukup ada product >= 1 yang punya field penting
+  const hasAnyProducts = c.comboGroups.some(g =>
+    Array.isArray(g.products) &&
+    g.products.length >= 1 &&
+    g.products.some(p => p?.name && (p?.price != null || p?.maskingprice != null || p?.imagePath))
   )
 
-  // ✅ atau punya condimentGroups (master biasanya punya opsi addon)
-  const hasAnyCondimentStructure = c.comboGroups.some(g =>
+  // ✅ atau meskipun product cuma 1, tapi punya condimentGroups (tetap master)
+  const hasCondimentOptions = c.comboGroups.some(g =>
     (g.products || []).some(p => Array.isArray(p.condimentGroups) && p.condimentGroups.length > 0)
   )
 
-  // ✅ atau minimal: ada product dengan nama + (price/maskingprice/imagePath)
-  const hasRenderableProduct = c.comboGroups.some(g =>
-    (g.products || []).some(p => {
-      const nm = String(p?.name || p?.itemName || '').trim()
-      const hasPrice = p?.price != null || p?.maskingprice != null
-      const hasImg = Boolean(p?.imagePath || p?.image)
-      return nm && (hasPrice || hasImg)
-    })
-  )
-
-  return hasName && (hasAnyGroupWithManyProducts || hasAnyCondimentStructure || hasRenderableProduct)
+  return hasComboHeader && hasHumanGroupName && (hasAnyProducts || hasCondimentOptions)
 }
 
 function pickComboCodeFromListItem(x) {
@@ -1111,6 +1110,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
     return Math.round(total * Number(qty || 1))
   }, [selectedProducts, selectedCondiments, qty, comboState])
 
+  // ✅ Macro khusus: masuk dari MacroPopup (via query combo=...) dan BUKAN edit
+  const isMacroFromQuery = Boolean(isMacroCombo) && !(fromCheckout && editingIndex != null)
+
   // isReady
   const isReady = useMemo(() => {
     if (!comboState) return false
@@ -1120,25 +1122,43 @@ export default function ComboDetail({ combo: propCombo = null }) {
       const group = comboState.comboGroups[idx]
       const gKey = getGroupKey(group, idx)
 
-      if (!group.allowSkip) {
-        const prodCode = selectedProducts[gKey]
-        if (!prodCode || String(prodCode) === NO_ADDON_CODE) return false
+      const prodCode = selectedProducts[gKey]
+
+      // ✅ OVERRIDE khusus macro dari API:
+      // - kalau group punya >1 produk, wajib pilih 1 (walaupun allowSkip=true dari API)
+      // - ini mencegah button langsung ready ketika belum pilih apa-apa
+      if (isMacroFromQuery) {
+        const productCount = Array.isArray(group.products) ? group.products.length : 0
+        if (productCount > 1) {
+          if (!prodCode || String(prodCode) === NO_ADDON_CODE) return false
+        }
+      } else {
+        // behavior lama (non-macro / edit)
+        if (!group.allowSkip) {
+          if (!prodCode || String(prodCode) === NO_ADDON_CODE) return false
+        }
       }
 
-      const prodCode = selectedProducts[gKey]
+      // kalau belum ada produk dipilih, dan ini group boleh kosong, lanjut
       if (!prodCode || String(prodCode) === NO_ADDON_CODE) continue
 
       const product = findProductInGroup(group, prodCode)
       if (!product) return false
       if (product.outOfStock === true) return false
 
+      // addon validation tetap sama
       if (Array.isArray(product.condimentGroups)) {
         const condState = selectedCondiments[gKey]?.condiments || {}
         for (const cg of product.condimentGroups) {
           if (cg.allowSkip) continue
           const cgKey = cg.code || cg.name || String(cg.id)
           const sel = condState[cgKey]
-          if (sel === undefined || sel === null || sel === NONE_OPTION_ID || (Array.isArray(sel) && sel.length === 0)) {
+          if (
+            sel === undefined ||
+            sel === null ||
+            sel === NONE_OPTION_ID ||
+            (Array.isArray(sel) && sel.length === 0)
+          ) {
             return false
           }
         }
@@ -1146,7 +1166,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
     }
 
     return true
-  }, [comboState, selectedProducts, selectedCondiments])
+  }, [comboState, selectedProducts, selectedCondiments, isMacroFromQuery])
 
   // build payload
   function buildComboCartPayload() {
@@ -1293,13 +1313,32 @@ export default function ComboDetail({ combo: propCombo = null }) {
     for (let i = 0; i < comboGroups.length; i++) {
       const g = comboGroups[i]
       const key = getGroupKey(g, i)
-      if (!g.allowSkip) {
-        const selProd = selectedProducts[key]
-        if (!selProd || String(selProd) === NO_ADDON_CODE) missingGroups.push(g.name || key)
+      const selProd = selectedProducts[key]
+
+      // ✅ OVERRIDE khusus macro dari API:
+      // group dengan >1 produk harus dipilih (walau allowSkip=true)
+      if (isMacroFromQuery) {
+        const productCount = Array.isArray(g.products) ? g.products.length : 0
+        if (productCount > 1) {
+          if (!selProd || String(selProd) === NO_ADDON_CODE) {
+            missingGroups.push(g.name || key)
+          }
+        }
+      } else {
+        // behavior lama
+        if (!g.allowSkip) {
+          if (!selProd || String(selProd) === NO_ADDON_CODE) {
+            missingGroups.push(g.name || key)
+          }
+        }
       }
     }
-    if (missingGroups.length > 0) return { ok: false, msg: `Pilih produk untuk: ${missingGroups.join(', ')}` }
 
+    if (missingGroups.length > 0) {
+      return { ok: false, msg: `Pilih produk untuk: ${missingGroups.join(', ')}` }
+    }
+
+    // bagian missingCond tetap sama (punya kamu sudah benar)
     const missingCond = []
     Object.keys(selectedProducts).forEach(groupKey => {
       const prodCode = selectedProducts[groupKey]

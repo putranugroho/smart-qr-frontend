@@ -334,11 +334,23 @@ export default function ComboDetail({ combo: propCombo = null }) {
             const rawGroupMarker = p.comboGroup ?? p.comboGroupCode ?? null
             let matchedKey = null
             if (rawGroupMarker && comboState && Array.isArray(comboState.comboGroups)) {
-              const found = comboState.comboGroups.find(g => {
-                const k = getGroupKey(g)
-                return String(k) === String(rawGroupMarker)
+              // const found = comboState.comboGroups.find(g => {
+              //   const k = getGroupKey(g)
+              //   return String(k) === String(rawGroupMarker)
+              // })
+              // if (found) matchedKey = getGroupKey(found)
+              comboState.comboGroups.forEach((group, idx) => {
+                const gKey = getGroupKey(group)
+
+                const match = firstComboBlock.products.find(p =>
+                  String(p.comboGroup) === String(group.code) &&
+                  group.products.some(x => String(x.code) === String(p.code))
+                )
+
+                if (match) {
+                  sp[gKey] = match.code
+                }
               })
-              if (found) matchedKey = getGroupKey(found)
             }
             const finalKey = matchedKey || rawGroupMarker || (`group_${p.comboGroup || p.comboGroupCode || 'x'}`)
             if (finalKey && p.code) {
@@ -1478,15 +1490,10 @@ export default function ComboDetail({ combo: propCombo = null }) {
               <div
                 style={{ display: 'flex', justifyContent: 'space-between', cursor: 'pointer' }}
                 onClick={() =>
-                  setOpenGroups(prev => {
-                    const next = {}
-                    Object.keys(prev).forEach(k => {
-                      next[k] = false // 🔥 tutup semua
-                    })
-
-                    next[groupKey] = !prev[groupKey] // buka/tutup target
-                    return next
-                  })
+                  setOpenGroups(prev => ({
+                    ...prev,
+                    [groupKey]: !prev[groupKey]
+                  }))
                 }
               >
                 <div>

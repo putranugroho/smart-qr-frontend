@@ -128,22 +128,29 @@ function normalizeCondimentGroupKey(raw, masterCondimentGroups) {
 function looksLikeRealMasterCombo(c) {
   if (!c || !Array.isArray(c.comboGroups) || c.comboGroups.length === 0) return false
 
+  const hasComboHeader =
+    Boolean(c?.name) && (Boolean(c?.description) || Boolean(c?.imagePath) || Boolean(c?.image))
+
+  // group name yang manusiawi (punya "Pilih ..." dsb)
   const hasHumanGroupName = c.comboGroups.some(g => {
     const nm = String(g?.name || '')
     const cd = String(g?.code || '')
     return nm && (nm.toLowerCase().includes('pilih') || (nm !== cd && nm.includes(' ')))
   })
 
-  const hasRichProducts = c.comboGroups.some(g =>
+  // ✅ cukup ada product >= 1 yang punya field penting
+  const hasAnyProducts = c.comboGroups.some(g =>
     Array.isArray(g.products) &&
-    g.products.length > 1 &&
+    g.products.length >= 1 &&
     g.products.some(p => p?.name && (p?.price != null || p?.maskingprice != null || p?.imagePath))
   )
 
-  const hasComboHeader =
-    Boolean(c?.name) && (Boolean(c?.description) || Boolean(c?.imagePath) || Boolean(c?.image))
+  // ✅ atau meskipun product cuma 1, tapi punya condimentGroups (tetap master)
+  const hasCondimentOptions = c.comboGroups.some(g =>
+    (g.products || []).some(p => Array.isArray(p.condimentGroups) && p.condimentGroups.length > 0)
+  )
 
-  return hasHumanGroupName && hasRichProducts && hasComboHeader
+  return hasComboHeader && hasHumanGroupName && (hasAnyProducts || hasCondimentOptions)
 }
 
 function pickComboCodeFromListItem(x) {
@@ -620,6 +627,11 @@ export default function ComboDetail({ combo: propCombo = null }) {
           try {
             if (master.code) sessionStorage.setItem(`combo_${String(master.code)}`, JSON.stringify(master))
           } catch (e) {}
+
+          dbg('STEP3 will set master', {
+            code: master?.code,
+            groupsLen: master?.comboGroups?.length
+          })
 
           const merged = mergeComboStatesStrict(comboState || {}, master) || master
           setComboState(merged)

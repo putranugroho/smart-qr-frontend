@@ -15,10 +15,19 @@ function formatRp(n) {
   return 'Rp' + new Intl.NumberFormat('id-ID').format(Number(n || 0))
 }
 
-function resolveOrderType({ isEdit, router, editingIndex }) {
+function resolveOrderType({ isEdit, router, editingIndex, entry }) {
   const user = getUser?.() || null
   if (!isEdit) return user?.orderType || 'DI'
 
+  // ✅ SOURCE OF TRUTH: orderType dari cart entry
+  const otFromEntry =
+    entry?.combos?.[0]?.orderType ||
+    entry?.orderType ||
+    entry?.detailCombo?.orderType
+
+  if (otFromEntry) return String(otFromEntry)
+
+  // fallback lama (kalau entry belum ada)
   if (router.query?.orderType) return String(router.query.orderType)
 
   try {
@@ -29,13 +38,7 @@ function resolveOrderType({ isEdit, router, editingIndex }) {
     }
   } catch (e) {}
 
-  try {
-    const cart = getCart() || []
-    const entry = cart[editingIndex]
-    const ot = entry?.orderType || entry?.combos?.[0]?.orderType || entry?.detailCombo?.orderType
-    if (ot) return ot
-  } catch (e) {}
-
+  // last fallback
   return user?.orderType || 'DI'
 }
 
@@ -356,6 +359,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
   const resolvedOrderType = useMemo(() => {
     return resolveOrderType({ isEdit, router, editingIndex })
   }, [isEdit, router.query, editingIndex])
+  const [editOrderType, setEditOrderType] = useState(null)
+  const effectiveOrderType = isEdit ? (editOrderType || 'DI') : (getUser?.()?.orderType || 'DI')
 
   const user = getUser?.() || {}
   const storeCode = user.storeLocation
@@ -454,6 +459,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
           return
         }
 
+        const ot = entry?.combos?.[0]?.orderType || entry?.orderType || entry?.detailCombo?.orderType || null
+        if (ot) setEditOrderType(String(ot))
+
         if (!originalCartEntryRef.current) originalCartEntryRef.current = JSON.parse(JSON.stringify(entry))
 
         // macro context
@@ -491,7 +499,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
           firstComboBlock?.detailCombo?.name ||
           null
 
-        const orderCategoryCode = deriveOrderCategoryCode({ resolvedOrderType, comboCode })
+        const orderCategoryCode = effectiveOrderType
+          ? String(effectiveOrderType)
+          : deriveOrderCategoryCode({ resolvedOrderType, comboCode })
 
         // macro shortcut
         if (entry.isMacro) {
@@ -667,7 +677,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
           return
         }
 
-        const orderCategoryCode = deriveOrderCategoryCode({ resolvedOrderType, comboCode })
+        const orderCategoryCode = effectiveOrderType
+          ? String(effectiveOrderType)
+          : deriveOrderCategoryCode({ resolvedOrderType, comboCode })
 
         const url =
           `/api/proxy/combo-list?orderCategoryCode=${encodeURIComponent(orderCategoryCode)}` +
@@ -756,7 +768,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
             return
           }
 
-          const orderCategoryCode = deriveOrderCategoryCode({ resolvedOrderType, comboCode })
+          const orderCategoryCode = effectiveOrderType
+            ? String(effectiveOrderType)
+            : deriveOrderCategoryCode({ resolvedOrderType, comboCode })
 
           const url =
             `/api/proxy/combo-list?orderCategoryCode=${encodeURIComponent(orderCategoryCode)}` +

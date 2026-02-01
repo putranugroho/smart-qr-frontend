@@ -51,7 +51,7 @@ function deriveOrderCategoryCode({ resolvedOrderType, comboCode }) {
   const parts = head.split('-')
 
   if (parts.length >= 2 && String(parts[0] || '').toUpperCase() === 'KIOSK') {
-    return `${parts[0]}-${parts[1]}` // "KIOSK-DI"
+    return `${parts[1]}` // "DI"
   }
 
   return resolvedOrderType || 'DI'

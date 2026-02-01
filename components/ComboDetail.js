@@ -427,6 +427,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
       if (!fromCheckout || editingIndex == null) return
       if (!storeCode || !resolvedOrderType) return
 
+      console.log('[EDIT] start', { fromCheckout, editingIndex, storeCode, resolvedOrderType })
+
       try {
         setLoadingCombo(true)
 
@@ -521,6 +523,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
           } catch (e) {}
         }
 
+        console.log('[EDIT] using session master?', Boolean(master), { comboCode })
+
         // 2) fetch list then pick master (only accept if REAL)
         if (!master && comboCode) {
           const url =
@@ -552,7 +556,10 @@ export default function ComboDetail({ combo: propCombo = null }) {
             if (master.code) sessionStorage.setItem(`combo_${String(master.code)}`, JSON.stringify(master))
           } catch (e) {}
 
-          const merged = mergeComboStatesStrict(comboState || {}, master) || master
+          const merged = looksLikeRealMasterCombo(master)
+            ? (mergeComboStatesStrict(comboState || {}, master) || master)
+            : master // <-- kalau cuma usable, langsung pakai master apa adanya
+
           setComboState(merged)
 
           const queues = buildCartQueues(firstComboBlock?.products || [], merged.comboGroups || [])

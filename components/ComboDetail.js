@@ -1196,7 +1196,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
     if (macroMax > 0 && qty > macroMax) {
       alert(`Maksimal ${macroMax} item untuk promo ini`)
-      return
+      return false
     }
 
     try {
@@ -1204,18 +1204,14 @@ export default function ComboDetail({ combo: propCombo = null }) {
       if (!v.ok) {
         setMissingAddons(v.msg)
         setShowPopup(true)
-        return
+        return false // <— penting
       }
 
       const payload = buildComboCartPayload()
       if (!payload) {
         console.warn('Payload combo tidak valid.')
-        return
+        return false
       }
-
-      payload.clientInstanceId = originalClientInstanceId
-      if (payload.detailCombo) payload.detailCombo.clientInstanceId = originalClientInstanceId
-      if (Array.isArray(payload.combos)) payload.combos = payload.combos.map(c => ({ ...c, clientInstanceId: originalClientInstanceId }))
 
       try {
         setAddAnimating(true)
@@ -1238,13 +1234,17 @@ export default function ComboDetail({ combo: propCombo = null }) {
           setMissingAddons(null)
           router.push('/menu')
         }, 900)
+
+        return true
       } catch (e) {
         console.error('addToCart combo failed', e)
         alert('Gagal menambahkan ke keranjang')
+        return false
       }
     } catch (e) {
       setMissingAddons(e.message || 'Produk habis')
       setShowPopup(true)
+      return false
     }
   }
 
@@ -1470,13 +1470,19 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
                   {selectedProduct.condimentGroups.map(cg => {
                     const cgKey = cg.code || cg.name || String(cg.id)
-                    const selectedAddonCodes = Object.values(selectedCondiments[groupKey]?.condiments || {})
+
+                    // ✅ selection khusus untuk cg ini saja
+                    const selForThisCg = selectedCondiments[groupKey]?.condiments?.[cgKey]
+                    const isNoneSelected =
+                      Array.isArray(selForThisCg)
+                        ? selForThisCg.includes(NONE_OPTION_ID)
+                        : String(selForThisCg || '') === String(NONE_OPTION_ID)
 
                     return (
                       <div key={cgKey} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
                         {cg.allowSkip && (
                           <div
-                            className={`${styles.card} ${selectedAddonCodes.includes(NONE_OPTION_ID) ? styles.cardSelected : ''}`}
+                            className={`${styles.card} ${isNoneSelected ? styles.cardSelected : ''}`}
                             onClick={() => handleSelectAddon(groupKey, selectedProduct, cgKey, NONE_OPTION_ID)}
                           >
                             <div style={{ width: 64, height: 64, borderRadius: 8, background: '#f3f4f6' }} />
@@ -1485,7 +1491,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                             </div>
                             <div className={styles.cardRight}>
                               <div className={styles.cardPrice}>Rp 0</div>
-                              <input type="radio" checked={selectedAddonCodes.includes(NONE_OPTION_ID)} readOnly />
+                              <input type="radio" checked={isNoneSelected} readOnly />
                             </div>
                           </div>
                         )}

@@ -148,7 +148,7 @@ export default function StickyCartBar({
                 {formatRp(subtotal)}
               </div>
               <div className={styles.addLabel}>
-                {adding ? 'Memasukan Makanan ke keranjang . . .' : addLabel}
+                {adding ? 'Memasukan ke keranjang . . .' : addLabel}
               </div>
             </div>
 

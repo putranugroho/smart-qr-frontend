@@ -126,7 +126,7 @@ export default function StickyCartBar({
               }, 400)
             }}
             aria-label={addLabel}
-            disabled={disabled || !hasItems || addLockRef.current || adding}
+            disabled={disabled || addLockRef.current || adding}
             className={`${styles.addBtn} ${
               hasItems && !disabled ? styles.addBtnActive : styles.addBtnInactive
             } ${addAnimating ? styles.addPulse : ''}`}

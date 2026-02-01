@@ -73,14 +73,14 @@ function mergeComboStates(prev, fetched) {
   const fetchedGroups = Array.isArray(fetched.comboGroups) ? fetched.comboGroups : [];
 
   const mapPrev = {}
-  prevGroups.forEach(g => {
-    const key = (g.code ?? g.name ?? String(g.id))
+  prevGroups.forEach((g, idx) => {
+    const key = `${g.code ?? g.name ?? 'GROUP'}__SLOT__${idx}`
     mapPrev[key] = g
   })
 
   // for each fetched group, merge products with prev group's products (if any)
-  const mergedGroups = fetchedGroups.map(fg => {
-    const key = (fg.code ?? fg.name ?? String(fg.id))
+  const mergedGroups = fetchedGroups.map((fg, idx) => {
+    const key = `${fg.code ?? fg.name ?? 'GROUP'}__SLOT__${idx}`
     const prevG = mapPrev[key]
 
     // start with fetched group's copy
@@ -144,12 +144,16 @@ function mergeComboStates(prev, fetched) {
     }
   })
 
-  console.warn('[MERGE RESULT]', mergedGroup.products.map(p => ({
-    code: p.code,
-    name: p.name,
-    price: p.price,
-    image: p.imagePath || p.image
-  })))
+  console.warn(
+  '[MERGE RESULT]',
+  mergedGroups.flatMap(g =>
+    (g.products || []).map(p => ({
+      code: p.code,
+      name: p.name,
+      price: p.price
+    }))
+  )
+)
 
   out.comboGroups = mergedGroups
   // preserve some helpful fields from prev (if fetched missing them)
@@ -264,6 +268,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
   // Recover / prefill for edit
   useEffect(() => {
+    let sessionDataIncomplete = false
     async function recoverComboForEdit() {
       if (!fromCheckout || editingIndex == null) return
       try {
@@ -316,15 +321,15 @@ export default function ComboDetail({ combo: propCombo = null }) {
             const rawGroupMarker = p.comboGroup ?? p.comboGroupCode ?? null
             let matchedKey = null
             if (rawGroupMarker && comboState && Array.isArray(comboState.comboGroups)) {
-              const found = comboState.comboGroups.find(g => {
-                const k = (g.code ?? g.name ?? String(g.id))
-                return String(k) === String(rawGroupMarker) || String(g.code) === String(rawGroupMarker) || String(g.name) === String(rawGroupMarker)
+              const found = comboState.comboGroups.find((g, gIdx) => {
+                const k = getGroupKey(g, gIdx)
+                return String(k) === String(rawGroupMarker)
               })
               if (found) matchedKey = (found.code ?? found.name ?? String(found.id))
             }
             const finalKey = matchedKey || rawGroupMarker || (`group_${p.comboGroup || p.comboGroupCode || 'x'}`)
             if (finalKey && p.code) {
-              const grp = comboState?.comboGroups?.find(g => getGroupKey(g) === finalKey)
+              const grp = comboState?.comboGroups?.find((g,index) => getGroupKey(g,index) === finalKey)
               const prod = grp?.products?.find(x => String(x.code) === String(p.code))
 
               // 🚫 JANGAN preselect jika sekarang OOS
@@ -573,12 +578,23 @@ export default function ComboDetail({ combo: propCombo = null }) {
   }, [comboState, fromCheckout, editingIndex, q.comboCode])
 
   useEffect(() => {
-    if (!comboState) return
-    if (!comboState.macroCode) return
+    if (!comboState?.macroCode) return
 
-    const maxQty = Number(comboState.maxQuantityCanGet || 0)
-    if (maxQty > 0 && qty > maxQty) {
-      setQty(maxQty)
+    const latestMax = Number(comboState.maxQuantityCanGet || 0)
+
+    // 🔁 update macroContext agar UI & StickyCartBar ikut update
+    setMacroContext(prev => ({
+      ...(prev || {}),
+      isMacro: true,
+      macroCode: comboState.macroCode,
+      macroName: comboState.macroName || comboState.name,
+      maxQuantityCanGet: latestMax,
+      isAllowGetAnother: Boolean(comboState.isAllowGetAnother)
+    }))
+
+    // clamp qty ke max terbaru
+    if (latestMax > 0 && qty > latestMax) {
+      setQty(latestMax)
     }
   }, [comboState?.maxQuantityCanGet])
 
@@ -616,7 +632,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         const sp = {}
         const sc = {}
         if (Array.isArray(firstCombo.products)) {
-          firstCombo.products.forEach(p => {
+          firstCombo.products.forEach((p,index) => {
             // raw group marker from cart entry
             const rawGroupMarker = p.comboGroup ?? p.comboGroupCode ?? null
 
@@ -624,10 +640,10 @@ export default function ComboDetail({ combo: propCombo = null }) {
             let matchedKey = null
             if (rawGroupMarker && comboState && Array.isArray(comboState.comboGroups)) {
               const found = comboState.comboGroups.find(g => {
-                const k = getGroupKey(g)
+                const k = getGroupKey(g,index)
                 return String(k) === String(rawGroupMarker) || String(g.code) === String(rawGroupMarker) || String(g.name) === String(rawGroupMarker)
               })
-              if (found) matchedKey = getGroupKey(found)
+              if (found) matchedKey = getGroupKey(found,index)
             }
             // fallback: if no match, use rawGroupMarker or a synthetic group key
             const finalKey = matchedKey || rawGroupMarker || (`group_${p.comboGroup || p.comboGroupCode || 'x'}`)
@@ -666,8 +682,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
   useEffect(() => {
     if (!comboState?.comboGroups) return
 
-    comboState.comboGroups.forEach(group => {
-      const gKey = getGroupKey(group)
+    comboState.comboGroups.forEach((group, idx) => {
+      const gKey = getGroupKey(group, idx)
       const prodCode = selectedProducts[gKey]
       if (!prodCode) return
 
@@ -708,8 +724,8 @@ export default function ComboDetail({ combo: propCombo = null }) {
     let changed = false
     const nextSelected = { ...selectedProducts }
 
-    comboState.comboGroups.forEach(g => {
-      const groupKey = getGroupKey(g)
+    comboState.comboGroups.forEach((g,index) => {
+      const groupKey = getGroupKey(g,index)
 
       // skip kalau sudah ada pilihan
       if (nextSelected[groupKey]) return
@@ -759,13 +775,16 @@ export default function ComboDetail({ combo: propCombo = null }) {
     )
   }
 
-  function getGroupKey(g) {
-    return g.code ?? g.name ?? String(g.id)
+  function getGroupKey(g, index) {
+    return `${g.code ?? g.name ?? 'GROUP'}__SLOT__${index}`
   }
 
   function findComboGroupByKey(key) {
-    if (!comboState) return null
-    return (comboState.comboGroups || []).find(g => getGroupKey(g) === String(key))
+    if (!comboState?.comboGroups) return null
+
+    return comboState.comboGroups.find((g, idx) =>
+      getGroupKey(g, idx) === key
+    )
   }
 
   function findProductInGroup(group, productCode) {
@@ -840,19 +859,20 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
   function focusNextUnselectedGroup(currentGroupKey) {
     if (!comboState?.comboGroups) return
-
+//help
     const groups = comboState.comboGroups
     const currentIdx = groups.findIndex(
-      g => getGroupKey(g) === currentGroupKey
+      (g, idx) => getGroupKey(g, idx) === currentGroupKey
     )
 
     for (let i = currentIdx + 1; i < groups.length; i++) {
-      const nextKey = getGroupKey(groups[i])
+      const nextKey = getGroupKey(groups[i], i)
 
       if (!selectedProducts[nextKey]) {
-        setOpenGroups({
+        setOpenGroups(prev => ({
+          ...prev,
           [nextKey]: true
-        })
+        }))
         return
       }
     }
@@ -923,8 +943,9 @@ export default function ComboDetail({ combo: propCombo = null }) {
     if (!comboState) return false
     if (!Array.isArray(comboState.comboGroups)) return false
 
-    for (const group of comboState.comboGroups) {
-      const gKey = getGroupKey(group)
+    for (let idx = 0; idx < comboState.comboGroups.length; idx++) {
+      const group = comboState.comboGroups[idx]
+      const gKey = getGroupKey(group, idx)
 
       // 1️⃣ GROUP WAJIB → HARUS PILIH PRODUCT
       if (!group.allowSkip) {
@@ -987,7 +1008,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
       const productPayload = {
         code: prod.code ?? prod.id,
-        comboGroup: grp.code ?? grp.name ?? groupKey,
+        comboGroup: groupKey,
         name: prod.name ?? '',
         itemName: prod.itemName ?? '',
         price: Number(prod.price || 0),
@@ -1090,7 +1111,10 @@ export default function ComboDetail({ combo: propCombo = null }) {
         },
         isFromMacro: true,
         macroCode: comboState.macroCode || null,
-        maxQuantityCanGet: Number(comboState.maxQuantityCanGet || 0),
+        maxQuantityCanGet:
+          Number(comboState?.maxQuantityCanGet) ||
+          Number(macroContext?.maxQuantityCanGet) ||
+          0,
         isAllowGetAnother: Boolean(comboState.isAllowGetAnother),
 
         orderType: resolvedOrderType,
@@ -1145,11 +1169,12 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
     return cartEntry
   }
-
+//help
   function validateSelectionBeforeAdd() {
     const missingGroups = []
-    for (let g of comboGroups) {
-      const key = getGroupKey(g)
+    for (let i = 0; i < comboGroups.length; i++) {
+      const g = comboGroups[i]
+      const key = getGroupKey(g, i)
       if (!g.allowSkip) {
         const selProd = selectedProducts[key]
         if (!selProd || String(selProd) === NO_ADDON_CODE) {
@@ -1168,7 +1193,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
       if (!prod) return
       if (prod?.outOfStock) throw new Error(`Produk ${prod.name} sedang habis`)
       const condGroups = Array.isArray(prod.condimentGroups) ? prod.condimentGroups : []
-      const prodCondMap = selectedCondiments[prod.code] || {}
+      const prodCondMap = selectedCondiments[groupKey]?.condiments || {}
       condGroups.forEach(g => {
         if (!g.allowSkip) {
           const k = g.code || g.name || String(g.id)
@@ -1189,10 +1214,14 @@ export default function ComboDetail({ combo: propCombo = null }) {
     if (finalQty < 1) finalQty = 1
 
     // 🔐 VALIDASI MACRO HARUS DARI CART ASLI SAAT EDIT
-    if (isEdit && originalCartEntryRef.current?.isMacro) {
-      const max = Number(originalCartEntryRef.current.maxQuantityCanGet || 0)
-      if (max > 0) {
-        finalQty = Math.min(finalQty, max)
+    if (isEdit && (comboState?.macroCode || originalCartEntryRef.current?.isMacro)) {
+      const latestMax =
+        Number(comboState?.maxQuantityCanGet) ||
+        Number(originalCartEntryRef.current?.maxQuantityCanGet) ||
+        0
+
+      if (latestMax > 0) {
+        finalQty = Math.min(finalQty, latestMax)
       }
     }
     // 🟢 ADD BARU (non-edit)
@@ -1205,9 +1234,10 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
   function handleAddToCart() {
     const macroMax =
-      isEdit && originalCartEntryRef.current?.isMacro
-        ? Number(originalCartEntryRef.current.maxQuantityCanGet || 0)
-        : Number(comboState?.maxQuantityCanGet || 0)
+      Number(comboState?.maxQuantityCanGet) ||
+      Number(macroContext?.maxQuantityCanGet) ||
+      Number(originalCartEntryRef.current?.maxQuantityCanGet) ||
+      0
 
     if (macroMax > 0 && qty > macroMax) {
       alert(`Maksimal ${macroMax} item untuk promo ini`)
@@ -1384,7 +1414,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
         <div style={{ fontWeight: 700, marginBottom: 12 }}>Pilih Paket</div>
 
         {(comboState.comboGroups || []).map((group, idx) => {
-          const groupKey = getGroupKey(group)
+          const groupKey = getGroupKey(group, idx)
           const selectedProductCode = selectedProducts[groupKey]
           const selectedProduct =
             selectedProductCode && selectedProductCode !== NO_ADDON_CODE

@@ -1760,7 +1760,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
                                 )}
                               </div>
 
-                              <div className={styles.cardRight}>
+                              <div className={`${styles.cardRight} ${styles.cardRightAddon}`}>
                                 <div className={styles.rightTopRow}>
                                   <div className={styles.cardPrice}>
                                     {formatRp(Number(opt.price || 0) * prodQty)}

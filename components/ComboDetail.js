@@ -1682,12 +1682,6 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
                           <div className={styles.cardRight}>
                             <div className={styles.cardPrice}>{formatRp((p.maskingprice ?? p.price ?? 0) * (p.qty ?? 1))}</div>
-                              {/* ✅ note kecil */}
-                              {p.qty > 1 && (
-                                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2, lineHeight: 1.2 }}>
-                                  Harga normal {formatRp(Number(p.maskingprice ?? p.price ?? 0))} × {p.qty} (qty paket)
-                                </div>
-                              )}
                             <input type="radio" checked={checked} readOnly />
                           </div>
                         </div>
@@ -1767,10 +1761,18 @@ export default function ComboDetail({ combo: propCombo = null }) {
                               </div>
 
                               <div className={styles.cardRight}>
-                                <div className={styles.cardPrice}>
-                                  {formatRp(Number(opt.price || 0) * prodQty)}
+                                <div className={styles.rightTopRow}>
+                                  <div className={styles.cardPrice}>
+                                    {formatRp(Number(opt.price || 0) * prodQty)}
+                                  </div>
+                                  <input type="radio" checked={checked} readOnly disabled={isOOS} />
                                 </div>
-                                <input type="radio" checked={checked} readOnly disabled={isOOS} />
+
+                                {prodQty > 1 && (
+                                  <div className={styles.rightNote}>
+                                    Harga normal {formatRp(Number(opt.price || 0))} × {prodQty} (qty paket)
+                                  </div>
+                                )}
                               </div>
                             </div>
                           )

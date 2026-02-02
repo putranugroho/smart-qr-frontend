@@ -85,10 +85,28 @@
 
 .cardRight {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;     /* ✅ jadi 2 baris */
+  align-items: flex-end;      /* kanan */
+  gap: 2px;
   min-width: 110px;
+}
+
+/* baris atas: harga | radio */
+.rightTopRow {
+  display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 12px;
+  width: 100%;
+}
+
+/* note di bawah harga, tetap rata kanan */
+.rightNote {
+  font-size: 11px;
+  color: #6b7280;
+  line-height: 1.2;
+  text-align: right;
+  width: 100%;
 }
 
 .cardPrice {

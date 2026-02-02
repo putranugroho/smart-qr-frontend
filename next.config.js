@@ -15,7 +15,7 @@
     reactStrictMode: true,
 
     images: {
-      unoptimized: true,
+      // unoptimized: true,
       domains: [
         'yoshinoya-store-api.akasia.id',
         'yoshinoya-ho-api.akasia.id',

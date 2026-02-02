@@ -1762,9 +1762,7 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
                               <div className={`${styles.cardRight} ${styles.cardRightAddon}`}>
                                 <div className={styles.rightTopRow}>
-                                  <div className={styles.cardPrice}>
-                                    {formatRp(Number(opt.price || 0) * prodQty)}
-                                  </div>
+                                  <div className={styles.cardPrice}>{formatRp(Number(opt.price || 0) * prodQty)}</div>
                                   <input type="radio" checked={checked} readOnly disabled={isOOS} />
                                 </div>
 

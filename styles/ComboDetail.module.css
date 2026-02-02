@@ -91,9 +91,17 @@
   justify-content: flex-end;
 }
 
-/* keep cardRight existing — jangan diubah */
+/* KHUSUS cardRight di addon: bikin jadi 2 baris */
+.cardRightAddon {
+  display: flex;
+  flex-direction: column;     /* ✅ bikin note turun ke bawah */
+  align-items: flex-end;      /* kanan */
+  gap: 4px;
+  min-width: 0;
+  max-width: 180px;           /* opsional, biar gak kegedean */
+}
 
-/* baris atas: harga + radio tetap sejajar */
+/* Baris atas tetap row: harga | radio */
 .rightTopRow {
   display: flex;
   align-items: center;
@@ -102,25 +110,15 @@
   width: 100%;
 }
 
-/* note selalu turun ke bawah */
+/* Baris bawah: note (wrap sendiri) */
 .rightNote {
   width: 100%;
-  margin-top: 4px;
-  font-size: 11px;
-  line-height: 1.2;
-  color: #6b7280;
-
-  /* ✅ wrap hanya note */
+  text-align: right;
   white-space: normal;
   word-break: break-word;
-
-  /* ✅ align kanan biar rapi */
-  text-align: right;
-}
-
-.cardRightAddon {
-  min-width: 0;          /* boleh mengecil */
-  max-width: 180px;      /* batas biar gak melebar */
+  line-height: 1.2;
+  font-size: 11px;
+  color: #6b7280;
 }
 
 .cardPrice {

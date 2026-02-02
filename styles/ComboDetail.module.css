@@ -98,7 +98,7 @@
   align-items: flex-end;      /* kanan */
   gap: 4px;
   min-width: 0;
-  max-width: 180px;           /* opsional, biar gak kegedean */
+  max-width: 115px;           /* opsional, biar gak kegedean */
 }
 
 /* Baris atas tetap row: harga | radio */

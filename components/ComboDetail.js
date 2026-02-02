@@ -1682,6 +1682,12 @@ export default function ComboDetail({ combo: propCombo = null }) {
 
                           <div className={styles.cardRight}>
                             <div className={styles.cardPrice}>{formatRp((p.maskingprice ?? p.price ?? 0) * (p.qty ?? 1))}</div>
+                              {/* ✅ note kecil */}
+                              {prodQty > 1 && (
+                                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2, lineHeight: 1.2 }}>
+                                  Harga normal {formatRp(Number(opt.price || 0))} × {prodQty} (qty paket)
+                                </div>
+                              )}
                             <input type="radio" checked={checked} readOnly />
                           </div>
                         </div>

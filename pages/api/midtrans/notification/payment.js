@@ -89,7 +89,7 @@ export default async function handler(req, res) {
 
             const result = await resp.json().catch(() => null);
  
-            console.log("➡️ do-payment-trans-id result: " + JSON.stringify(resp));
+            console.log("do-payment-trans-id result: " + JSON.stringify(result));
 
             if (resp.ok) {
                 return res.status(200).json({
@@ -100,13 +100,18 @@ export default async function handler(req, res) {
                 });
             } else {
                 console.log("❌ Backend failed: " + JSON.stringify(result));
-                return res.status(200).json({ ok: false, message: "Failed to complete do-payment", error: JSON.stringify(resp) });
+                return res.status(200).json({ ok: false, message: "Failed to complete do-payment", error: JSON.stringify(result) });
             }
+        } else if (transaction_status.toLowerCase() === "pending") {
+            console.log("Payment pending status received");
+            return res.status(200).json({ ok: false, message: "Payment pending status received" });
+        } else if (transaction_status.toLowerCase() === "expire") {
+            console.log("Payment expired status received");
+            return res.status(200).json({ ok: false, message: "Paid status was not completed"});
         }
         
-        return res.status(200).json({ ok: false, message: "Paid status was not completed"});
     } catch (err) {
         console.log("ERROR HANDLING MIDTRANS NOTIF: " + err);
-        return res.status(200).json({ ok: false, message: "Internal server error", error: String(err) });
+        return res.status(200).json({ ok: false, message: "Error Handling Midtrans Notif. Internal server error", error: String(err) });
     }
 }

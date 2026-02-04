@@ -9,7 +9,7 @@ export default async function handler(req, res) {
     try {
         const body = req.body || {};
 
-        console.log("🔔 MIDTRANS NOTIFICATION RECEIVED");
+        console.log("MIDTRANS NOTIFICATION RECEIVED");
         console.log(JSON.stringify(body, null, 2));
 
         const {
@@ -39,7 +39,7 @@ export default async function handler(req, res) {
         .digest("hex");
 
         if (expectedSignature !== signature_key) {
-        console.log("❌ INVALID MIDTRANS SIGNATURE");
+        console.log("INVALID MIDTRANS SIGNATURE");
         console.log("Expected:", expectedSignature);
         console.log("Received:", signature_key);
 
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
         });
         }
 
-        console.log("✅ Midtrans signature verified");
+        console.log("Midtrans signature verified");
 
         // ==============================
         // 2. LANJUTKAN PROSES PEMBAYARAN
@@ -69,12 +69,12 @@ export default async function handler(req, res) {
         else if (payment_type.includes("credit_card")) PaymentCode = "CC";
         else PaymentCode = payment_type.toUpperCase();
 
-        console.log(`💳 PaymentCode: ${PaymentCode}`);
+        console.log(`PaymentCode: ${PaymentCode}`);
 
         const paidStatuses = ["capture", "settlement", "success"];
 
         if (paidStatuses.includes(transaction_status.toLowerCase())) {
-            console.log("💰 Payment completed, calling do-payment-trans-id...");
+            console.log("Payment completed, calling do-payment-trans-id...");
             const payload = {
                 orderCode: String(order_id),
                 payment: String(PaymentCode),
@@ -99,7 +99,7 @@ export default async function handler(req, res) {
                     transactionId: transaction_id,
                 });
             } else {
-                console.log("❌ Backend failed: " + JSON.stringify(result));
+                console.log("Backend failed: " + JSON.stringify(result));
                 return res.status(200).json({ ok: false, message: "Failed to complete do-payment", error: JSON.stringify(result) });
             }
         } else if (transaction_status.toLowerCase() === "pending") {

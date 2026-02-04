@@ -3,7 +3,7 @@ import crypto from "crypto";
 export default async function handler(req, res) {
     if (req.method !== "POST") {
         console.log("Method not allowed: " + req.method);
-        return res.status(500).json({ ok: false, message: "Method not allowed" });
+        return res.status(200).json({ ok: false, message: "Method not allowed" });
     }   
 
     try {
@@ -43,7 +43,7 @@ export default async function handler(req, res) {
         console.log("Expected:", expectedSignature);
         console.log("Received:", signature_key);
 
-        return res.status(500).json({
+        return res.status(200).json({
             ok: false,
             message: "Invalid signature key"
         });
@@ -57,7 +57,7 @@ export default async function handler(req, res) {
 
         if (!order_id || !transaction_status) {
             console.log("Invalid Midtrans payload");
-            return res.status(500).json({ ok: false, message: "Invalid Midtrans payload" });
+            return res.status(200).json({ ok: false, message: "Invalid Midtrans payload" });
         }
 
         let PaymentCode = "OTHERS";
@@ -100,13 +100,13 @@ export default async function handler(req, res) {
                 });
             } else {
                 console.log("❌ Backend failed: " + JSON.stringify(result));
-                return res.status(500).json({ ok: false, message: "Failed to complete do-payment", error: JSON.stringify(resp) });
+                return res.status(200).json({ ok: false, message: "Failed to complete do-payment", error: JSON.stringify(resp) });
             }
         }
         
-        return res.status(500).json({ ok: false, message: "Paid status was not completed"});
+        return res.status(200).json({ ok: false, message: "Paid status was not completed"});
     } catch (err) {
         console.log("ERROR HANDLING MIDTRANS NOTIF: " + err);
-        return res.status(500).json({ ok: false, message: "Internal server error", error: String(err) });
+        return res.status(200).json({ ok: false, message: "Internal server error", error: String(err) });
     }
 }

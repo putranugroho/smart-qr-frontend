@@ -71,7 +71,7 @@ export default function OrderPage() {
         sessionStorage.removeItem("yoshi_cart_v1");
         localStorage.removeItem("yoshi_cart_v1");
 
-        // router.replace("/");
+        router.replace("/");
       } catch (err) {
         console.error("Order page error:", err);
         setStatus({

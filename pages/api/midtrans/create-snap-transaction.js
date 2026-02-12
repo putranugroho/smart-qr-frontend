@@ -48,6 +48,9 @@ export default async function handler(req, res) {
         }
       : undefined,
     metadata,
+    callbacks: {
+      finish: 'https://order.yoshinoya.co.id/paymentstatus',
+    },
   };
 
   try {

@@ -508,17 +508,6 @@ export default function OrderStatus() {
     setShowAllItems(prev => !prev)
   }
 
-  // helper: parse order_id from paymentLink (try decode percent-encoding)
-  function parseOrderIdFromPaymentLink(link) {
-    if (!link) return null
-    try {
-      const decoded = decodeURIComponent(link)
-      const m = decoded.match(/[?&]order_id=([^&]+)/i) || decoded.match(/[?&]orderId=([^&]+)/i) || decoded.match(/order_id%3D([^&]+)/i)
-      if (m && m[1]) return decodeURIComponent(m[1])
-    } catch (e) { /* ignore */ }
-    return null
-  }
-
   // Improved fetch with timeout and logs. This is the place we use to call backend "check-status".
   async function fetchRemoteOrder(orderCodeToFetch) {
     if (!orderCodeToFetch) return null
@@ -609,49 +598,25 @@ export default function OrderStatus() {
         if (statusNum === -1) {
           setCurrentStep(4)
 
-          const paymentLinkFromApi = (apiResp.data.PaymentLink ?? apiResp.data.paymentLink ?? apiResp.data.PaymentUrl ?? '') || ''
+          const paymentLinkFromApi =
+            (realData?.PaymentLink ??
+             realData?.paymentLink ??
+             realData?.PaymentUrl ??
+             realData?.paymentUrl ??
+             '') || ''
 
-          if (orderCodeToPoll) {
-            try {
-              const stResp = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(orderCodeToPoll)}`, {
-                cache: "no-store"
-              })
-              if (stResp.ok) {
-                const stj = await stResp.json()
-                const txStatus = (stj.transaction_status || stj.status || '')
-                  .toString()
-                  .trim()
-                  .toLowerCase();
-                console.log("TX STATUS:", { stj, txStatus })
-           
-                if (!['capture', 'settlement', 'success'].includes(txStatus)) {
-                  const popupKey = `payment_redirect_shown:${orderCodeToPoll}`
-                  const already = sessionStorage.getItem(popupKey)
-                  if (!already && !popupShownRef.current) {
-                    popupShownRef.current = true
-                    try { sessionStorage.setItem(popupKey, '1') } catch (e) { }
-                    setPaymentRedirectUrl(paymentLinkFromApi || sessionStorage.getItem('payment_link_for_order') || '')
-                    setShowPaymentRedirectModal(true)
-                  }
-                } else {
-                  setCurrentStep(2)
-                  setPaymentAccepted(true)
-                }
-              }
-            } catch (e) {
-              console.warn('midtrans status check failed inside order polling', e)
-            }
-          } else {
-            const paymentLinkExists = paymentLinkFromApi || sessionStorage.getItem('payment_link_for_order') || ''
-            if (paymentLinkExists) {
-              const popupKey = `payment_redirect_shown:${orderCodeToPoll}`
-              const already = sessionStorage.getItem(popupKey)
-              if (!already && !popupShownRef.current) {
-                popupShownRef.current = true
-                try { sessionStorage.setItem(popupKey, '1') } catch (e) { }
-                setPaymentRedirectUrl(paymentLinkExists)
-                setShowPaymentRedirectModal(true)
-              }
+          // ✅ DB-only: jika status masih pending, tampilkan popup redirect pembayaran (1x)
+          const paymentLinkExists =
+          paymentLinkFromApi || sessionStorage.getItem('payment_link_for_order') || ''
+                    
+          if (paymentLinkExists) {
+            const popupKey = `payment_redirect_shown:${orderCodeToPoll}`
+            const already = sessionStorage.getItem(popupKey)
+            if (!already && !popupShownRef.current) {
+              popupShownRef.current = true
+              try { sessionStorage.setItem(popupKey, '1') } catch (e) { }
+              setPaymentRedirectUrl(paymentLinkExists)
+              setShowPaymentRedirectModal(true)
             }
           }
         } else if (statusNum === 0) {

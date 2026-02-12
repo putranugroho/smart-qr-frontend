@@ -26,7 +26,6 @@ export default function PaymentStatus() {
   const [qrDataUri, setQrDataUri] = useState(null)
   const [qrLoading, setQrLoading] = useState(false)
   const [qrError, setQrError] = useState(null)
-  const pollRef = useRef(null)
 
   const [paymentSuccess, setPaymentSuccess] = useState(false)
   const leaveResolveRef = useRef(null)
@@ -105,7 +104,7 @@ export default function PaymentStatus() {
       }
 
       if (typeof uriOrUrl === 'string' && /^[A-Za-z0-9+/=]+\s*$/.test(uriOrUrl) && uriOrUrl.length > 100) {
-        const dataUri = `data:image/pngbase64,${uriOrUrl}`
+        const dataUri = `data:image/png;base64,${uriOrUrl}`
         const a = document.createElement('a')
         a.href = dataUri
         a.download = filename
@@ -132,54 +131,6 @@ export default function PaymentStatus() {
       return false
     }
   }
-
-  const isSnapPayment = (tx) => tx?.type === 'snap'
-
-  const isCoreQRIS = (payload) => {
-    return payload?.payment === 'QRISOTHERS';
-  };
-
-  const isCoreDeeplink = (payload) => {
-    return ['GOPAY', 'SHOPEEPAY'].includes(payload?.payment);
-  };
-
-  useEffect(() => {
-    async function check() {
-      const orderId = tx?.order_id
-      if (!orderId) return
-
-      try {
-        const r = await fetch(`/api/midtrans/status?orderId=${encodeURIComponent(orderId)}`)
-        const j = await r.json()
-        const txStatus = (j?.transaction_status || j?.status || '').toLowerCase()
-
-        if (['capture', 'settlement', 'success'].includes(txStatus)) {
-          if (pollRef.current) {
-            clearInterval(pollRef.current)
-            pollRef.current = null
-          }
-          setPaymentSuccess(true)
-          setTimeout(() => {
-            router.push(`/order/${orderCode || orderId}`)
-          }, 600)
-        }
-      } catch (err) {
-        console.warn('status check failed', err)
-      }
-    }
-
-    if (tx || orderMeta) {
-      check()
-      pollRef.current = setInterval(check, 5000)
-    }
-
-    return () => {
-      if (pollRef.current) {
-        clearInterval(pollRef.current)
-        pollRef.current = null
-      }
-    }
-  }, [tx, orderMeta, orderCode, router])
 
   /* ===================== PATCH START =======================
     Backend order-status polling (after e-wallet / QR return)

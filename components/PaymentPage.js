@@ -517,7 +517,7 @@ export default function PaymentPage() {
 
       // beri waktu 1 tick browser
       setTimeout(() => {
-        // router.push('/paymentstatus');
+        router.push('/paymentstatus');
       }, 0);
 
     } catch (err) {

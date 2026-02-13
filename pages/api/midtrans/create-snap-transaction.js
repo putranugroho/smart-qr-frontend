@@ -48,9 +48,6 @@ export default async function handler(req, res) {
         }
       : undefined,
     metadata,
-    callbacks: {
-      finish: 'https://order.yoshinoya.co.id/paymentstatus',
-    },
   };
 
   const URLCallback = process.env.MIDTRANS_CALLBACK_URL
@@ -58,6 +55,8 @@ export default async function handler(req, res) {
     enable_callback: true,
     callback_url: `${URLCallback}/?orderCode=${orderId}`
   };
+
+  console.log("parameter midtrans", parameter);
 
   try {
     const transaction = await snap.createTransaction(parameter);

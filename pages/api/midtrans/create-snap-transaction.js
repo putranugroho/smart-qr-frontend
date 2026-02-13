@@ -53,6 +53,12 @@ export default async function handler(req, res) {
     },
   };
 
+  const URLCallback = process.env.MIDTRANS_CALLBACK_URL
+  parameter.dana = {
+    enable_callback: true,
+    callback_url: `${URLCallback}/?orderCode=${orderId}`
+  };
+
   try {
     const transaction = await snap.createTransaction(parameter);
 

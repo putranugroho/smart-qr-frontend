@@ -17,6 +17,11 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const reqUrl = new URL(request.url);
 
+  // Let Midtrans requests pass through without SW interception
+  if (reqUrl.hostname.endsWith('midtrans.com')) {
+    return;
+  }
+
   // Cache-first strategy for the Tailwind CDN script
   if (request.url === TAILWIND_CDN || request.url.startsWith(TAILWIND_CDN + '/')) {
     event.respondWith(
@@ -37,10 +42,10 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(request)
       .then(networkResp => {
-        // Optionally cache static assets (images, scripts) on the fly
-        // but keep cache size limited in production
         return networkResp;
       })
-      .catch(() => caches.match(request))
+      .catch(() =>
+        caches.match(request).then(cached => cached || new Response('Offline', { status: 503 }))
+      )
   );
 });

@@ -6,6 +6,86 @@ import { getPayment } from '../lib/cart'
 import Image from 'next/image'
 import QRCode from 'qrcode'
 
+const MIDTRANS_SNAP_SCRIPT_ID = 'midtrans-snap-script'
+
+function getSnapJsUrl(isProduction) {
+  return isProduction
+    ? 'https://app.midtrans.com/snap/snap.js'
+    : 'https://app.sandbox.midtrans.com/snap/snap.js'
+}
+
+async function fetchSnapConfig() {
+  const resp = await fetch('/api/midtrans/snap-config')
+  const json = await resp.json().catch(() => ({}))
+
+  if (!resp.ok) {
+    throw new Error(json?.error || 'Gagal mengambil konfigurasi SNAP')
+  }
+
+  if (!json?.clientKey) {
+    throw new Error('Client key SNAP tidak tersedia')
+  }
+
+  return {
+    clientKey: String(json.clientKey),
+    isProduction: Boolean(json.isProduction)
+  }
+}
+
+function ensureSnapJsLoaded({ clientKey, isProduction }) {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined') {
+      reject(new Error('Window tidak tersedia'))
+      return
+    }
+
+    if (window.snap && typeof window.snap.pay === 'function') {
+      resolve()
+      return
+    }
+
+    const src = getSnapJsUrl(isProduction)
+    const existing = document.getElementById(MIDTRANS_SNAP_SCRIPT_ID)
+
+    if (existing) {
+      const existingSrc = existing.getAttribute('src')
+
+      if (existingSrc === src) {
+        if (existing.getAttribute('data-loaded') === 'true') {
+          if (window.snap && typeof window.snap.pay === 'function') {
+            resolve()
+          } else {
+            reject(new Error('SNAP script sudah dimuat tetapi window.snap tidak tersedia'))
+          }
+          return
+        }
+
+        existing.addEventListener('load', () => resolve(), { once: true })
+        existing.addEventListener('error', () => reject(new Error('Gagal memuat SNAP script')), { once: true })
+        return
+      }
+
+      existing.remove()
+    }
+
+    const script = document.createElement('script')
+    script.id = MIDTRANS_SNAP_SCRIPT_ID
+    script.src = src
+    script.async = true
+    script.setAttribute('data-client-key', clientKey)
+    script.onload = () => {
+      script.setAttribute('data-loaded', 'true')
+      resolve()
+    }
+    script.onerror = () => {
+      script.setAttribute('data-loaded', 'error')
+      reject(new Error('Gagal memuat SNAP script'))
+    }
+
+    document.body.appendChild(script)
+  })
+}
+
 function formatRp(n) {
   return 'Rp' + new Intl.NumberFormat('id-ID').format(Number(n || 0))
 }
@@ -26,6 +106,9 @@ export default function PaymentStatus() {
   const [qrDataUri, setQrDataUri] = useState(null)
   const [qrLoading, setQrLoading] = useState(false)
   const [qrError, setQrError] = useState(null)
+  const [snapLoading, setSnapLoading] = useState(false)
+  const [snapReady, setSnapReady] = useState(false)
+  const [snapError, setSnapError] = useState(null)
 
   const [paymentSuccess, setPaymentSuccess] = useState(false)
   const leaveResolveRef = useRef(null)
@@ -319,31 +402,94 @@ export default function PaymentStatus() {
 
   useEffect(() => {
     if (!tx) return
-    if (tx.type !== 'snap') return
+    if (tx.type !== 'snap') {
+      setSnapLoading(false)
+      setSnapReady(false)
+      setSnapError(null)
+      return
+    }
 
+    if (!tx.snap_token) {
+      setSnapReady(false)
+      setSnapError('Token SNAP tidak tersedia')
+      return
+    }
+
+    let cancelled = false
+
+    async function prepareSnapPopup() {
+      try {
+        setSnapLoading(true)
+        setSnapError(null)
+
+        const snapConfig = await fetchSnapConfig()
+        await ensureSnapJsLoaded(snapConfig)
+
+        if (cancelled) return
+        setSnapReady(true)
+      } catch (err) {
+        if (cancelled) return
+        setSnapReady(false)
+        setSnapError(err?.message || 'Gagal menyiapkan popup SNAP')
+        console.warn('[paymentstatus] failed to prepare SNAP popup', err)
+      } finally {
+        if (!cancelled) setSnapLoading(false)
+      }
+    }
+
+    prepareSnapPopup()
+
+    return () => {
+      cancelled = true
+    }
+  }, [tx])
+
+  function openSnapPopup() {
+    if (!tx || tx.type !== 'snap') return
+
+    const snapToken = tx.snap_token
     const snapUrl = tx.snap_redirect_url
-    if (!snapUrl) return
 
-    const orderId = tx.order_id || tx.orderId
-    if (!orderId) return
+    if (!snapToken) {
+      alert('Token SNAP tidak tersedia. Silakan ulangi pembayaran.')
+      return
+    }
 
-    const flagKey = `midtrans_snap_redirected:${orderId}`
-    if (sessionStorage.getItem(flagKey)) return
-
-    try {
-      sessionStorage.setItem(flagKey, 'true')
-    } catch (e) {}
-
-    console.warn('[paymentstatus] auto SNAP redirect →', snapUrl)
+    if (!window.snap || typeof window.snap.pay !== 'function') {
+      if (snapUrl) {
+        const ok = window.confirm('Popup SNAP belum siap. Buka halaman pembayaran sebagai cadangan?')
+        if (ok) {
+          window.location.href = snapUrl
+        }
+      } else {
+        alert('Popup SNAP belum siap. Coba lagi beberapa saat.')
+      }
+      return
+    }
 
     setRedirecting(true)
 
-    const t = setTimeout(() => {
-      window.location.href = snapUrl
-    }, 300)
-
-    return () => clearTimeout(t)
-  }, [tx])
+    window.snap.pay(snapToken, {
+      onSuccess: (result) => {
+        try { sessionStorage.setItem('midtrans_snap_result', JSON.stringify(result)) } catch (e) {}
+        setRedirecting(false)
+        checkBackendOrderStatus()
+      },
+      onPending: (result) => {
+        try { sessionStorage.setItem('midtrans_snap_result', JSON.stringify(result)) } catch (e) {}
+        setRedirecting(false)
+      },
+      onError: (result) => {
+        try { sessionStorage.setItem('midtrans_snap_result', JSON.stringify(result)) } catch (e) {}
+        setRedirecting(false)
+        console.warn('[paymentstatus] SNAP popup error', result)
+        alert('Terjadi kesalahan saat membuka popup pembayaran.')
+      },
+      onClose: () => {
+        setRedirecting(false)
+      }
+    })
+  }
 
   const minutes = String(Math.floor(timeLeft / 60)).padStart(2, '0')
   const seconds = String(timeLeft % 60).padStart(2, '0')
@@ -499,28 +645,44 @@ export default function PaymentStatus() {
 
     if (tx.type === 'snap') {
       const snapUrl = tx.snap_redirect_url
+      const snapToken = tx.snap_token
+      const canOpenSnap = Boolean(snapToken && snapReady && !snapLoading)
 
       return (
         <div style={{ textAlign: 'center' }}>
           <div style={{ marginBottom: 12 }}>
             Silakan selesaikan pembayaran melalui{' '}
-            <strong>{tx.method.toUpperCase()}</strong>
+            <strong>{String(tx.method || 'SNAP').toUpperCase()}</strong>
           </div>
 
-          {snapUrl ? (
+          {snapToken ? (
             <button
               className={styles.checkBtn}
-              onClick={() => window.location.href = snapUrl}
+              onClick={openSnapPopup}
+              disabled={!canOpenSnap || redirecting}
+              style={(!canOpenSnap || redirecting) ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
             >
-              {redirecting ? 'Mengarahkan...' : 'Lanjutkan Pembayaran'}
+              {redirecting ? 'Membuka Popup...' : (snapLoading ? 'Menyiapkan Popup...' : 'Lanjutkan Pembayaran')}
             </button>
           ) : (
-            <div>Tautan pembayaran SNAP tidak tersedia.</div>
+            <div>Token pembayaran SNAP tidak tersedia.</div>
           )}
 
-          <div style={{ marginTop: 12, fontSize: 12, color: '#666' }}>
-            Jika tidak otomatis terbuka, tekan tombol di atas
-          </div>
+          {!!snapError && (
+            <div style={{ marginTop: 10, fontSize: 12, color: '#d14343' }}>
+              {snapError}
+            </div>
+          )}
+
+          {!snapLoading && !snapReady && snapUrl && (
+            <button
+              className={styles.btnSecondary}
+              style={{ marginTop: 10 }}
+              onClick={() => window.location.href = snapUrl}
+            >
+              Buka Halaman Midtrans (Cadangan)
+            </button>
+          )}
         </div>
       )
     }

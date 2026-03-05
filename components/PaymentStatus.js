@@ -112,6 +112,7 @@ export default function PaymentStatus() {
 
   const [paymentSuccess, setPaymentSuccess] = useState(false)
   const leaveResolveRef = useRef(null)
+  const snapAutoOpenedRef = useRef(false)
 
   useEffect(() => {
     const s = sessionStorage.getItem('midtrans_tx')
@@ -444,6 +445,17 @@ export default function PaymentStatus() {
     }
   }, [tx])
 
+  // Auto-open SNAP popup on first load (once snapReady becomes true)
+  useEffect(() => {
+    if (!snapReady || snapAutoOpenedRef.current) return
+    if (!tx || tx.type !== 'snap' || !tx.snap_token) return
+
+    snapAutoOpenedRef.current = true
+    // Small delay to ensure DOM is ready
+    const t = setTimeout(() => openSnapPopup(), 300)
+    return () => clearTimeout(t)
+  }, [snapReady, tx])
+
   function openSnapPopup() {
     if (!tx || tx.type !== 'snap') return
 
@@ -487,6 +499,7 @@ export default function PaymentStatus() {
       },
       onClose: () => {
         setRedirecting(false)
+        snapAutoOpenedRef.current = true // prevent re-open on back
       }
     })
   }
